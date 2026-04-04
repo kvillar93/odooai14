@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="llm_tool_scheduled_task_creator" model="llm.tool">
+        <field name="name">llm_scheduled_task_creator</field>
+        <field name="implementation">llm_scheduled_task_creator</field>
+        <field name="title">Crear tarea programada LLM</field>
+        <field name="read_only_hint" eval="False"/>
+        <field name="destructive_hint" eval="True"/>
+        <field name="idempotent_hint" eval="False"/>
+        <field name="open_world_hint" eval="False"/>
+        <field name="requires_user_consent" eval="False"/>
+        <field name="description"><![CDATA[
+**llm_scheduled_task_creator** — crea una **tarea programada** que ejecuta un prompt LLM de forma recurrente (cada X minutos, horas, días, semanas o meses), igual que un chat normal (herramientas incluidas).
+
+## Cuándo usarla
+- El usuario pide automatizar algo periódico: informes por correo, revisiones de registros, recordatorios, etc.
+- Debes **configurar el intervalo** según lo que pida (ej.: «cada semana» → `interval_type`: `weeks`, `interval_number`: `1`).
+
+## Envío de correos en la tarea
+Si la tarea debe **enviar correos reales**, incluye en el `task_prompt` (y en las herramientas del asistente) la herramienta **`llm_mail_sender`**, para que en cada ejecución el envío sea efectivo y no solo texto en el chat. Por igual, si se incluye un envio de correo asegurar de indicar al final del prompt "Enviar correo sin confirmacion adicional" o algo que siempre asegure que se envie al terminar la linea de pensamiento.
+
+## Parámetros
+| Parámetro | Obligatorio | Descripción |
+|-----------|-------------|-------------|
+| `name` | Sí | Nombre corto de la tarea. |
+| `task_prompt` | Sí | Instrucción completa que se ejecutará en cada ciclo (mismo estilo que un mensaje de usuario al chat). |
+| `interval_number` | No (defecto `1`) | Cada cuántas unidades (ej. `2` con `days` = cada 2 días). |
+| `interval_type` | No (defecto `days`) | `minutes`, `hours`, `days`, `weeks`, `months`. |
+| `next_run_iso` | No | Primera ejecución en ISO 8601 (ej. `2026-04-05T08:00:00`). Si se omite, se usa la fecha/hora actual. |
+| `inherit_llm_config_from_chat` | No (defecto `True`) | Copia asistente, proveedor, modelo y herramientas **del chat donde se llama la herramienta**. Recomendado. |
+| `assistant_id` | No | ID de `llm.assistant` si no se puede heredar del chat. |
+| `notes` | No | Notas internas en el formulario de la tarea. |
+
+## Permisos
+El usuario debe pertenecer al grupo **«LLM Tareas: Usuario»** (o superior) para poder crear registros.
+
+## Tras crear
+Indica al usuario que puede revisar la tarea en **LLM → Tareas Programadas** y el historial en la pestaña **Ejecuciones**.
+        ]]></field>
+    </record>
+</odoo>

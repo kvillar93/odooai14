@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_llm_module_knowledge_snapshot_form" model="ir.ui.view">
+        <field name="name">llm.module.knowledge.snapshot.form</field>
+        <field name="model">llm.module.knowledge.snapshot</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button
+                        name="action_refresh_snapshot"
+                        type="object"
+                        string="Regenerar ahora"
+                        class="btn-primary"
+                    />
+                </header>
+                <sheet>
+                    <group>
+                        <field name="name" />
+                        <field name="last_sync" />
+                        <field name="active" />
+                    </group>
+                    <group string="Integración con chat LLM">
+                        <field name="prepend_to_chat" />
+                        <field name="prepend_max_chars" />
+                    </group>
+                    <field name="content" widget="text" nolabel="1" />
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_llm_module_knowledge_snapshot" model="ir.actions.act_window">
+        <field name="name">Conocimiento de módulos</field>
+        <field name="res_model">llm.module.knowledge.snapshot</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+    </record>
+    <menuitem
+        id="menu_llm_module_knowledge"
+        name="Conocimiento módulos"
+        parent="llm.menu_llm_config"
+        action="action_llm_module_knowledge_snapshot"
+        sequence="60"
+    />
+</odoo>

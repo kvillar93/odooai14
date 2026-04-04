@@ -1,0 +1,620 @@
+// =============================================================================
+// Chat IA estilo ChatGPT — tokens que respetan claro/oscuro de Odoo (Bootstrap)
+// =============================================================================
+
+.o_LLMChatContainer,
+.o_LLMChat.o_LLMChat--modern {
+  --llm-radius-lg: 1.25rem;
+  --llm-radius-md: 0.75rem;
+  --llm-radius-sm: 0.5rem;
+  --llm-shadow-soft: 0 4px 24px rgba($black, 0.06);
+  --llm-shadow-message: 0 1px 2px rgba($black, 0.04);
+  --llm-chat-max: 52rem;
+
+  // Superficies: derivadas del tema Odoo
+  --llm-surface: #{$o-view-background-color};
+  --llm-surface-elevated: #{mix($o-view-background-color, $white, 88%)};
+  --llm-surface-bubble-user: #{rgba($o-brand-primary, 0.12)};
+  --llm-surface-bubble-assistant: #{mix($o-view-background-color, $gray-100, 70%)};
+  --llm-border-subtle: #{rgba($border-color, 0.55)};
+  --llm-text: #{$o-main-text-color};
+  --llm-text-muted: #{$o-main-color-muted};
+  --llm-accent: #{$o-brand-primary};
+  --llm-composer-bg: #{mix($o-view-background-color, $white, 92%)};
+}
+
+.o_LLMChatContainer {
+  background: var(--llm-surface);
+  color: var(--llm-text);
+}
+
+// Los colores SCSS ($o-view-background-color, etc.) ya reflejan el tema activo de Odoo.
+
+// -----------------------------------------------------------------------------
+// Layout principal
+// -----------------------------------------------------------------------------
+.o_LLMChat.o_LLMChat--modern {
+  min-height: 100%;
+  color: var(--llm-text);
+  background: linear-gradient(
+    180deg,
+    var(--llm-surface) 0%,
+    var(--llm-surface-elevated) 100%
+  );
+}
+
+.o_LLMChat_content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+// -----------------------------------------------------------------------------
+// Barra lateral
+// -----------------------------------------------------------------------------
+.o_LLMChatSidebar.o_LLMChatSidebar--modern {
+  background: var(--llm-surface-elevated) !important;
+  border-color: var(--llm-border-subtle) !important;
+  box-shadow: var(--llm-shadow-soft);
+  overflow-x: hidden;
+
+  h6 {
+    color: var(--llm-text-muted);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .btn-primary.rounded {
+    border-radius: var(--llm-radius-md) !important;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba($o-brand-primary, 0.25);
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba($o-brand-primary, 0.35);
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Cabecera de hilo
+// -----------------------------------------------------------------------------
+.o_LLMChatThread_header_modern.o_ThreadViewTopbar {
+  background: var(--llm-surface-elevated) !important;
+  border-color: var(--llm-border-subtle) !important;
+  backdrop-filter: blur(8px);
+  height: 52px !important;
+
+  .btn-light {
+    background: var(--llm-composer-bg) !important;
+    border: 1px solid var(--llm-border-subtle) !important;
+    border-radius: var(--llm-radius-sm);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Área de mensajes
+// -----------------------------------------------------------------------------
+.o_LLMChatThread.o_LLMChatThread--modern {
+  .o_LLMChatThread_content {
+    padding: 0.5rem 0.75rem 1rem;
+    max-width: 100%;
+    background: transparent;
+    scroll-behavior: smooth;
+  }
+
+  .o_LLMChatThread_composer {
+    background: var(--llm-surface-elevated);
+    border-top: 1px solid var(--llm-border-subtle);
+    padding: 0.75rem 1rem 1.25rem !important;
+    box-shadow: 0 -8px 32px rgba($black, 0.04);
+  }
+}
+
+// Lista de mensajes: ancho tipo ChatGPT
+.o_LLMChatThread--modern .o_MessageList {
+  // max-width: var(--llm-chat-max);
+  margin: 0 auto;
+  width: 100%;
+  background: transparent !important;
+}
+
+// Burbujas y mensajes
+.o_LLMChat--modern {
+  .o_Message {
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
+    animation: llm-msg-in 0.35s ease both;
+  }
+
+  .o_Message_bubble {
+    border-radius: var(--llm-radius-lg) !important;
+    /* Sin borde: evita recortes de texto y aspecto más limpio tipo ChatGPT */
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible;
+  }
+
+  .o_Message_background {
+    border-radius: var(--llm-radius-lg) !important;
+  }
+
+  .o_Message_bubbleWrap {
+    overflow: visible;
+  }
+
+  .o_Message_content {
+    overflow: visible;
+  }
+
+  // Usuario: alineación derecha ya la maneja mail; reforzamos color
+  .o_Message.o-isCurrentUserOrGuestAuthor .o_Message_bubble {
+    background: var(--llm-surface-bubble-user) !important;
+  }
+
+  // Asistente / otros
+  .o_Message:not(.o-isCurrentUserOrGuestAuthor) .o_Message_bubble {
+    background: var(--llm-surface-bubble-assistant) !important;
+  }
+
+  .o_Message_prettyBody {
+    font-size: 0.9375rem;
+    line-height: 1.65;
+
+    pre,
+    code {
+      font-size: 0.85rem;
+      border-radius: var(--llm-radius-sm);
+    }
+
+    pre {
+      background: rgba($black, 0.04);
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--llm-border-subtle);
+    }
+  }
+}
+
+@keyframes llm-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Estado vacío + sugerencias (starters)
+// -----------------------------------------------------------------------------
+.o_LLMChat_emptyHero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem 3rem;
+  text-align: center;
+  // max-width: var(--llm-chat-max);
+  margin: 0 auto;
+  width: 100%;
+}
+
+.o_LLMChat_emptyHero_icon {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  margin-bottom: 1.25rem;
+  background: linear-gradient(
+    135deg,
+    rgba($o-brand-primary, 0.2),
+    rgba($o-brand-primary, 0.05)
+  );
+  color: $o-brand-primary;
+  box-shadow: var(--llm-shadow-soft);
+  animation: llm-hero-float 4s ease-in-out infinite;
+}
+
+@keyframes llm-hero-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.o_LLMChat_emptyHero_title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--llm-text);
+  margin-bottom: 0.35rem;
+}
+
+.o_LLMChat_emptyHero_sub {
+  font-size: 0.9rem;
+  color: var(--llm-text-muted);
+  max-width: 26rem;
+  margin-bottom: 1.75rem;
+  line-height: 1.5;
+}
+
+.o_LLMChat_starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: center;
+  width: 100%;
+}
+
+.o_LLMChat_starterBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  border-radius: var(--llm-radius-md);
+  border: 1px solid var(--llm-border-subtle);
+  background: var(--llm-composer-bg);
+  color: var(--llm-text);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-align: left;
+  max-width: 100%;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+
+  &:hover {
+    border-color: rgba($o-brand-primary, 0.45);
+    box-shadow: 0 4px 16px rgba($o-brand-primary, 0.12);
+    transform: translateY(-1px);
+  }
+
+  .fa {
+    color: var(--llm-accent);
+    opacity: 0.9;
+  }
+}
+
+// Sin hilo seleccionado
+.o_LLMChat_loading_orbit {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  border: 3px solid rgba($o-brand-primary, 0.15);
+  border-top-color: $o-brand-primary;
+  animation: llm-orbit-spin 0.9s linear infinite;
+}
+
+@keyframes llm-orbit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.o_LLMChat_noThread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--llm-text-muted);
+  text-align: center;
+
+  .o_LLMChat_noThread_visual {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.35;
+  }
+
+  .o_LLMChat_noThread_title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--llm-text);
+    margin-bottom: 0.35rem;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Banner “Analizando” — letras con brillo secuencial (estilo ChatGPT)
+// -----------------------------------------------------------------------------
+.o_llm_analyzing_banner.o_llm_analyzing--letters {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  padding: 0.65rem 1rem !important;
+  background: var(--llm-surface-elevated) !important;
+  border-bottom: 1px solid var(--llm-border-subtle) !important;
+  z-index: 3;
+
+  .o_llm_analyzing_label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--llm-text-muted);
+    margin-right: 0.25rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .o_llm_analyzing_word {
+    display: inline-flex;
+  }
+
+  .o_llm_analyzing_char {
+    display: inline-block;
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--llm-accent);
+    animation: llm-char-shine 1.2s ease-in-out infinite;
+    text-shadow: 0 0 14px rgba($o-brand-primary, 0.35);
+  }
+
+  .o_llm_analyzing_tool {
+    font-size: 0.85rem;
+    color: var(--llm-text-muted);
+    font-weight: 500;
+    margin-left: 0.35rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: rgba($o-brand-primary, 0.08);
+    border: 1px solid rgba($o-brand-primary, 0.15);
+    max-width: 14rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@keyframes llm-char-shine {
+  0%,
+  100% {
+    opacity: 0.35;
+    filter: brightness(0.85);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.2);
+  }
+}
+
+// Retraso por carácter (inline style en template OWL)
+.o_llm_analyzing_char[data-llm-i="0"] {
+  animation-delay: 0s;
+}
+.o_llm_analyzing_char[data-llm-i="1"] {
+  animation-delay: 0.06s;
+}
+.o_llm_analyzing_char[data-llm-i="2"] {
+  animation-delay: 0.12s;
+}
+.o_llm_analyzing_char[data-llm-i="3"] {
+  animation-delay: 0.18s;
+}
+.o_llm_analyzing_char[data-llm-i="4"] {
+  animation-delay: 0.24s;
+}
+.o_llm_analyzing_char[data-llm-i="5"] {
+  animation-delay: 0.3s;
+}
+.o_llm_analyzing_char[data-llm-i="6"] {
+  animation-delay: 0.36s;
+}
+.o_llm_analyzing_char[data-llm-i="7"] {
+  animation-delay: 0.42s;
+}
+.o_llm_analyzing_char[data-llm-i="8"] {
+  animation-delay: 0.48s;
+}
+.o_llm_analyzing_char[data-llm-i="9"] {
+  animation-delay: 0.54s;
+}
+.o_llm_analyzing_char[data-llm-i="10"] {
+  animation-delay: 0.6s;
+}
+
+// -----------------------------------------------------------------------------
+// Resultado de herramienta — tarjeta limpia; raw solo al expandir
+// -----------------------------------------------------------------------------
+.o_llm_tool_card {
+  border-radius: var(--llm-radius-md);
+  border: 1px solid var(--llm-border-subtle);
+  background: var(--llm-composer-bg);
+  overflow: hidden;
+  box-shadow: var(--llm-shadow-message);
+}
+
+.o_llm_tool_card_head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--llm-border-subtle);
+  background: rgba($o-brand-primary, 0.04);
+}
+
+.o_llm_tool_card_icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--llm-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  background: rgba($o-brand-primary, 0.12);
+  color: $o-brand-primary;
+}
+
+.o_llm_tool_card_title {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--llm-text);
+  flex: 1;
+  min-width: 0;
+}
+
+.o_llm_tool_card_meta {
+  font-size: 0.72rem;
+  color: var(--llm-text-muted);
+}
+
+.o_llm_tool_card_actions .btn {
+  border-radius: var(--llm-radius-sm);
+}
+
+.o_llm_tool_card_body {
+  padding: 0.65rem 0.85rem;
+}
+
+.o_llm_tool_card_hint {
+  font-size: 0.8rem;
+  color: var(--llm-text-muted);
+  margin: 0;
+  line-height: 1.45;
+}
+
+.o_llm_tool_raw details,
+.o_llm_tool_calls.o_llm_tool_calls--subtle summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.o_llm_tool_raw summary {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--llm-text-muted);
+  padding: 0.35rem 0;
+  list-style: none;
+
+  &::-webkit-details-marker {
+    display: none;
+  }
+  &::before {
+    content: "▸ ";
+    display: inline-block;
+    transition: transform 0.2s ease;
+  }
+}
+
+.o_llm_tool_raw details[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.o_llm_tool_raw pre {
+  max-height: 240px;
+  overflow: auto;
+  font-size: 0.75rem;
+  border-radius: var(--llm-radius-sm);
+  margin-top: 0.35rem !important;
+}
+
+// Tablas en mensajes
+.o_LLMChat--modern .o_llm_table_wrap {
+  border-radius: var(--llm-radius-md);
+  border: 1px solid var(--llm-border-subtle);
+  background: var(--llm-composer-bg);
+  padding: 0.35rem 0.5rem 0.5rem;
+  overflow-x: auto;
+
+  .btn {
+    border-radius: var(--llm-radius-sm);
+  }
+}
+
+.o_LLMChat--modern .o_Message_prettyBody table {
+  font-size: 0.8125rem;
+}
+
+.o_LLMChat--modern .o_llm_img_enhanced {
+  border-color: var(--llm-border-subtle) !important;
+  box-shadow: var(--llm-shadow-message);
+}
+
+// -----------------------------------------------------------------------------
+// Composer moderno (pill)
+// -----------------------------------------------------------------------------
+// Indicador de streaming (tokens)
+.o_LLMStreamingIndicator {
+  display: flex;
+  align-items: center;
+  max-width: var(--llm-chat-max, 52rem);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 0.5rem !important;
+
+  &_text {
+    font-size: 0.875rem;
+    color: var(--llm-text-muted);
+    font-weight: 500;
+  }
+
+  &_pulse {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: $o-brand-primary;
+    animation: llm-pulse-dot 1s ease-in-out infinite;
+    box-shadow: 0 0 12px rgba($o-brand-primary, 0.5);
+  }
+}
+
+@keyframes llm-pulse-dot {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+.o_LLMChatComposer.o_LLMChatComposer--modern {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+
+  .o_LLMChatComposer_container {
+    background: var(--llm-composer-bg);
+    border: 1px solid var(--llm-border-subtle);
+    border-radius: var(--llm-radius-lg);
+    padding: 0.5rem 0.65rem 0.5rem 0.85rem !important;
+    box-shadow: var(--llm-shadow-soft);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+    &:focus-within {
+      border-color: rgba($o-brand-primary, 0.45);
+      box-shadow: 0 0 0 3px rgba($o-brand-primary, 0.12);
+    }
+  }
+
+  .o_LLMChatComposer_toolBtn {
+    border-radius: var(--llm-radius-md) !important;
+    border: 1px solid var(--llm-border-subtle) !important;
+    background: var(--llm-surface-elevated) !important;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    transition: transform 0.15s ease, background 0.2s;
+
+    &:hover {
+      background: rgba($o-brand-primary, 0.08) !important;
+    }
+  }
+
+  .o_Composer_buttonSend {
+    border-radius: var(--llm-radius-md) !important;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
+}

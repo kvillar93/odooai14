@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+  <t t-name="llm_thread.LLMStreamingIndicator" owl="1">
+    <div
+      class="o_LLMStreamingIndicator o_MessageList_item o_MessageList_generating text-start ps-3 pt-3 pb-2"
+    >
+      <span class="o_LLMStreamingIndicator_pulse me-2" aria-hidden="true" />
+      <span class="o_LLMStreamingIndicator_text">
+        Generando respuesta<t t-esc="state.dots" />
+      </span>
+    </div>
+  </t>
+</templates>

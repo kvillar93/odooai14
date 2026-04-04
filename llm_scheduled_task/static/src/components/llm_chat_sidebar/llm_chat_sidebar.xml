@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <t t-inherit="llm_thread.LLMChatSidebar" t-inherit-mode="extension">
+        <!-- Escritorio: hijo directo t-if del panel (evita otros t-if en el árbol) -->
+        <xpath
+            expr="//div[hasclass('o_LLMChatSidebar') and hasclass('o_DiscussSidebar')]/t[@t-if='!llmChatView.isSmall']//div[hasclass('d-flex') and hasclass('justify-content-center') and hasclass('p-3')][1]"
+            position="before"
+        >
+            <div
+                t-if="scheduledTaskCount > 0"
+                class="d-flex justify-content-center px-3 pt-3 pb-0"
+            >
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary btn-sm rounded w-100"
+                    t-on-click="_onClickViewScheduledTasks"
+                >
+                    <i class="fa fa-tasks me-2" />
+                    <span>Ver tareas creadas</span>
+                </button>
+            </div>
+        </xpath>
+        <!-- Móvil: t-else hijo directo del panel (no el t-else interno del modo colapsado) -->
+        <xpath
+            expr="//div[hasclass('o_LLMChatSidebar') and hasclass('o_DiscussSidebar')]/t[@t-else='']//div[hasclass('d-flex') and hasclass('justify-content-center') and hasclass('p-3')][1]"
+            position="before"
+        >
+            <div
+                t-if="scheduledTaskCount > 0"
+                class="d-flex justify-content-center px-3 pt-3 pb-0"
+            >
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary btn-sm rounded w-100"
+                    t-on-click="_onClickViewScheduledTasks"
+                >
+                    <i class="fa fa-tasks me-2" />
+                    <span>Ver tareas creadas</span>
+                </button>
+            </div>
+        </xpath>
+    </t>
+</templates>

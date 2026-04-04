@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <menuitem
+        id="menu_llm_chat_windows"
+        name="Ventanas de chat"
+        parent="llm.menu_llm_root"
+        action="action_llm_chat_window"
+        sequence="15"
+    />
+</odoo>

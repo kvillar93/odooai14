@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Fal.ai Provider for Odoo LLM Integration</title>
+  <meta name="description" content="Integrate your Odoo instance with Fal.ai's blazing-fast, OpenAI-compatible language models. Unlock the power of serverless inference in your ERP system.">
+  <meta name="keywords" content="Fal.ai Odoo, Odoo LLM, ChatGPT alternative, Fal OpenAI API, Odoo AI, LLM for ERP, Fal AI module">
+  <meta name="author" content="Apexive Solutions LLC" />
+  <!-- Mantiene los mismos estilos -->
+</head>
+<body>
+  <div class="header-container">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h1 class="fw-bold">Fal.ai Provider for Odoo LLM</h1>
+          <p class="lead mb-4">Connect your Odoo instance to Fal.ai’s powerful, OpenAI-compatible inference platform.</p>
+          <div class="d-flex mb-3 align-items-center">
+            <span class="badge bg-primary me-2">v16.0.1.1.2</span>
+            <span class="badge bg-secondary me-2">LGPL-3</span>
+            <a href="https://github.com/apexive/odoo-llm" class="github-link ms-auto">
+              <svg ...>...</svg>
+              GitHub Repository
+            </a>
+          </div>
+          <p>This module enables seamless integration with Fal.ai endpoints for fast and cost-effective LLM inference directly from Odoo.</p>
+        </div>
+        <div class="col-md-4 text-center">
+          <img src="icon.png" alt="Fal.ai Provider Logo" class="img-fluid" style="max-width: 200px;" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container py-5">
+    <img src="banner.jpeg" alt="Fal.ai Integration Banner" class="img-fluid mb-4" />
+
+    <section class="mb-5">
+      <h2 class="mb-4">Overview</h2>
+      <p>The Fal.ai Provider module builds on the Odoo LLM framework to leverage Fal’s scalable, serverless infrastructure for AI tasks. Use state-of-the-art models without managing hardware or worrying about cold starts.</p>
+
+      <div class="highlight-box">
+        <h4>Key Capabilities</h4>
+        <ul class="mb-0">
+          <li><strong>Chat completions</strong> – Utilize conversational AI with Fal-hosted models</li>
+          <li><strong>Embeddings</strong> – Generate vector representations for semantic search</li>
+          <li><strong>Tool/function calling</strong> – Invoke Odoo or custom functions from LLM responses</li>
+          <li><strong>Pay-per-call inference</strong> – No infrastructure to manage, only pay for what you use</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <section class="mb-5">
+      <h2 class="mb-4">Configuration</h2>
+      <p>To configure the Fal.ai provider:</p>
+      <ol>
+        <li>Install this module</li>
+        <li>Go to <strong>LLM > Configuration > Providers</strong></li>
+        <li>Create a new provider, choose "OpenAI" as the type</li>
+        <li>Set the Base URL to <code>https://fal.run/fal-ai/openai/v1</code></li>
+        <li>Enter your Fal API key from your <a href="https://fal.ai" target="_blank">Fal.ai dashboard</a></li>
+        <li>Click "Fetch Models" to import model options</li>
+      </ol>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <section class="mb-5">
+      <h2 class="mb-4">Fal.ai Endpoint</h2>
+      <p>Fal.ai offers OpenAI-compatible endpoints, enabling Odoo to interact with its models just like with the official OpenAI API.</p>
+
+      <table class="endpoint-table">
+        <thead>
+          <tr>
+            <th>Provider</th>
+            <th>Base URL</th>
+            <th>Models</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Fal.ai</td>
+            <td><code>https://fal.run/fal-ai/openai/v1</code></td>
+            <td>Mistral, Llama 3, Mixtral, and others</td>
+            <td>Pay-per-call, serverless, fast cold starts</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="highlight-box mt-4">
+        <div class="d-flex align-items-center">
+          <svg ...>...</svg>
+          <div>
+            <h4 class="mb-2">Provider Compatibility Note</h4>
+            <p class="mb-0">Fal.ai follows the OpenAI API spec, so most tools and configurations that work with OpenAI can be reused with minimal changes.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <section class="mb-5">
+      <h2 class="mb-4">Technical Details</h2>
+      <ul>
+        <li>Built on top of the Odoo LLM Integration framework</li>
+        <li>Supports streaming and non-streaming completions</li>
+        <li>Implements rate limit handling specific to Fal’s API behavior</li>
+        <li>Compatible with model fine-tuning and advanced prompt formats</li>
+      </ul>
+
+      <div class="row mt-4">
+        <div class="col-lg-6">
+          <h3 class="h5">Module Information</h3>
+          <table class="table table-sm">
+            <tbody>
+              <tr><th>Name</th><td>Fal.ai Provider for Odoo LLM</td></tr>
+              <tr><th>Version</th><td>16.0.1.1.2</td></tr>
+              <tr><th>Category</th><td>Technical</td></tr>
+              <tr><th>License</th><td>LGPL-3</td></tr>
+              <tr><th>Dependencies</th><td>llm, llm_tool, llm_mail_message_subtypes</td></tr>
+              <tr><th>External Dependencies</th><td>requests (Python), Fal API Key</td></tr>
+              <tr><th>Author</th><td>Apexive Solutions LLC</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="bg-light py-4 border-top">
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-6">
+          <h4>Fal.ai Provider for Odoo LLM</h4>
+          <p>Developed by Apexive Solutions LLC</p>
+          <p>Licensed under <a href="https://www.gnu.org/licenses/lgpl-3.0.html" target="_blank">LGPL-3</a></p>
+        </div>
+        <div class="col-lg-6 text-lg-end">
+          <p>Visit our GitHub repository for updates and other LLM integrations:</p>
+          <a href="https://github.com/apexive/odoo-llm" class="btn btn-outline-primary">GitHub</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

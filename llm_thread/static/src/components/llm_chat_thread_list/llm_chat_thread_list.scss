@@ -1,0 +1,44 @@
+.o_LLMChatThreadList {
+  padding-top: 8px;
+  padding-bottom: 16px;
+  min-width: 0;
+  overflow-x: hidden;
+
+  &_search {
+    .input-group-text {
+      border-color: $border-color;
+    }
+    .form-control:focus {
+      box-shadow: none;
+    }
+  }
+
+  &_items {
+    overflow-x: hidden;
+  }
+
+  &_row {
+    max-width: 100%;
+  }
+
+  &_select {
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .o_DiscussSidebarCategoryItem {
+    position: relative;
+
+    &.o-active {
+      &::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background-color: $primary;
+      }
+    }
+  }
+}

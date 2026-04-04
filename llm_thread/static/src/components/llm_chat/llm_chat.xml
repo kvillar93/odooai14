@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <t t-name="llm_thread.LLMChat" owl="1">
+        <div class="o_LLMChat o_LLMChat--modern d-flex h-100">
+            <!-- Thread List Section -->
+            <LLMChatSidebar record="llmChatView" />
+
+            <!-- Chat Section -->
+            <div class="o_LLMChat_content flex-grow-1 d-flex flex-column min-w-0">
+                <t t-if="llmChatView.llmChat.activeThread">
+                    <LLMChatThread
+            record="llmChatView.llmChat.activeThread"
+            threadView="llmChatView.threadView"
+          />
+                </t>
+                <t t-else="">
+                    <div class="o_LLMChat_noThread h-100">
+                        <div class="o_LLMChat_noThread_visual">
+                            <i class="fa fa-comments" title="" />
+                        </div>
+                        <p class="o_LLMChat_noThread_title">Selecciona una conversación</p>
+                        <p class="mb-0 small">Elige un chat en la lista o crea uno nuevo para empezar.</p>
+                    </div>
+                </t>
+            </div>
+        </div>
+    </t>
+</templates>

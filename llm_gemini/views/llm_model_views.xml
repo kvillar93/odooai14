@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="llm_model_view_form_gemini_grounding" model="ir.ui.view">
+        <field name="name">llm.model.form.gemini.grounding</field>
+        <field name="model">llm.model</field>
+        <field name="inherit_id" ref="llm.llm_model_view_form" />
+        <field name="arch" type="xml">
+            <field name="default" position="after">
+                <field name="provider_service" invisible="1" />
+                <field
+                    name="gemini_google_search_grounding"
+                    attrs="{'invisible': [('provider_service', '!=', 'gemini')]}"
+                />
+            </field>
+        </field>
+    </record>
+</odoo>

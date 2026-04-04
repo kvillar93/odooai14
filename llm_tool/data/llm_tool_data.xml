@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="llm_tool_odoo_record_retriever" model="llm.tool">
+        <field name="name">odoo_record_retriever</field>
+        <field name="implementation">odoo_record_retriever</field>
+        <field
+      name="description"
+    ><![CDATA[
+**odoo_record_retriever** — lectura de datos en Odoo.
+
+**Cuándo usar modo `sql` (parámetros `mode: "sql"` y `query`):**
+- Informes agregados, totales, JOINs entre tablas, listados “tipo Excel”, rankings, KPIs o cualquier consulta que no sea un simple listado por modelo.
+- Cuando el usuario pida “sacar un reporte”, “exportar datos”, “resumen por mes/cliente”, “cruzar X con Y” o datos tabulados complejos.
+- La consulta debe ser **un solo SELECT** de solo lectura (sin INSERT/UPDATE/DELETE). Usa nombres de tabla SQL de PostgreSQL (p. ej. `sale_order`, `account_move_line`). Respeta `sql_limit` (máx. filas devueltas).
+
+**Cuándo usar modo `orm` (por defecto, `mode: "orm"` o omitido):**
+- Leer registros concretos de **un** modelo con `search_read`: `model`, `domain`, `fields`, `limit`.
+- Exploración simple, pocos registros, o cuando basta filtrar por campos del modelo.
+
+**Regla práctica:** si la petición parece un **informe o análisis tabular**, prioriza **SQL (SELECT)**; si es **listar/buscar registros** en un modelo, usa **ORM**.
+
+Parámetros ORM: `model`, `domain`, `fields`, `limit`.
+Parámetros SQL: `mode="sql"`, `query` (texto SELECT), `sql_limit`.
+    ]]></field>
+        <field name="default" eval="True" />
+        <field name="active" eval="True" />
+        <field name="requires_user_consent" eval="False" />
+    </record>
+
+    <record id="llm_tool_odoo_record_creator" model="llm.tool">
+        <field name="name">odoo_record_creator</field>
+        <field name="implementation">odoo_record_creator</field>
+        <field
+      name="description"
+    ><![CDATA[
+**odoo_record_creator** — crea uno o varios registros en un modelo Odoo.
+
+**Parámetro `write_values` (un solo registro):** debe ser un **objeto JSON** (mapa): cada clave es el nombre técnico del campo y el valor es el dato a guardar.
+- **Importante:** en **odoo_record_retriever** el parámetro `fields` es una **lista de nombres de columnas**. En el creator el mapa de valores a escribir se llama **`write_values`** (no `fields` ni listas de nombres).
+- **Prohibido:** enviar `write_values` como array/lista de nombres de campos (p. ej. `["product_id","qty"]`) — eso es inválido.
+- **Correcto:** `{"product_id": 12, "product_qty": 1, "price_unit": 10.0, "order_id": 99}`
+
+**Parámetro `records` (varios registros):** lista de objetos, cada uno con la misma forma que `write_values`.
+
+**Parámetro `model`:** nombre técnico del modelo (p. ej. `purchase.order.line`, `res.partner`).
+
+Ejemplos:
+1. Un registro: `{"model": "res.partner", "write_values": {"name": "John Doe", "email": "john@example.com"}}`
+2. Varios: `{"model": "res.partner", "records": [{"name": "A"}, {"name": "B"}]}`
+
+Requiere consentimiento del usuario antes de ejecutar (modifica datos).
+    ]]></field>
+        <field name="default" eval="True" />
+        <field name="active" eval="True" />
+        <field name="requires_user_consent" eval="True" />
+    </record>
+
+    <record id="llm_tool_odoo_record_updater" model="llm.tool">
+        <field name="name">odoo_record_updater</field>
+        <field name="implementation">odoo_record_updater</field>
+        <field
+      name="description"
+    >Update existing records in any Odoo model. This tool allows you to modify data in the database by specifying the model name, domain filters to identify records, and a dictionary of field values to update. For safety, it defaults to updating only one record at a time. Due to its data modification capabilities, this tool requires user consent before execution.</field>
+        <field name="default" eval="True" />
+        <field name="active" eval="True" />
+        <field name="requires_user_consent" eval="True" />
+    </record>
+
+    <record id="llm_tool_odoo_record_unlinker" model="llm.tool">
+        <field name="name">odoo_record_unlinker</field>
+        <field name="implementation">odoo_record_unlinker</field>
+        <field
+      name="description"
+    >Delete existing records from any Odoo model. This tool allows you to remove data from the database by specifying the model name and domain filters to identify records to delete. For safety, it defaults to deleting only one record at a time. Due to its data modification capabilities, this tool requires user consent before execution.</field>
+        <field name="default" eval="True" />
+        <field name="active" eval="True" />
+        <field name="requires_user_consent" eval="True" />
+    </record>
+
+    <record id="llm_tool_odoo_model_method_executor" model="llm.tool">
+        <field name="name">odoo_model_method_executor</field>
+        <field name="implementation">odoo_model_method_executor</field>
+        <field
+      name="description"
+    ><![CDATA[
+**VERY HIGH RISK TOOL:** Executes a specified method on an Odoo model or specific records. Provide the model's technical name, the method name, and optionally a list of record IDs, positional arguments ('args'), and keyword arguments ('kwargs'). If record_ids is null/empty, the method is called on the model itself (e.g., for `search`, `create`, `@api.model`, `@staticmethod`).
+**WARNING:** This tool can modify or delete data, trigger complex actions, or cause system errors if used improperly. It bypasses standard UI workflows.
+**IMPORTANT:** The LLM using this tool MUST explicitly ask the user for confirmation before EVERY execution, clearly stating the model, method, records (if any), and arguments being used.
+Private methods (starting with '_') are disallowed by default unless 'allow_private' is explicitly set to true (use with extreme caution).
+Returns a JSON representation of the method's result or an error message.
+        ]]></field>
+        <field name="default" eval="False" />
+        <field name="active" eval="True" />
+        <field name="requires_user_consent" eval="True" />
+    </record>
+
+    <record id="llm_tool_odoo_model_inspector" model="llm.tool">
+        <field name="name">odoo_model_inspector</field>
+        <field name="implementation">odoo_model_inspector</field>
+        <field
+      name="description"
+    ><![CDATA[
+            Comprehensive inspection of an Odoo model providing a complete analysis of its structure. This tool retrieves detailed information about:
+
+            1. **Basic Model Data**: Name, description, module, and inheritance structure.
+            2. **Fields Analysis**: Types, properties, relations, required/readonly status, and help text.
+            3. **Methods Inspection**: Signatures, docstrings, decorators (@api.model, @api.depends, etc.), and method types.
+
+            Use this tool to understand any Odoo model's structure, fields, and available methods. You can filter fields and methods by name or type, limit the number returned, and include/exclude private elements (those starting with '_').
+
+            This information is essential for:
+            - Understanding available data structures
+            - Determining which fields to use for record creation/updates
+            - Finding appropriate methods to execute with the model_method_executor tool
+            - Building domain filters for record retrieval
+
+            Perfect for exploring unfamiliar models before performing operations on them.
+        ]]></field>
+        <field name="default" eval="True" />
+        <field name="active" eval="True" />
+        <field name="requires_user_consent" eval="False" />
+        <field name="read_only_hint" eval="True" />
+    </record>
+
+    <record id="llm_tool_web_fetch" model="llm.tool">
+        <field name="name">web_fetch</field>
+        <field name="implementation">web_fetch</field>
+        <field
+      name="description"
+    ><![CDATA[
+**Consulta web (solo lectura):** descarga el contenido de una URL **http** o **https** con GET y devuelve texto (HTML convertido a texto plano o JSON como texto).
+
+**Cuándo usarla:** el usuario pide datos de una página pública, documentación en línea, artículos, o verificar información que requiera leer una URL.
+
+**Parámetros:**
+- `url` (obligatorio): dirección completa, p. ej. `https://example.com/docs`
+- `max_chars` (opcional, por defecto 50000): límite de caracteres devueltos (máximo 500000).
+
+**Restricciones:** no se permiten hosts locales (localhost, 127.0.0.1, *.local). Tamaño máximo de respuesta 5 MB. Timeout 30 s.
+
+**Privacidad:** solo use URLs que el usuario haya solicitado explícitamente o que sean claramente necesarias para la tarea.
+    ]]></field>
+        <field name="default" eval="False" />
+        <field name="active" eval="True" />
+        <field name="requires_user_consent" eval="False" />
+        <field name="read_only_hint" eval="True" />
+    </record>
+
+</odoo>

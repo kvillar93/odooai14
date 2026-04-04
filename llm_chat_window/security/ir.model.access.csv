@@ -1,0 +1,6 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_llm_chat_window_user,llm.chat.window user,model_llm_chat_window,base.group_user,1,0,0,0
+access_llm_chat_window_manager,llm.chat.window manager,model_llm_chat_window,llm.group_llm_manager,1,1,1,1
+access_llm_chat_window_system,llm.chat.window system,model_llm_chat_window,base.group_system,1,1,1,1
+access_llm_chat_window_menu_wizard_manager,llm.chat.window.menu.wizard manager,model_llm_chat_window_menu_wizard,llm.group_llm_manager,1,1,1,1
+access_llm_chat_window_menu_wizard_system,llm.chat.window.menu.wizard system,model_llm_chat_window_menu_wizard,base.group_system,1,1,1,1

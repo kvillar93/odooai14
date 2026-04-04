@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <t t-name="llm_thread.LLMChatThread" owl="1">
+        <div class="o_LLMChatThread o_LLMChatThread--modern d-flex flex-column h-100">
+            <!-- Header -->
+            <LLMChatThreadHeader record="threadView.llmChatThreadHeaderView" />
+
+            <!-- Messages -->
+            <div class="o_LLMChatThread_content flex-grow-1 overflow-auto position-relative d-flex flex-column">
+                <t t-if="thread.llmChat and thread.llmChat.llmAnalyzingToolName">
+                    <div class="o_llm_analyzing_banner o_llm_analyzing--letters position-sticky top-0">
+                        <span class="o_llm_analyzing_label">Estado</span>
+                        <span class="o_llm_analyzing_word">
+                            <t t-foreach="analyzingChars" t-as="ch" t-key="ch_index">
+                                <span
+                  class="o_llm_analyzing_char"
+                  t-att-data-llm-i="ch_index"
+                  t-esc="ch"
+                />
+                            </t>
+                        </span>
+                        <span class="o_llm_analyzing_tool" t-att-title="thread.llmChat.llmAnalyzingToolName">
+                            <i class="fa fa-magic me-1" aria-hidden="true" />
+                            <t t-esc="thread.llmChat.llmAnalyzingToolName"/>
+                        </span>
+                    </div>
+                </t>
+                <t t-if="thread.cache?.isLoading">
+                    <div class="o_LLMChat_loading d-flex flex-column justify-content-center align-items-center flex-grow-1 py-5">
+                        <div class="o_LLMChat_loading_orbit mb-3" aria-hidden="true" />
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando…</span>
+                        </div>
+                        <p class="small text-muted mt-3 mb-0">Cargando mensajes…</p>
+                    </div>
+                </t>
+                <t t-else="">
+                    <t t-if="showConversationStarters">
+                        <div class="o_LLMChat_emptyHero flex-shrink-0">
+                            <div class="o_LLMChat_emptyHero_icon" aria-hidden="true">
+                                <i class="fa fa-graduation-cap" />
+                            </div>
+                            <h2 class="o_LLMChat_emptyHero_title">¿En qué puedo ayudarte hoy?</h2>
+                            <p class="o_LLMChat_emptyHero_sub">
+                                Prueba una sugerencia o escribe tu propia pregunta. El asistente puede usar herramientas y adjuntos cuando lo necesites.
+                            </p>
+                            <div class="o_LLMChat_starters">
+                                <t t-foreach="starterPrompts" t-as="st" t-key="st_index">
+                                    <button
+                    type="button"
+                    class="o_LLMChat_starterBtn"
+                    t-on-click="() => this.onClickStarter(st.text)"
+                  >
+                                        <i t-att-class="'fa ' + st.icon" aria-hidden="true" />
+                                        <span t-esc="st.label" />
+                                    </button>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
+                    <!-- Message List -->
+                    <LLMChatMessageList
+            record="threadView.messageListView"
+            composerView="threadView.composerView"
+          />
+                </t>
+            </div>
+
+            <!-- Chat Composer - Moved outside scrollable area -->
+            <div class="o_LLMChatThread_composer p-3">
+                <LLMChatComposer record="threadView.composerView" />
+            </div>
+        </div>
+    </t>
+</templates>

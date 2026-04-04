@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="llm_tool_artifact_builder" model="llm.tool">
+        <field name="name">llm_artifact_builder</field>
+        <field name="implementation">llm_artifact_builder</field>
+        <field name="description"><![CDATA[
+**llm_artifact_builder** — genera gráficos interactivos (Apache ECharts) y archivos Excel en el chat.
+
+---
+
+## 📊 Gráficos interactivos — `artifact_type: "echarts"` (por defecto)
+
+Usa Apache ECharts 5. El parámetro `echarts_option` es el JSON de opción ECharts completo.
+
+**Tipos de gráfico disponibles:** bar, line, pie, scatter, radar, heatmap, treemap, sankey, funnel, gauge, candlestick, boxplot, effectScatter, y más.
+
+### Estructura mínima de echarts_option:
+
+```json
+{
+  "title": {"text": "Ventas por producto"},
+  "tooltip": {"trigger": "axis"},
+  "xAxis": {"type": "category", "data": ["Kit Escolar", "Combo Libros"]},
+  "yAxis": {"type": "value"},
+  "series": [{"name": "Cantidad", "type": "bar", "data": [18, 17]}]
+}
+```
+
+### Drill-down a registros Odoo (opcional):
+Añade `odoo_links` en la opción para que al hacer clic en el gráfico abra registros Odoo:
+```json
+{
+  "odoo_links": {
+    "model": "sale.order.line",
+    "domain_template": "[['product_id.name','=','{{name}}']]",
+    "label": "Ver líneas de pedido"
+  }
+}
+```
+El placeholder `{{name}}` se reemplaza con el nombre del elemento clickeado.
+
+### Ejemplos de series múltiples:
+```json
+{
+  "title": {"text": "Comparativa mensual"},
+  "tooltip": {"trigger": "axis"},
+  "legend": {"data": ["Ventas", "Compras"]},
+  "xAxis": {"type": "category", "data": ["Ene","Feb","Mar","Abr"]},
+  "yAxis": {"type": "value"},
+  "series": [
+    {"name": "Ventas", "type": "line", "data": [150, 230, 224, 218]},
+    {"name": "Compras", "type": "line", "data": [120, 132, 101, 134]}
+  ]
+}
+```
+
+### Pie chart:
+```json
+{
+  "title": {"text": "Distribución"},
+  "tooltip": {"trigger": "item"},
+  "series": [{
+    "type": "pie",
+    "radius": "60%",
+    "data": [{"value": 1048, "name": "Producto A"}, {"value": 735, "name": "Producto B"}]
+  }]
+}
+```
+
+**Parámetros:**
+- `echarts_option` (string JSON): opción ECharts completa
+- `explanation` (string): texto explicativo que acompaña el gráfico y se incluye en el PDF
+
+**IMPORTANTE:** Copia el campo `mensaje_markdown` del resultado LITERALMENTE en tu respuesta para que el gráfico aparezca en el chat. El usuario puede descargarlo como PDF desde el botón que aparece sobre el gráfico.
+
+---
+
+## 📄 Excel — `artifact_type: "xlsx"`
+
+Genera un archivo Excel descargable desde los datos.
+
+**Parámetros:** `data_json` (lista de objetos JSON), `title`, `file_name`.
+
+---
+
+## Flujo típico:
+1. Usa `odoo_record_retriever` (SQL o ORM) para obtener datos
+2. Construye el `echarts_option` con los datos
+3. Llama a `llm_artifact_builder` con `artifact_type="echarts"` y la opción
+4. Incluye el `mensaje_markdown` en tu respuesta + explicación del gráfico
+        ]]></field>
+        <field name="active" eval="True" />
+        <field name="default" eval="False" />
+        <field name="requires_user_consent" eval="False" />
+    </record>
+</odoo>

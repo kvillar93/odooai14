@@ -1,0 +1,27 @@
+# Dependencias Python agregadas por los módulos en odoo-llm-16.0 (manifests / código).
+# Instalar con: pip install -r requirements.txt
+
+PyMuPDF
+anthropic
+chromadb-client
+emoji
+fal_client
+google-genai
+jinja2
+llama_index
+markdown2
+markdownify
+matplotlib
+mistralai
+nltk
+numpy
+ollama
+openai
+pgvector
+pydantic>=2.0.0
+pyyaml
+qdrant-client
+replicate
+requests
+sqlparse
+xlsxwriter

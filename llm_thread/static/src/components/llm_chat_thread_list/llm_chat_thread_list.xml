@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <t t-name="llm_thread.LLMChatThreadList" owl="1">
+        <div
+      class="o_LLMChatThreadList d-flex flex-column flex-grow-1 overflow-auto min-w-0"
+    >
+            <div class="o_LLMChatThreadList_search px-2 pb-2 flex-shrink-0">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-view border-end-0 py-1">
+                        <i class="fa fa-search text-muted" aria-hidden="true" />
+                    </span>
+                    <input
+            type="search"
+            class="form-control border-start-0 ps-0"
+            placeholder="Buscar conversaciones…"
+            autocomplete="off"
+            t-att-value="state.searchQuery"
+            t-on-input="onSearchInput"
+          />
+                </div>
+            </div>
+            <t t-if="llmChatView.llmChat.threads.length === 0">
+                <div
+          class="d-flex flex-column align-items-center justify-content-center flex-grow-1 text-muted p-3"
+        >
+                    <i class="fa fa-comments fa-3x mb-3 text-300" />
+                    <span class="fs-6">No chats yet</span>
+                </div>
+            </t>
+            <t t-else="">
+                <div class="o_LLMChatThreadList_items d-flex flex-column min-w-0 flex-grow-1">
+                    <t t-if="filteredThreads.length === 0">
+                        <div class="text-muted small px-3 py-2 text-center">
+                            Ninguna conversación coincide con la búsqueda.
+                        </div>
+                    </t>
+                    <t
+            t-foreach="filteredThreads"
+            t-as="thread"
+            t-key="thread.id"
+          >
+                        <div
+              class="o_DiscussSidebarCategoryItem o_LLMChatThreadList_row d-flex align-items-stretch w-100 min-w-0"
+              role="group"
+            >
+                            <button
+                type="button"
+                class="o_DiscussSidebarCategoryItem o_LLMChatThreadList_select btn d-flex align-items-center flex-grow-1 min-w-0 px-0 py-2 border-0 rounded-0 fw-normal text-reset bg-100 text-start"
+                t-att-class="{'o-active bg-200': thread.id === activeThread?.id}"
+                t-on-click="() => this._onThreadClick(thread)"
+              >
+                                <span
+                  class="o_DiscussSidebarCategoryItem_name ms-3 me-2 text-truncate flex-grow-1 min-w-0"
+                  t-esc="thread.name"
+                  t-att-title="thread.name"
+                />
+                            </button>
+                            <button
+                type="button"
+                class="btn btn-sm btn-link text-danger px-2 py-2 flex-shrink-0 align-self-stretch"
+                title="Eliminar conversación"
+                aria-label="Eliminar conversación"
+                t-on-click="(ev) => this._onDeleteClick(ev, thread)"
+              >
+                                <i class="fa fa-trash" />
+                            </button>
+                        </div>
+                    </t>
+                </div>
+            </t>
+        </div>
+    </t>
+</templates>

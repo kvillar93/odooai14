@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="llm_tool_mail_sender" model="llm.tool">
+        <field name="name">llm_mail_sender</field>
+        <field name="implementation">llm_mail_sender</field>
+        <field name="title">Enviar correo electrónico</field>
+        <field name="read_only_hint" eval="False"/>
+        <field name="destructive_hint" eval="False"/>
+        <field name="idempotent_hint" eval="False"/>
+        <field name="open_world_hint" eval="True"/>
+        <field name="requires_user_consent" eval="False"/>
+        <field name="description"><![CDATA[
+**llm_mail_sender** — **envía un correo real** por SMTP usando el servidor de correo de Odoo.
+
+Úsalo cuando el usuario pida enviar un informe, notificación o mensaje por email. Así el envío queda registrado en `mail.mail` y no depende de que el modelo “crea” haber enviado algo en el texto del chat.
+
+## Parámetros
+| Parámetro | Obligatorio | Descripción |
+|-----------|-------------|-------------|
+| `to_emails` | Sí | Destinatarios (To): varios separados por coma, `;` o salto de línea. |
+| `subject` | Sí | Asunto. |
+| `body` | Sí | Cuerpo del mensaje. |
+| `is_html` | No (defecto `False`) | `True` si el cuerpo ya es HTML. Si es `False`, el texto se escapa y se convierte a HTML seguro (saltos de línea → `<br/>`). |
+| `cc_emails` | No | Copia (Cc), mismo formato que `to_emails`. |
+| `reply_to` | No | Cabecera Reply-To (una dirección). |
+| `email_from` | No | Remitente. Los usuarios normales solo pueden usar su propio correo o el de la compañía; los administradores pueden indicar otro. |
+| `attachment_ids` | No | IDs de `ir.attachment` separados por coma o JSON `[1,2,3]`. El usuario debe poder leer esos adjuntos. |
+
+## Requisitos
+- Servidor SMTP configurado en Odoo (Ajustes → Técnico → Correo saliente).
+- Correo del usuario o de la compañía como remitente por defecto.
+
+## Respuesta
+Devuelve `ok`, `estado` (`sent` / `exception` / …), `mail_id` y un texto explicativo. Si `estado` no es `sent`, revisa el motivo en el mensaje o en el formulario del correo en Odoo.
+        ]]></field>
+    </record>
+</odoo>

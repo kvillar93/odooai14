@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <!-- ====================================================================== -->
+    <!-- Sub-templates for different message content types                    -->
+    <!-- ====================================================================== -->
+
+    <t t-name="llm_thread.Message.AssistantContent" owl="1">
+        <!-- Render final message body (processed by mail) -->
+        <t t-if="!messageView.composerViewInEditing">
+            <div class="o_Message_prettyBody" t-ref="prettyBody" />
+        </t>
+        <!-- Herramientas solicitadas: colapsado por defecto -->
+        <t
+      t-if="messageView.message.toolCalls and messageView.message.toolCalls.length > 0"
+    >
+            <details class="o_llm_tool_calls o_llm_tool_calls--subtle mt-2 small text-muted border-top pt-1">
+                <summary class="cursor-pointer user-select-none">
+                    <strong>Herramientas solicitadas</strong>
+                    <span class="text-muted"> (clic para ver)</span>
+                </summary>
+                <div class="mt-2">
+                    <t
+            t-foreach="messageView.message.toolCalls"
+            t-as="toolCall"
+            t-key="toolCall.id"
+          >
+                        <span
+              class="badge bg-light text-dark border me-1 mb-1"
+              t-att-title="'ID: ' + toolCall.id + '\nArgs: ' + toolCall.function?.arguments"
+            >
+                            <i class="fa fa-cog me-1" aria-hidden="true" />
+                            <t t-esc="toolCall.function?.name" />
+                        </span>
+                    </t>
+                </div>
+            </details>
+        </t>
+    </t>
+
+    <t t-name="llm_thread.Message.ToolResultContent" owl="1">
+        <div class="o_Message_prettyBody o_llm_tool_result">
+            <p class="d-none mb-0" t-ref="prettyBody" />
+            <div class="o_llm_tool_card">
+                <div class="o_llm_tool_card_head">
+                    <div
+            class="o_llm_tool_card_icon"
+            t-att-class="messageView.message.toolCallResultIsError ? 'bg-opacity-10 text-danger' : ''"
+          >
+                        <i
+              class="fa"
+              t-att-class="messageView.message.toolCallResultIsError ? 'fa-exclamation-circle' : 'fa-check'"
+              aria-hidden="true"
+            />
+                    </div>
+                    <div class="o_llm_tool_card_title text-truncate">
+                        <t
+              t-esc="messageView.message.toolName || messageView.message.toolCallDefinitionFormatted?.function?.name || 'Herramienta'"
+            />
+                        <div class="o_llm_tool_card_meta">
+                            Resultado
+                            <t t-if="messageView.message.toolCallId">
+                                · ID <t t-esc="messageView.message.toolCallId" />
+                            </t>
+                        </div>
+                    </div>
+                    <div class="o_llm_tool_card_actions">
+                        <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              title="Copiar JSON completo"
+              t-on-click="() => this.copyLlmTextToClipboard(messageView.message.toolCallResultFormatted)"
+            >
+                            <i class="fa fa-copy" />
+                        </button>
+                    </div>
+                </div>
+                <div class="o_llm_tool_card_body">
+                    <p class="o_llm_tool_card_hint">
+                        <t t-if="messageView.message.toolCallResultIsError">
+                            Se produjo un error al ejecutar la herramienta. Puedes ver el detalle técnico abajo.
+                        </t>
+                        <t t-else="">
+                            La herramienta terminó correctamente. El detalle técnico (JSON) está oculto por defecto; ábrelo solo si lo necesitas.
+                        </t>
+                    </p>
+                    <div class="o_llm_tool_raw">
+                        <details class="mb-1">
+                            <summary>Argumentos enviados al motor</summary>
+                            <pre class="bg-100 p-2 rounded small mt-1 mb-0 border"><code
+                t-esc="messageView.message.toolCallDefinitionFormatted?.function?.arguments || '{}'"
+              /></pre>
+                        </details>
+                        <details>
+                            <summary>Respuesta técnica (raw)</summary>
+                            <t t-if="messageView.message.toolCallResultIsError">
+                                <pre
+                  class="bg-opacity-10 border border-danger text-danger p-2 rounded small mt-1 mb-0"
+                ><code
+                    t-esc="messageView.message.toolCallResultData?.error || 'Error desconocido'"
+                  /></pre>
+                            </t>
+                            <t t-else="">
+                                <pre
+                  class="bg-100 border p-2 rounded small mt-1 mb-0 o_llm_tool_result_pre"
+                ><code t-esc="messageView.message.toolCallResultFormatted" /></pre>
+                            </t>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+
+    <t t-name="llm_thread.Message.DefaultContent" owl="1">
+        <t t-if="!messageView.composerViewInEditing">
+            <div class="o_Message_prettyBody" t-ref="prettyBody" />
+        </t>
+        <t t-if="messageView.composerViewInEditing">
+            <Composer
+        className="'o_Message_composer'"
+        record="messageView.composerViewInEditing"
+      />
+        </t>
+        <t
+      t-if="messageView.message.subtype_description and !messageView.message.isBodyEqualSubtypeDescription"
+    >
+            <p t-esc="messageView.message.subtype_description" class="mb-0" />
+        </t>
+        <t t-if="messageView.message.trackingValues.length > 0">
+            <ul class="o_Message_trackingValues mb-0 ps-4">
+                <t
+          t-foreach="messageView.message.trackingValues"
+          t-as="trackingValue"
+          t-key="trackingValue.id"
+        >
+                    <li>
+                        <TrackingValue value="trackingValue" />
+                    </li>
+                </t>
+            </ul>
+        </t>
+    </t>
+
+    <!-- ====================================================================== -->
+    <!-- Main Message Template Extension                                        -->
+    <!-- ====================================================================== -->
+
+    <t
+    t-name="llm_thread.Message"
+    t-inherit="mail.Message"
+    t-inherit-mode="extension"
+    owl="1"
+  >
+        <!--
+        Replace the main content rendering area.
+        We use the stored llm_role field for direct comparison.
+        -->
+        <xpath expr="//div[hasclass('o_Message_content')]" position="replace">
+            <div
+        class="o_Message_content position-relative text-break"
+        t-att-class="{
+                    'opacity-75': messageView.message.isSquashed,
+                    'o_Message_content--failed': messageView.message.isFailed,
+                 }"
+        t-ref="content"
+      >
+
+                <!-- Use the stored llm_role field for direct comparison -->
+                <t t-if="messageView.message.llmRole === 'assistant'">
+                    <t t-call="llm_thread.Message.AssistantContent" />
+                </t>
+                <t t-elif="messageView.message.llmRole === 'tool'">
+                    <t t-call="llm_thread.Message.ToolResultContent" />
+                </t>
+                <t t-else="">
+                    <t t-call="llm_thread.Message.DefaultContent" />
+                </t>
+
+                <div class="o_Message_linkPreviews" />
+            </div>
+        </xpath>
+    </t>
+
+</templates>

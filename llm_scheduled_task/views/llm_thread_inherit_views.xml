@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <!-- Añade un botón de "Tareas" en el formulario de llm.thread
+         para ver las tareas programadas vinculadas a este chat. -->
+    <record id="view_llm_thread_form_task_button" model="ir.ui.view">
+        <field name="name">llm.thread.form.scheduled.task.button</field>
+        <field name="model">llm.thread</field>
+        <field name="inherit_id" ref="llm_thread.llm_thread_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button
+                    name="action_view_scheduled_tasks"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-clock-o"
+                    attrs="{'invisible': [('scheduled_task_count', '=', 0)]}"
+                    groups="llm_scheduled_task.group_llm_task_user"
+                >
+                    <field name="scheduled_task_count" widget="statinfo" string="Tarea(s)"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+</odoo>

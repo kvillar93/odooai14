@@ -1,0 +1,20 @@
+// Estilos legacy mínimos; el aspecto principal está en static/src/scss/llm_chat_chatgpt.scss
+
+@keyframes llm-analyzing-shimmer {
+  0% {
+    opacity: 0.45;
+    filter: brightness(0.95);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.15);
+  }
+  100% {
+    opacity: 0.45;
+    filter: brightness(0.95);
+  }
+}
+
+.o_LLMChatThread_content {
+  max-height: calc(100% - 140px);
+}

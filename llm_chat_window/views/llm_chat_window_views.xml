@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_llm_chat_window_tree" model="ir.ui.view">
+        <field name="name">llm.chat.window.tree</field>
+        <field name="model">llm.chat.window</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="provider_id" />
+                <field name="model_id" />
+                <field name="assistant_id" />
+                <field name="hide_thread_settings" />
+                <field name="active" />
+            </tree>
+        </field>
+    </record>
+    <record id="view_llm_chat_window_form" model="ir.ui.view">
+        <field name="name">llm.chat.window.form</field>
+        <field name="model">llm.chat.window</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name" />
+                        <field name="sequence" />
+                        <field name="active" />
+                        <field name="hide_thread_settings" />
+                    </group>
+                    <group string="Configuración de IA">
+                        <field name="provider_id" />
+                        <field name="model_id" />
+                        <field name="assistant_id" />
+                        <field name="tool_ids" widget="many2many_tags" />
+                    </group>
+                    <button
+                        name="action_open_chat"
+                        type="object"
+                        string="Abrir chat de prueba"
+                        class="btn-primary"
+                    />
+                    <button
+                        name="action_open_menu_wizard"
+                        type="object"
+                        string="Crear entrada de menú"
+                        class="btn-secondary"
+                        groups="llm.group_llm_manager"
+                    />
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_llm_chat_window" model="ir.actions.act_window">
+        <field name="name">Ventanas de chat</field>
+        <field name="res_model">llm.chat.window</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <!-- Menú principal: Tareas Programadas (mismo nivel que Chat) -->
+    <menuitem
+        id="menu_llm_scheduled_tasks"
+        name="Tareas Programadas"
+        action="action_llm_scheduled_task"
+        parent="llm.menu_llm_root"
+        sequence="20"
+        groups="llm_scheduled_task.group_llm_task_user"
+    />
+
+    <!-- Sub-menú de configuración: Logs (solo gestores) -->
+    <menuitem
+        id="menu_llm_task_logs"
+        name="Logs de Tareas"
+        action="action_llm_scheduled_task_log"
+        parent="llm.menu_llm_config"
+        sequence="30"
+        groups="llm_scheduled_task.group_llm_task_manager"
+    />
+</odoo>

@@ -1,0 +1,376 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <!-- ══════════════════════════════════════════════════
+         TAREA PROGRAMADA — Formulario
+    ══════════════════════════════════════════════════ -->
+    <record id="view_llm_scheduled_task_form" model="ir.ui.view">
+        <field name="name">llm.scheduled.task.form</field>
+        <field name="model">llm.scheduled.task</field>
+        <field name="arch" type="xml">
+            <form string="Tarea Programada LLM">
+                <!-- Campos solo para attrs (deben estar en la vista si se referencian) -->
+                <field name="thread_id" invisible="1"/>
+                <field name="last_state" invisible="1"/>
+                <header>
+                    <button
+                        name="action_run_now"
+                        string="▶ Ejecutar ahora"
+                        type="object"
+                        class="btn-primary"
+                        confirm="¿Ejecutar la tarea ahora? El LLM procesará la instrucción inmediatamente."
+                    />
+                    <button
+                        name="action_activate"
+                        string="Activar"
+                        type="object"
+                        class="btn-secondary"
+                        attrs="{'invisible': [('state', '=', 'active')]}"
+                    />
+                    <button
+                        name="action_pause"
+                        string="Pausar"
+                        type="object"
+                        class="btn-secondary"
+                        attrs="{'invisible': [('state', '=', 'paused')]}"
+                    />
+                    <field
+                        name="state"
+                        widget="statusbar"
+                        statusbar_visible="active,paused"
+                    />
+                </header>
+                <sheet>
+                    <!-- Botones estadísticos -->
+                    <div class="oe_button_box" name="button_box">
+                        <button
+                            name="action_view_logs"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-list-alt"
+                            attrs="{'invisible': [('log_count', '=', 0)]}"
+                        >
+                            <field name="log_count" widget="statinfo" string="Ejecuciones"/>
+                        </button>
+                        <button
+                            name="action_view_thread"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-comments"
+                            attrs="{'invisible': [('thread_id', '=', False)]}"
+                        >
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_text">Ver Chat</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <!-- Indicador de estado del último resultado -->
+                    <div
+                        class="alert alert-success mb-3"
+                        role="alert"
+                        attrs="{'invisible': [('last_state', '!=', 'success')]}"
+                    >
+                        <i class="fa fa-check-circle me-1"/> Última ejecución exitosa —
+                        <field name="last_run" widget="datetime" readonly="1"/>
+                    </div>
+                    <div
+                        class="alert alert-danger mb-3"
+                        role="alert"
+                        attrs="{'invisible': [('last_state', '!=', 'error')]}"
+                    >
+                        <i class="fa fa-exclamation-triangle me-1"/> Última ejecución con error —
+                        <field name="last_run" widget="datetime" readonly="1"/>
+                    </div>
+                    <div
+                        class="alert alert-info mb-3"
+                        role="alert"
+                        attrs="{'invisible': [('last_state', '!=', 'running')]}"
+                    >
+                        <i class="fa fa-spinner fa-spin me-1"/> Ejecutando actualmente…
+                    </div>
+
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name" placeholder="Nombre de la tarea…"/>
+                        </h1>
+                    </div>
+
+                    <notebook>
+                        <!-- ── Pestaña: Instrucción ── -->
+                        <page string="Instrucción" name="prompt_page">
+                                <field
+                                    name="task_prompt"
+                                    nolabel="1"
+                                    placeholder="Describe qué debe hacer el LLM en cada ejecución…&#10;&#10;Ejemplo: Consulta las órdenes de venta pendientes de los últimos 7 días y envía un resumen por correo a reportes@empresa.com."
+                                    style="min-height:160px"
+                                />
+                                <field name="notes" nolabel="1" placeholder="Documentación, contexto o comentarios…"/>
+                        </page>
+
+                        <!-- ── Pestaña: Configuración LLM ── -->
+                        <page string="Configuración LLM" name="llm_page">
+                            <group>
+                                <group string="Propietario">
+                                    <field name="user_id"/>
+                                </group>
+                                <group string="Asistente (opcional)">
+                                    <field name="assistant_id" options="{'no_create': True}"/>
+                                </group>
+                            </group>
+                            <group string="Configuración manual (si no usa asistente)">
+                                <group>
+                                    <field name="provider_id" options="{'no_create': True}"/>
+                                    <field name="model_id" options="{'no_create': True}"/>
+                                </group>
+                                <group>
+                                    <field
+                                        name="tool_ids"
+                                        widget="many2many_tags"
+                                        options="{'no_create': True}"
+                                    />
+                                </group>
+                            </group>
+                        </page>
+
+                        <!-- ── Pestaña: Programación ── -->
+                        <page string="Programación" name="schedule_page">
+                            <group string="Frecuencia de ejecución">
+                                <label for="interval_number" string="Ejecutar cada"/>
+                                <div class="o_row">
+                                    <field name="interval_number" class="oe_inline" style="width:80px"/>
+                                    <field name="interval_type" class="oe_inline"/>
+                                </div>
+                                <field name="next_run" string="Primera / próxima ejecución"/>
+                            </group>
+                            <group string="Información del scheduler" attrs="{'invisible': [('cron_id', '=', False)]}">
+                                <field name="cron_id" readonly="1" string="Cron Job vinculado"/>
+                            </group>
+                        </page>
+
+                        <!-- ── Pestaña: Ejecuciones ── -->
+                        <page string="Ejecuciones" name="logs_page">
+                            <field name="log_ids" readonly="1">
+                                <tree decoration-success="state == 'success'"
+                                      decoration-danger="state == 'error'"
+                                      decoration-muted="state == 'running'"
+                                      default_order="execution_date desc">
+                                    <field name="execution_date" string="Fecha"/>
+                                    <field name="state" string="Estado"/>
+                                    <field name="duration_seconds" string="Duración (seg)" widget="float" digits="[6,2]"/>
+                                    <field name="message_count" string="Mensajes"/>
+                                    <field name="error_message" string="Error" optional="show"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════
+         TAREA PROGRAMADA — Lista
+    ══════════════════════════════════════════════════ -->
+    <record id="view_llm_scheduled_task_tree" model="ir.ui.view">
+        <field name="name">llm.scheduled.task.tree</field>
+        <field name="model">llm.scheduled.task</field>
+        <field name="arch" type="xml">
+            <tree
+                string="Tareas Programadas LLM"
+                decoration-muted="state == 'paused'"
+                decoration-success="last_state == 'success'"
+                decoration-danger="last_state == 'error'"
+            >
+                <field name="name"/>
+                <field name="user_id" widget="many2one_avatar_user"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'active'"
+                       decoration-muted="state == 'paused'"/>
+                <field name="interval_number" string="Cada"/>
+                <field name="interval_type" string="Unidad"/>
+                <field name="next_run" string="Próxima ejecución"/>
+                <field name="last_run" string="Última ejecución"/>
+                <field name="last_state" string="Último resultado" widget="badge"
+                       decoration-success="last_state == 'success'"
+                       decoration-danger="last_state == 'error'"
+                       decoration-info="last_state == 'running'"
+                       optional="show"/>
+                <field name="log_count" string="Ejecuciones" optional="show"/>
+                <button
+                    name="action_run_now"
+                    type="object"
+                    icon="fa-play"
+                    string="Ejecutar"
+                    title="Ejecutar ahora"
+                    confirm="¿Ejecutar la tarea ahora?"
+                />
+            </tree>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════
+         TAREA PROGRAMADA — Búsqueda
+    ══════════════════════════════════════════════════ -->
+    <record id="view_llm_scheduled_task_search" model="ir.ui.view">
+        <field name="name">llm.scheduled.task.search</field>
+        <field name="model">llm.scheduled.task</field>
+        <field name="arch" type="xml">
+            <search string="Buscar tarea">
+                <field name="name"/>
+                <field name="user_id"/>
+                <field name="task_prompt"/>
+                <separator/>
+                <filter
+                    name="active_tasks"
+                    string="Activas"
+                    domain="[('state', '=', 'active')]"
+                />
+                <filter
+                    name="paused_tasks"
+                    string="Pausadas"
+                    domain="[('state', '=', 'paused')]"
+                />
+                <separator/>
+                <filter
+                    name="my_tasks"
+                    string="Mis tareas"
+                    domain="[('user_id', '=', uid)]"
+                />
+                <separator/>
+                <filter
+                    name="last_error"
+                    string="Con error reciente"
+                    domain="[('log_ids.state', '=', 'error')]"
+                />
+                <group expand="1" string="Agrupar por">
+                    <filter
+                        name="group_state"
+                        string="Estado"
+                        context="{'group_by': 'state'}"
+                    />
+                    <filter
+                        name="group_user"
+                        string="Propietario"
+                        context="{'group_by': 'user_id'}"
+                    />
+                    <filter
+                        name="group_interval"
+                        string="Frecuencia"
+                        context="{'group_by': 'interval_type'}"
+                    />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════
+         LOG DE EJECUCIÓN — Lista
+    ══════════════════════════════════════════════════ -->
+    <record id="view_llm_scheduled_task_log_tree" model="ir.ui.view">
+        <field name="name">llm.scheduled.task.log.tree</field>
+        <field name="model">llm.scheduled.task.log</field>
+        <field name="arch" type="xml">
+            <tree
+                string="Ejecuciones"
+                decoration-success="state == 'success'"
+                decoration-danger="state == 'error'"
+                decoration-muted="state == 'running'"
+                default_order="execution_date desc"
+            >
+                <field name="task_id" string="Tarea"/>
+                <field name="execution_date" string="Fecha"/>
+                <field name="state" string="Estado" widget="badge"
+                       decoration-success="state == 'success'"
+                       decoration-danger="state == 'error'"
+                       decoration-info="state == 'running'"/>
+                <field name="duration_seconds" string="Duración (seg)" widget="float" digits="[6,2]"/>
+                <field name="message_count" string="Mensajes"/>
+                <field name="error_message" string="Error" optional="show"/>
+                <button
+                    name="action_view_chat"
+                    type="object"
+                    icon="fa-comments"
+                    string="Ver chat"
+                    title="Abrir chat de la tarea"
+                />
+            </tree>
+        </field>
+    </record>
+
+    <!-- Log — Formulario -->
+    <record id="view_llm_scheduled_task_log_form" model="ir.ui.view">
+        <field name="name">llm.scheduled.task.log.form</field>
+        <field name="model">llm.scheduled.task.log</field>
+        <field name="arch" type="xml">
+            <form string="Ejecución de Tarea LLM" create="false">
+                <header>
+                    <button
+                        name="action_view_chat"
+                        string="Ver chat completo"
+                        type="object"
+                        class="btn-primary"
+                        attrs="{'invisible': [('task_id', '=', False)]}"
+                    />
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Información">
+                            <field name="task_id" readonly="1"/>
+                            <field name="execution_date" readonly="1"/>
+                            <field name="state" readonly="1"/>
+                        </group>
+                        <group string="Métricas">
+                            <field name="duration_seconds" readonly="1" string="Duración (seg)"/>
+                            <field name="message_count" readonly="1" string="Mensajes generados"/>
+                        </group>
+                    </group>
+                    <group
+                        string="Detalle del error"
+                        attrs="{'invisible': [('error_message', '=', False)]}"
+                    >
+                        <field name="error_message" readonly="1" nolabel="1"
+                               style="font-family: monospace; color: #c00;"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════
+         ACTIONS
+    ══════════════════════════════════════════════════ -->
+    <record id="action_llm_scheduled_task" model="ir.actions.act_window">
+        <field name="name">Tareas Programadas</field>
+        <field name="res_model">llm.scheduled.task</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{'search_default_my_tasks': 1, 'search_default_active_tasks': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                ¡Crea tu primera tarea programada LLM!
+            </p>
+            <p>
+                Configura un prompt y el LLM lo ejecutará automáticamente según el intervalo que definas.
+                Úsalo para reportes periódicos, verificaciones automatizadas, notificaciones y más.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_llm_scheduled_task_log" model="ir.actions.act_window">
+        <field name="name">Logs de Ejecución</field>
+        <field name="res_model">llm.scheduled.task.log</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('task_id.user_id', '=', uid)]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No hay ejecuciones registradas todavía.
+            </p>
+        </field>
+    </record>
+</odoo>

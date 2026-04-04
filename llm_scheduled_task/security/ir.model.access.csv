@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_llm_scheduled_task_user,llm.scheduled.task (user),model_llm_scheduled_task,llm_scheduled_task.group_llm_task_user,1,1,1,1
+access_llm_scheduled_task_log_user,llm.scheduled.task.log (user),model_llm_scheduled_task_log,llm_scheduled_task.group_llm_task_user,1,0,0,0
+access_llm_scheduled_task_log_manager,llm.scheduled.task.log (manager),model_llm_scheduled_task_log,llm_scheduled_task.group_llm_task_manager,1,1,1,1
