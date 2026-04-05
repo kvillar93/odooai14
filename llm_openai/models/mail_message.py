@@ -69,7 +69,7 @@ class MailMessage(models.Model):
                             "type": "text",
                             "text": (
                                 "[Archivo adjunto sin texto extraíble automáticamente "
-                                "(instale «pypdf» para PDF, o use texto/imagen): "
+                                "(PDF: pypdf; Excel: openpyxl; Word: python-docx; o use texto/imagen): "
                                 f"{meta}]"
                             ),
                         }

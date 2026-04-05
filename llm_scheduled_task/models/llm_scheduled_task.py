@@ -115,11 +115,11 @@ class LLMScheduledTask(models.Model):
     )
     thread_id = fields.Many2one(
         "llm.thread",
-        "Chat dedicado",
+        "Último chat de ejecución",
         readonly=True,
         copy=False,
         ondelete="set null",
-        help="Chat LLM reutilizado en cada ejecución de la tarea.",
+        help="Apunta al hilo de la última ejecución. Cada corrida crea un chat nuevo para no mezclar contexto.",
     )
 
     # ─────────────────────────────────────────────────
@@ -221,8 +221,11 @@ class LLMScheduledTask(models.Model):
         for task in self:
             if task.cron_id:
                 task.cron_id.sudo().unlink()
+            threads = task.log_ids.mapped("thread_id")
             if task.thread_id:
-                task.thread_id.sudo().unlink()
+                threads |= task.thread_id
+            if threads:
+                threads.sudo().unlink()
         return super().unlink()
 
     # ─────────────────────────────────────────────────
@@ -267,14 +270,11 @@ class LLMScheduledTask(models.Model):
     # ─────────────────────────────────────────────────
     # Thread management
     # ─────────────────────────────────────────────────
-    def _get_or_create_thread(self):
-        """Devuelve el chat dedicado de la tarea, creándolo si no existe."""
+    def _create_execution_thread(self, log):
+        """Crea un chat nuevo por ejecución (sin historial de corridas anteriores)."""
         self.ensure_one()
-        if self.thread_id and self.thread_id.exists():
-            return self.thread_id
-
         thread_vals = {
-            "name": _("[Tarea] %s") % self.name,
+            "name": _("[Tarea] %s — ejecución %s") % (self.name, log.id),
             "is_scheduled_task": True,
             "user_id": self.user_id.id,
         }
@@ -292,9 +292,9 @@ class LLMScheduledTask(models.Model):
                 "tool_ids": [(6, 0, self.tool_ids.ids)],
             })
 
-        # sudo() para que create_uid = SUPERUSER (excluye del chat normal)
         thread = self.env["llm.thread"].sudo().create(thread_vals)
         self.sudo().write({"thread_id": thread.id})
+        log.sudo().write({"thread_id": thread.id})
         return thread
 
     # ─────────────────────────────────────────────────
@@ -334,14 +334,15 @@ class LLMScheduledTask(models.Model):
         }
 
     def action_view_thread(self):
-        """Abre el chat dedicado de la tarea."""
+        """Abre el chat de la última ejecución (si existe)."""
         self.ensure_one()
-        thread = self._get_or_create_thread()
+        if not self.thread_id:
+            return False
         return {
             "type": "ir.actions.act_window",
             "name": _("Chat de tarea: %s") % self.name,
             "res_model": "llm.thread",
-            "res_id": thread.id,
+            "res_id": self.thread_id.id,
             "view_mode": "form",
             "target": "current",
             "context": {"show_task_threads": True},
@@ -353,7 +354,7 @@ class LLMScheduledTask(models.Model):
     def _do_execute(self):
         """
         Núcleo de la ejecución:
-        1. Obtiene / crea el chat dedicado.
+        1. Crea un log y un chat nuevo (un hilo por ejecución).
         2. Postea el prompt como mensaje de usuario.
         3. Ejecuta el bucle LLM completo (incluyendo tool calls).
         4. Registra el resultado en llm.scheduled.task.log.
@@ -363,10 +364,8 @@ class LLMScheduledTask(models.Model):
             "LLM Tarea '%s' (id=%s): iniciando ejecución.", self.name, self.id
         )
 
-        thread = self._get_or_create_thread()
         start_ts = _time.time()
 
-        # Crear log en estado 'running' y hacer commit para visibilidad inmediata
         log = (
             self.env["llm.scheduled.task.log"]
             .sudo()
@@ -377,6 +376,8 @@ class LLMScheduledTask(models.Model):
             })
         )
         self.env.cr.commit()
+
+        thread = self._create_execution_thread(log)
 
         try:
             # Contar mensajes antes de la ejecución para calcular cuántos se generaron

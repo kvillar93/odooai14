@@ -45,6 +45,13 @@ class LLMScheduledTaskLog(models.Model):
         "Detalle del error",
         readonly=True,
     )
+    thread_id = fields.Many2one(
+        "llm.thread",
+        string="Chat de esta ejecución",
+        readonly=True,
+        ondelete="set null",
+        help="Hilo de chat creado solo para esta ejecución (sin mensajes de ejecuciones anteriores).",
+    )
 
     display_name = fields.Char(
         "Nombre",
@@ -68,9 +75,9 @@ class LLMScheduledTaskLog(models.Model):
             log.display_name = f"{icon} {task_name} — {date_str}"
 
     def action_view_chat(self):
-        """Abre el chat dedicado de la tarea para revisar los mensajes de esta ejecución."""
+        """Abre el chat de esta ejecución concreta (no el de otras corridas)."""
         self.ensure_one()
-        thread = self.task_id.thread_id
+        thread = self.thread_id or self.task_id.thread_id
         if not thread:
             return False
         return {

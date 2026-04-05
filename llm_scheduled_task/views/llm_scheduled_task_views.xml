@@ -292,12 +292,14 @@
                 <field name="duration_seconds" string="Duración (seg)" widget="float" digits="[6,2]"/>
                 <field name="message_count" string="Mensajes"/>
                 <field name="error_message" string="Error" optional="show"/>
+                <field name="thread_id" invisible="1"/>
                 <button
                     name="action_view_chat"
                     type="object"
                     icon="fa-comments"
                     string="Ver chat"
-                    title="Abrir chat de la tarea"
+                    title="Abrir chat de esta ejecución"
+                    attrs="{'invisible': [('thread_id', '=', False)]}"
                 />
             </tree>
         </field>
@@ -315,7 +317,7 @@
                         string="Ver chat completo"
                         type="object"
                         class="btn-primary"
-                        attrs="{'invisible': [('task_id', '=', False)]}"
+                        attrs="{'invisible': [('thread_id', '=', False)]}"
                     />
                     <field name="state" widget="statusbar"/>
                 </header>
@@ -329,6 +331,12 @@
                         <group string="Métricas">
                             <field name="duration_seconds" readonly="1" string="Duración (seg)"/>
                             <field name="message_count" readonly="1" string="Mensajes generados"/>
+                            <field
+                                name="thread_id"
+                                readonly="1"
+                                string="Chat de esta ejecución"
+                                attrs="{'invisible': [('thread_id', '=', False)]}"
+                            />
                         </group>
                     </group>
                     <group

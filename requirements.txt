@@ -1,4 +1,4 @@
-# Dependencias Python agregadas por los módulos en odoo-llm-16.0 (manifests / código).
+# Dependencias Python (módulos en odooai16).
 # Instalar con: pip install -r requirements.txt
 
 PyMuPDF
@@ -17,6 +17,7 @@ nltk
 numpy
 ollama
 openai
+openpyxl
 pgvector
 pydantic>=2.0.0
 pyyaml
@@ -24,4 +25,5 @@ qdrant-client
 replicate
 requests
 sqlparse
+xlrd
 xlsxwriter

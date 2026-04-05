@@ -14,6 +14,9 @@
     "category": "Technical",
     "version": "16.0.1.4.2",
     "depends": ["mail", "web"],
+    "external_dependencies": {
+        "python": ["openpyxl"],
+    },
     "data": [
         "security/llm_security.xml",
         "security/ir.model.access.csv",
