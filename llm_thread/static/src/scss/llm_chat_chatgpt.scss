@@ -159,12 +159,28 @@
   }
 
   .o_Message_prettyBody {
-    font-size: 0.9375rem;
+    font-size: 1rem;
     line-height: 1.65;
+    color: $o-main-text-color !important;
+
+    a {
+      color: $o-brand-primary;
+    }
+
+    // Anula .text-muted / .small de Bootstrap en contenido markdown o HTML del modelo
+    .text-muted,
+    small.text-muted,
+    .text-muted.small {
+      color: $o-main-text-color !important;
+    }
+
+    .small {
+      font-size: 0.9375rem !important;
+    }
 
     pre,
     code {
-      font-size: 0.85rem;
+      font-size: 0.9rem;
       border-radius: var(--llm-radius-sm);
     }
 
@@ -532,7 +548,8 @@
 }
 
 .o_LLMChat--modern .o_Message_prettyBody table {
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
+  color: $o-main-text-color;
 }
 
 .o_LLMChat--modern .o_llm_img_enhanced {

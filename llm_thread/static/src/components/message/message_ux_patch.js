@@ -314,7 +314,7 @@ patch(Message.prototype, "llm_thread.MessageUX", {
         const actions = document.createElement("div");
         actions.className = "o_llm_echarts_actions";
         actions.innerHTML = `
-            <span class="o_llm_echarts_title text-muted small me-auto"
+            <span class="o_llm_echarts_title me-auto"
                   style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">
                 <i class="fa fa-bar-chart me-1" aria-hidden="true"></i>${_escape(title)}
             </span>
