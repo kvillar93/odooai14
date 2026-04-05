@@ -25,6 +25,7 @@ Características:
         "security/ir.model.access.csv",
         "data/llm_tool_scheduled_task_data.xml",
         "data/llm_tool_mail_sender_data.xml",
+        "data/llm_scheduled_task_supervisor_cron.xml",
         "views/llm_scheduled_task_views.xml",
         "views/llm_thread_inherit_views.xml",
         "views/menu.xml",

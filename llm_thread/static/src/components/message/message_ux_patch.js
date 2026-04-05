@@ -12,6 +12,108 @@ const ECHARTS_CDN =
 const JSPDF_CDN =
     "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
 
+/** Shortcodes estilo GitHub/Slack (:bar_chart:) → emoji (refuerzo en mensajes ya renderizados) */
+const _LLM_EMOJI_SHORTCODE_MAP = {
+    bar_chart: "📊",
+    chart_with_upwards_trend: "📈",
+    chart_with_downwards_trend: "📉",
+    white_check_mark: "✅",
+    x: "❌",
+    heavy_check_mark: "✔️",
+    warning: "⚠️",
+    no_entry: "⛔",
+    rocket: "🚀",
+    fire: "🔥",
+    bulb: "💡",
+    memo: "📝",
+    page_facing_up: "📄",
+    email: "📧",
+    incoming_envelope: "📨",
+    package: "📦",
+    moneybag: "💰",
+    calendar: "📅",
+    clock1: "🕐",
+    hourglass_flowing_sand: "⏳",
+    gear: "⚙️",
+    wrench: "🔧",
+    hammer: "🔨",
+    pushpin: "📌",
+    link: "🔗",
+    mag: "🔍",
+    eyes: "👀",
+    thumbsup: "👍",
+    thumbsdown: "👎",
+    clap: "👏",
+    pray: "🙏",
+    smile: "😊",
+    sweat_smile: "😅",
+    thinking_face: "🤔",
+    raised_hands: "🙌",
+    tada: "🎉",
+    zap: "⚡",
+    star: "⭐",
+    sparkles: "✨",
+    question: "❓",
+    exclamation: "❗",
+    speech_balloon: "💬",
+    robot_face: "🤖",
+    computer: "💻",
+    globe_with_meridians: "🌐",
+    triangulation_flag: "🚩",
+    dart: "🎯",
+    bookmark: "🔖",
+    books: "📚",
+    green_circle: "🟢",
+    red_circle: "🔴",
+    yellow_circle: "🟡",
+    large_blue_circle: "🔵",
+    arrow_right: "➡️",
+    arrow_left: "⬅️",
+    arrow_up: "⬆️",
+    arrow_down: "⬇️",
+};
+
+/**
+ * Sustituye :shortcode: por emoji en nodos de texto (no dentro de code/pre).
+ * @param {HTMLElement} bodyEl
+ */
+function _llmReplaceEmojiShortcodesInBody(bodyEl) {
+    const walker = document.createTreeWalker(bodyEl, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+            const p = node.parentElement;
+            if (!p) {
+                return NodeFilter.FILTER_REJECT;
+            }
+            if (p.closest("code, pre")) {
+                return NodeFilter.FILTER_REJECT;
+            }
+            if (!node.nodeValue || node.nodeValue.indexOf(":") === -1) {
+                return NodeFilter.FILTER_REJECT;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+        },
+    });
+    const nodes = [];
+    while (walker.nextNode()) {
+        nodes.push(walker.currentNode);
+    }
+    for (const node of nodes) {
+        let v = node.nodeValue;
+        const replaced = v.replace(/:([a-z0-9_+-]+):/gi, (m, name) => {
+            const k = name.toLowerCase();
+            return Object.prototype.hasOwnProperty.call(
+                _LLM_EMOJI_SHORTCODE_MAP,
+                k
+            )
+                ? _LLM_EMOJI_SHORTCODE_MAP[k]
+                : m;
+        });
+        if (replaced !== v) {
+            node.nodeValue = replaced;
+        }
+    }
+}
+
 // Promesas de carga (singleton por sesión de página)
 let _echartsPromise = null;
 let _jsPdfPromise = null;
@@ -103,6 +205,7 @@ patch(Message.prototype, "llm_thread.MessageUX", {
     _llmEnhanceAssistantDom(contentEl) {
         const bodies = contentEl.querySelectorAll(".o_Message_prettyBody");
         for (const body of bodies) {
+            _llmReplaceEmojiShortcodesInBody(body);
             // --- Tablas con botón "Copiar" ---
             for (const table of body.querySelectorAll(
                 "table:not(.o_llm_table_enhanced)"

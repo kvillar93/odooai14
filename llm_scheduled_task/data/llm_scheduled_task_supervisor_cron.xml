@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <data noupdate="1">
+        <record id="ir_cron_llm_scheduled_task_supervisor" model="ir.cron">
+            <field name="name">LLM: Supervisar ejecuciones de tareas colgadas</field>
+            <field name="model_id" ref="model_llm_scheduled_task_log"/>
+            <field name="state">code</field>
+            <field name="code">model.cron_supervise_stale_running_logs()</field>
+            <field name="interval_number">10</field>
+            <field name="interval_type">minutes</field>
+            <field name="numbercall">-1</field>
+            <field name="active" eval="True"/>
+            <field name="user_id" ref="base.user_root"/>
+        </record>
+    </data>
+</odoo>

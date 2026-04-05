@@ -311,8 +311,11 @@ class LLMThread(models.Model):
 
         body = _ECHARTS_BLOCK_RE.sub(_echarts_to_div, body)
 
+        # :bar_chart:, :white_check_mark:, etc. → Unicode (mejor presentación en el chat)
+        body = emoji.emojize(str(body), language="alias")
+
         return markdown2.markdown(
-            emoji.demojize(body),
+            body,
             extras=["tables", "fenced-code-blocks", "break-on-newline"],
         )
 
