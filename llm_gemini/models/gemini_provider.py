@@ -71,7 +71,7 @@ class LLMProvider(models.Model):
                     found_one = True
                     yield self._gemini_parse_model(m, short)
                     break
-                methods = list(getattr(m, "supported_generation_methods", None) or [])
+                methods = self._gemini_supported_methods(m)
                 if not any(x in methods for x in ("generateContent", "embedContent")):
                     continue
                 yield self._gemini_parse_model(m, short)
@@ -81,11 +81,20 @@ class LLMProvider(models.Model):
         if want and not found_one:
             _logger.warning("Gemini: no se encontró '%s' en list_models.", model_id)
 
+    def _gemini_supported_methods(self, m):
+        """Lista métodos soportados (google-genai usa supported_actions; el API REST: supportedGenerationMethods)."""
+        raw = (
+            getattr(m, "supported_actions", None)
+            or getattr(m, "supported_generation_methods", None)
+            or []
+        )
+        return [str(x) for x in raw] if raw else []
+
     def _gemini_parse_model(self, m, short_name=None):
         """Convierte un objeto Model de la API al formato esperado por llm.fetch.models."""
         if short_name is None:
             short_name = self._gemini_short_name(m.name)
-        methods = list(getattr(m, "supported_generation_methods", None) or [])
+        methods = self._gemini_supported_methods(m)
         low = short_name.lower()
 
         capabilities = []
