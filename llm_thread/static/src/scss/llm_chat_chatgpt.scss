@@ -586,35 +586,109 @@
   border: none !important;
 
   .o_LLMChatComposer_container {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+
+  .o_LLMChatComposer_pill {
     background: var(--llm-composer-bg);
     border: 1px solid var(--llm-border-subtle);
-    border-radius: var(--llm-radius-lg);
-    padding: 0.5rem 0.65rem 0.5rem 0.85rem !important;
+    border-radius: 1.75rem;
+    padding: 0.35rem 0.65rem 0.35rem 0.55rem;
     box-shadow: var(--llm-shadow-soft);
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 
     &:focus-within {
-      border-color: rgba($o-brand-primary, 0.45);
-      box-shadow: 0 0 0 3px rgba($o-brand-primary, 0.12);
+      border-color: rgba($o-brand-primary, 0.4);
+      box-shadow: 0 0 0 3px rgba($o-brand-primary, 0.1), var(--llm-shadow-soft);
     }
   }
 
-  .o_LLMChatComposer_toolBtn {
-    border-radius: var(--llm-radius-md) !important;
-    border: 1px solid var(--llm-border-subtle) !important;
-    background: var(--llm-surface-elevated) !important;
+  // Una sola fila: adjunto | textarea | mic + enviar; align-items-center centra en vertical si el texto crece
+  .o_LLMChatComposer_pillBody {
+    min-width: 0;
+  }
+
+  .o_LLMChatComposer_textCell {
+    min-width: 0;
+  }
+
+  .o_LLMChatComposer_iconBtn {
+    width: 2.5rem;
+    height: 2.5rem;
     min-width: 2.5rem;
     min-height: 2.5rem;
-    transition: transform 0.15s ease, background 0.2s;
+    border-radius: 999px !important;
+    color: var(--llm-text-muted);
+    background: transparent !important;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
 
-    &:hover {
-      background: rgba($o-brand-primary, 0.08) !important;
+    .fa {
+      font-size: 1.1rem;
+    }
+
+    &:hover:not(:disabled) {
+      color: var(--llm-text);
+      background: rgba($black, 0.05) !important;
+    }
+
+    &:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+
+    &--recording,
+    &.o_LLMChatComposer_iconBtn--recording {
+      color: $danger !important;
+      background: rgba($danger, 0.1) !important;
     }
   }
 
-  .o_Composer_buttonSend {
-    border-radius: var(--llm-radius-md) !important;
+  .o_LLMChatComposer_sendBtn {
+    width: 2.5rem;
+    height: 2.5rem;
     min-width: 2.5rem;
     min-height: 2.5rem;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    background: $o-brand-primary !important;
+    color: $white !important;
+    transition: opacity 0.2s ease, transform 0.12s ease, box-shadow 0.2s ease;
+    box-shadow: 0 2px 8px rgba($o-brand-primary, 0.35);
+
+    .fa {
+      font-size: 0.95rem;
+      margin-top: 1px;
+    }
+
+    &:hover:not(:disabled) {
+      filter: brightness(1.05);
+      box-shadow: 0 4px 14px rgba($o-brand-primary, 0.45);
+    }
+
+    &:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+
+    &:disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+      box-shadow: none;
+      filter: none;
+    }
+
+    &.o_LLMChatComposer_sendBtn--stop,
+    &.o_Composer_buttonStop {
+      background: $danger !important;
+      box-shadow: 0 2px 8px rgba($danger, 0.35);
+
+      &:hover:not(:disabled) {
+        box-shadow: 0 4px 14px rgba($danger, 0.45);
+      }
+    }
+  }
+
+  // Compatibilidad con estilos legacy de mail en el botón enviar
+  .o_LLMChatComposer_toolBtn.o_LLMChatComposer_iconBtn {
+    line-height: 1;
   }
 }

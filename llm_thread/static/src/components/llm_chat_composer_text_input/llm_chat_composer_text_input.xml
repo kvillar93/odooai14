@@ -3,12 +3,12 @@
     <t t-name="llm_thread.LLMChatComposerTextInput" owl="1">
         <t t-if="composerView">
             <div
-        class="o_LLMChatComposerTextInput position-relative bg-view flex-grow-1"
+        class="o_LLMChatComposerTextInput o_LLMChatComposerTextInput--pill position-relative w-100 min-w-0"
         t-on-paste="composerView.onPasteTextInput"
         t-ref="root"
       >
                 <textarea
-          class="o_LLMChatComposerTextInput_textarea form-control border bg-light py-3 px-4"
+          class="o_LLMChatComposerTextInput_textarea o_LLMChatComposerTextInput_textarea--pill form-control shadow-none"
           t-att-placeholder="composerView.composer.placeholderLLMChat"
           t-on-click="composerView.onClickTextarea"
           t-on-focusin="composerView.onFocusinTextarea"
@@ -23,8 +23,8 @@
                      the textarea properly without flicker.
                 -->
                 <textarea
-          class="o_ComposerTextInput_mirroredTextarea o_ComposerTextInput_textareaStyle position-absolute px-3 border-0 overflow-hidden opacity-0"
-          t-att-class="{ 'o-composer-is-compact rounded-0 rounded-start-3': composerView.isCompact, 'rounded-3': !composerView.isCompact }"
+          class="o_LLMChatComposerTextInput_mirrored o_ComposerTextInput_mirroredTextarea o_ComposerTextInput_textareaStyle position-absolute border-0 overflow-hidden opacity-0"
+          t-att-class="{ 'o-composer-is-compact': composerView.isCompact }"
           t-esc="composerView.composer.textInputContent"
           t-ref="mirroredTextarea"
           disabled="1"

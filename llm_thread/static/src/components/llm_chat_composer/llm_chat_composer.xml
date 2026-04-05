@@ -2,57 +2,70 @@
 <templates xml:space="preserve">
     <t t-name="llm_thread.LLMChatComposer" owl="1">
         <div class="o_LLMChatComposer o_LLMChatComposer--modern w-100">
-            <div
-        class="o_LLMChatComposer_container d-flex flex-column gap-2 mx-auto"
-        style="max-width: 1200px;"
-      >
+            <div class="o_LLMChatComposer_container d-flex flex-column gap-2 mx-auto w-100">
                 <AttachmentList
                     t-if="composerView.attachmentList"
-                    className="'o_Composer_attachmentList flex-grow-1'"
+                    className="'o_Composer_attachmentList o_LLMChatComposer_attachmentList flex-grow-1'"
                     record="composerView.attachmentList"
                 />
-                <div class="d-flex align-items-end gap-2 flex-nowrap w-100">
-                    <LLMChatComposerTextInput record="composerView" />
-                    <button
-            class="o_LLMChatComposer_toolBtn btn btn-light border rounded-3 flex-shrink-0 d-inline-flex align-items-center justify-content-center"
-            type="button"
-            title="Adjuntar archivo"
-            aria-label="Adjuntar archivo"
-            t-on-click="composerView.onClickAddAttachment"
-        >
-                        <i class="fa fa-paperclip fa-lg text-muted" />
-                    </button>
-                    <button
-            t-if="state.hasVoiceAPI"
-            class="o_LLMChatComposer_toolBtn btn border rounded-3 flex-shrink-0 d-inline-flex align-items-center justify-content-center"
-            t-att-class="state.isRecording ? 'btn-danger' : 'btn-light'"
-            type="button"
-            title="Nota de voz"
-            aria-label="Nota de voz"
-            t-on-click="onClickVoiceRecording"
-        >
-                        <i
-              class="fa fa-lg"
-              t-att-class="state.isRecording ? 'fa-stop' : 'fa-microphone'"
-            />
-                    </button>
-                    <t t-if="!isStreaming">
-                        <button
-            class="o_Composer_actionButton o_Composer_button o_Composer_buttonSend btn btn-primary o-last o-composer-is-compact border-start-0 flex-shrink-0"
-            t-on-click="_onClickSend"
-            t-att-disabled="isDisabled"
+                <div class="o_LLMChatComposer_pill w-100">
+                    <div
+            class="o_LLMChatComposer_pillBody d-flex flex-nowrap align-items-center w-100 min-w-0 gap-2"
           >
-                            <i class="fa fa-paper-plane-o" />
-                        </button>
-                    </t>
-                    <t t-if="isStreaming">
                         <button
-            class="o_Composer_actionButton o_Composer_button o_Composer_buttonStop btn btn-danger o-last o-composer-is-compact border-start-0 flex-shrink-0"
-            t-on-click="_onClickStop"
-          >
-                            <i class="fa fa-stop" />
+              class="o_LLMChatComposer_iconBtn o_LLMChatComposer_toolBtn o_LLMChatComposer_attachBtn btn p-0 border-0 flex-shrink-0"
+              type="button"
+              title="Adjuntar archivo"
+              aria-label="Adjuntar archivo"
+              t-on-click="composerView.onClickAddAttachment"
+            >
+                            <i class="fa fa-paperclip" />
                         </button>
-                    </t>
+                        <div class="o_LLMChatComposer_textCell flex-grow-1 min-w-0">
+                            <LLMChatComposerTextInput record="composerView" />
+                        </div>
+                        <div
+              class="o_LLMChatComposer_actionsEnd d-flex align-items-center gap-1 flex-shrink-0"
+            >
+                            <button
+                t-if="state.hasVoiceAPI"
+                class="o_LLMChatComposer_iconBtn o_LLMChatComposer_toolBtn btn p-0 border-0"
+                t-att-class="state.isRecording ? 'o_LLMChatComposer_iconBtn--recording' : ''"
+                type="button"
+                title="Nota de voz"
+                aria-label="Nota de voz"
+                t-on-click="onClickVoiceRecording"
+              >
+                                <i
+                  class="fa"
+                  t-att-class="state.isRecording ? 'fa-stop' : 'fa-microphone'"
+                />
+                            </button>
+                            <t t-if="!isStreaming">
+                                <button
+                  class="o_LLMChatComposer_sendBtn o_Composer_actionButton o_Composer_button o_Composer_buttonSend btn o-last d-inline-flex align-items-center justify-content-center border-0"
+                  t-on-click="_onClickSend"
+                  t-att-disabled="isDisabled"
+                  type="button"
+                  title="Enviar"
+                  aria-label="Enviar"
+                >
+                                    <i class="fa fa-arrow-up" />
+                                </button>
+                            </t>
+                            <t t-if="isStreaming">
+                                <button
+                  class="o_LLMChatComposer_sendBtn o_LLMChatComposer_sendBtn--stop o_Composer_actionButton o_Composer_button o_Composer_buttonStop btn o-last d-inline-flex align-items-center justify-content-center border-0"
+                  t-on-click="_onClickStop"
+                  type="button"
+                  title="Detener"
+                  aria-label="Detener"
+                >
+                                    <i class="fa fa-stop" />
+                                </button>
+                            </t>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
