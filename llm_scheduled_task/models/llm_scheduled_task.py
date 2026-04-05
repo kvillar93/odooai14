@@ -2,10 +2,21 @@
 import logging
 import time as _time
 
+from dateutil.relativedelta import relativedelta
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
+
+# Misma lógica que ir.cron para intervalos (alineación con nextcall)
+_LLM_TASK_INTERVAL_DELTA = {
+    "minutes": lambda n: relativedelta(minutes=n),
+    "hours": lambda n: relativedelta(hours=n),
+    "days": lambda n: relativedelta(days=n),
+    "weeks": lambda n: relativedelta(days=7 * n),
+    "months": lambda n: relativedelta(months=n),
+}
 
 
 class LLMScheduledTask(models.Model):
@@ -303,6 +314,8 @@ class LLMScheduledTask(models.Model):
     def action_run_now(self):
         """Ejecuta la tarea manualmente de inmediato."""
         self.ensure_one()
+        # Evita solape con ir.cron: la próxima llamada programada queda después de ahora + intervalo
+        self._postpone_next_scheduled_run()
         self._do_execute()
         return {
             "type": "ir.actions.client",
@@ -348,6 +361,27 @@ class LLMScheduledTask(models.Model):
             "context": {"show_task_threads": True},
         }
 
+    def _llm_scheduled_task_advisory_key(self):
+        """Clave bigint estable para pg_try_advisory_lock (una por tarea)."""
+        return int((0x4C4D5354 << 32) | (self.id & 0xFFFFFFFF))
+
+    def _postpone_next_scheduled_run(self):
+        """Adelanta next_run / nextcall del cron para no disparar en paralelo con ejecución manual."""
+        self.ensure_one()
+        if self.state != "active" or not self.interval_type:
+            return
+        n = self.interval_number or 1
+        delta_fn = _LLM_TASK_INTERVAL_DELTA.get(self.interval_type)
+        if not delta_fn:
+            return
+        now = fields.Datetime.now()
+        candidate = now + delta_fn(n)
+        # No adelantar una próxima ejecución ya programada más lejana (p. ej. next_run en el futuro)
+        current = self.next_run or candidate
+        next_time = max(candidate, current)
+        if next_time != self.next_run:
+            self.write({"next_run": next_time})
+
     # ─────────────────────────────────────────────────
     # Ejecución del LLM
     # ─────────────────────────────────────────────────
@@ -360,63 +394,105 @@ class LLMScheduledTask(models.Model):
         4. Registra el resultado en llm.scheduled.task.log.
         """
         self.ensure_one()
+
+        lock_id = self._llm_scheduled_task_advisory_key()
+        lock_held = None
+        try:
+            self.env.cr.execute("SELECT pg_try_advisory_lock(%s)", (lock_id,))
+            row = self.env.cr.fetchone()
+            lock_held = bool(row and row[0])
+        except Exception as err:
+            _logger.warning(
+                "LLM Tarea id=%s: pg_try_advisory_lock no disponible (%s); "
+                "se ejecuta sin bloqueo antiduplicado.",
+                self.id,
+                err,
+            )
+            lock_held = None
+
+        if lock_held is False:
+            _logger.warning(
+                "LLM Tarea '%s' (id=%s): ejecución omitida (ya hay otra corrida en curso).",
+                self.name,
+                self.id,
+            )
+            return
+
         _logger.info(
             "LLM Tarea '%s' (id=%s): iniciando ejecución.", self.name, self.id
         )
 
-        start_ts = _time.time()
-
-        log = (
-            self.env["llm.scheduled.task.log"]
-            .sudo()
-            .create({
-                "task_id": self.id,
-                "execution_date": fields.Datetime.now(),
-                "state": "running",
-            })
-        )
-        self.env.cr.commit()
-
-        thread = self._create_execution_thread(log)
-
         try:
-            # Contar mensajes antes de la ejecución para calcular cuántos se generaron
-            msg_domain = [("model", "=", "llm.thread"), ("res_id", "=", thread.id)]
-            msg_before = self.env["mail.message"].sudo().search_count(msg_domain)
+            start_ts = _time.time()
 
-            # Ejecutar el LLM como el propietario de la tarea
-            task_user = self.user_id or self.env.user
-            thread_as_user = thread.with_user(task_user)
-
-            for _chunk in thread_as_user.generate(self.task_prompt):
-                # Los mensajes se guardan en DB dentro de generate(); solo consumimos el generator
-                pass
-
-            msg_after = self.env["mail.message"].sudo().search_count(msg_domain)
-            duration = _time.time() - start_ts
-
-            log.sudo().write({
-                "state": "success",
-                "duration_seconds": duration,
-                "message_count": max(0, msg_after - msg_before),
-            })
-            _logger.info(
-                "LLM Tarea '%s': completada en %.1f s (%d mensajes generados).",
-                self.name,
-                duration,
-                max(0, msg_after - msg_before),
+            log = (
+                self.env["llm.scheduled.task.log"]
+                .sudo()
+                .create({
+                    "task_id": self.id,
+                    "execution_date": fields.Datetime.now(),
+                    "state": "running",
+                })
             )
-        except Exception as exc:
-            duration = _time.time() - start_ts
-            _logger.exception(
-                "LLM Tarea '%s' (id=%s): error durante la ejecución.", self.name, self.id
-            )
-            log.sudo().write({
-                "state": "error",
-                "error_message": str(exc),
-                "duration_seconds": duration,
-            })
             self.env.cr.commit()
+
+            thread = self._create_execution_thread(log)
+
+            try:
+                msg_domain = [
+                    ("model", "=", "llm.thread"),
+                    ("res_id", "=", thread.id),
+                ]
+                msg_before = self.env["mail.message"].sudo().search_count(
+                    msg_domain
+                )
+
+                task_user = self.user_id or self.env.user
+                thread_as_user = thread.with_user(task_user)
+
+                for _chunk in thread_as_user.generate(self.task_prompt):
+                    pass
+
+                msg_after = self.env["mail.message"].sudo().search_count(
+                    msg_domain
+                )
+                duration = _time.time() - start_ts
+
+                log.sudo().write({
+                    "state": "success",
+                    "duration_seconds": duration,
+                    "message_count": max(0, msg_after - msg_before),
+                })
+                _logger.info(
+                    "LLM Tarea '%s': completada en %.1f s (%d mensajes generados).",
+                    self.name,
+                    duration,
+                    max(0, msg_after - msg_before),
+                )
+            except Exception as exc:
+                duration = _time.time() - start_ts
+                _logger.exception(
+                    "LLM Tarea '%s' (id=%s): error durante la ejecución.",
+                    self.name,
+                    self.id,
+                )
+                log.sudo().write({
+                    "state": "error",
+                    "error_message": str(exc),
+                    "duration_seconds": duration,
+                })
+                self.env.cr.commit()
+            finally:
+                self.sudo().write({"state": self.state})
         finally:
-            # Actualizar last_run aunque haya error
-            self.sudo().write({"state": self.state})  # Trigger recompute de last_run
+            if lock_held is True:
+                try:
+                    self.env.cr.execute(
+                        "SELECT pg_advisory_unlock(%s)", (lock_id,)
+                    )
+                except Exception as err:
+                    _logger.warning(
+                        "LLM Tarea id=%s: pg_advisory_unlock: %s",
+                        self.id,
+                        err,
+                    )
