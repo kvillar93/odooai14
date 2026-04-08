@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <t t-inherit="llm_thread.LLMChatComposer" t-inherit-mode="extension" owl="1">
+        <xpath expr="//button[hasclass('o_LLMChatComposer_attachBtn')]" position="after">
+            <t t-if="composerView.composer.thread and composerView.composer.thread.model === 'llm.thread'">
+                <LLMContextMeter threadId="composerView.composer.thread.id"/>
+            </t>
+        </xpath>
+    </t>
+</templates>

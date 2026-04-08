@@ -1,0 +1,137 @@
+// Evita que el menú del gauge quede recortado por la píldora del compositor
+.o_LLMChatComposer.o_LLMChatComposer--modern {
+  .o_LLMChatComposer_pill,
+  .o_LLMChatComposer_pillBody {
+    overflow: visible;
+  }
+
+  .o_LLMChatComposer_container {
+    overflow: visible;
+  }
+}
+
+.o_llm_ctxMeter {
+  &--wrap {
+    z-index: 12;
+    overflow: visible;
+  }
+
+  &__trigger {
+    line-height: 0;
+    border-radius: 50%;
+    background: transparent !important;
+    opacity: 0.92;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      opacity: 1;
+      filter: brightness(0.97);
+    }
+
+    &:focus-visible {
+      outline: 2px solid rgba(13, 110, 253, 0.45);
+      outline-offset: 2px;
+    }
+  }
+
+  &__gauge {
+    position: relative;
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+  }
+
+  &__gaugeOnly {
+    line-height: 0;
+  }
+
+  &__svg {
+    width: 28px;
+    height: 28px;
+    display: block;
+
+    &--muted {
+      opacity: 0.45;
+    }
+  }
+
+  &__abbr {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -52%);
+    font-size: 6.5px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--llm-text, #374151);
+    pointer-events: none;
+    max-width: 20px;
+    overflow: hidden;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
+  &__ring-bg {
+    stroke: rgba(0, 0, 0, 0.1);
+  }
+
+  &__ring-fill {
+    transition: stroke-dashoffset 0.35s ease, stroke 0.2s ease;
+
+    &--normal {
+      stroke: #16a34a;
+    }
+
+    &--warning {
+      stroke: #d97706;
+    }
+
+    &--critical {
+      stroke: #dc2626;
+    }
+  }
+
+  /* Posición: la fija el JS (viewport) para no recortarse por overflow de ancestros */
+  &__menu {
+    min-width: 220px;
+    /* CSS min(); interpolación evita que Sass lo interprete como su función min() */
+    max-width: #{"min(280px, calc(100vw - 16px))"};
+    border-radius: 0.5rem;
+    box-sizing: border-box;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+  }
+
+  &__item {
+    font-size: 0.8rem;
+    color: inherit;
+    cursor: pointer;
+    border-radius: 0.35rem;
+
+    &:hover,
+    &--active {
+      background-color: rgba(0, 0, 0, 0.06);
+    }
+  }
+
+  &__itemIcon {
+    width: 1rem;
+    text-align: center;
+    opacity: 0.85;
+  }
+
+  &__itemAbbr {
+    font-size: 0.65rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    min-width: 1.5rem;
+  }
+
+  &__itemLabel {
+    flex: 1;
+    font-size: 0.75rem;
+    opacity: 0.92;
+  }
+}

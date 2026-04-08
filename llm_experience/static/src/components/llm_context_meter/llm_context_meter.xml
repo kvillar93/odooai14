@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <t t-name="llm_experience.LLMContextMeter" owl="1">
+        <div
+            class="o_llm_ctxMeter o_llm_ctxMeter--wrap flex-shrink-0 position-relative"
+            t-ref="root"
+        >
+            <t t-if="state.loaded and state.selectorEnabled">
+                <button
+                    type="button"
+                    class="o_llm_ctxMeter__trigger btn border-0 p-0 position-relative"
+                    t-ref="trigger"
+                    t-att-title="ctxTitle"
+                    t-att-disabled="state.saving"
+                    t-att-aria-expanded="ariaExpanded"
+                    t-att-aria-haspopup="true"
+                    t-att-aria-label="ariaLabel"
+                    t-on-click="toggleMenu"
+                >
+                    <span class="o_llm_ctxMeter__gauge" aria-hidden="true">
+                        <svg class="o_llm_ctxMeter__svg" viewBox="0 0 40 40">
+                            <circle
+                                class="o_llm_ctxMeter__ring-bg"
+                                cx="20"
+                                cy="20"
+                                r="16"
+                                fill="none"
+                                stroke-width="3"
+                            />
+                            <circle
+                                t-att-class="ringFillClass"
+                                cx="20"
+                                cy="20"
+                                r="16"
+                                fill="none"
+                                stroke-width="3"
+                                stroke-linecap="round"
+                                transform="rotate(-90 20 20)"
+                                t-att-stroke-dasharray="gaugeDashArray"
+                                t-att-stroke-dashoffset="gaugeDashOffset"
+                            />
+                        </svg>
+                        <span class="o_llm_ctxMeter__abbr" t-esc="currentOption.abbr"/>
+                    </span>
+                </button>
+                <div
+                    t-if="state.menuOpen"
+                    t-ref="menu"
+                    class="o_llm_ctxMeter__menu shadow-sm bg-view border py-1"
+                    role="menu"
+                >
+                    <t t-foreach="options" t-as="opt" t-key="opt.value">
+                        <button
+                            type="button"
+                            class="o_llm_ctxMeter__item d-flex align-items-center gap-2 py-2 px-2 w-100 border-0 bg-transparent text-start"
+                            t-att-class="{'o_llm_ctxMeter__item--active': state.current === opt.value}"
+                            role="menuitem"
+                            t-att-data-mode="opt.value"
+                            t-on-click="onPickMode"
+                        >
+                            <i t-att-class="'fa ' + opt.icon + ' o_llm_ctxMeter__itemIcon flex-shrink-0'"/>
+                            <span class="o_llm_ctxMeter__itemAbbr" t-esc="opt.abbr"/>
+                            <span class="o_llm_ctxMeter__itemLabel text-truncate" t-esc="opt.label"/>
+                        </button>
+                    </t>
+                </div>
+            </t>
+            <t t-if="state.loaded and !state.selectorEnabled">
+                <div class="o_llm_ctxMeter__gaugeOnly position-relative" t-att-title="ctxTitle">
+                    <span class="o_llm_ctxMeter__gauge" aria-hidden="true">
+                        <svg class="o_llm_ctxMeter__svg" viewBox="0 0 40 40">
+                            <circle
+                                class="o_llm_ctxMeter__ring-bg"
+                                cx="20"
+                                cy="20"
+                                r="16"
+                                fill="none"
+                                stroke-width="3"
+                            />
+                            <circle
+                                t-att-class="ringFillClass"
+                                cx="20"
+                                cy="20"
+                                r="16"
+                                fill="none"
+                                stroke-width="3"
+                                stroke-linecap="round"
+                                transform="rotate(-90 20 20)"
+                                t-att-stroke-dasharray="gaugeDashArray"
+                                t-att-stroke-dashoffset="gaugeDashOffset"
+                            />
+                        </svg>
+                    </span>
+                </div>
+            </t>
+            <t t-if="!state.loaded">
+                <span class="o_llm_ctxMeter__placeholder o_llm_ctxMeter__gauge" aria-hidden="true">
+                    <svg class="o_llm_ctxMeter__svg o_llm_ctxMeter__svg--muted" viewBox="0 0 40 40">
+                        <circle
+                            class="o_llm_ctxMeter__ring-bg"
+                            cx="20"
+                            cy="20"
+                            r="16"
+                            fill="none"
+                            stroke-width="3"
+                        />
+                    </svg>
+                </span>
+            </t>
+        </div>
+    </t>
+</templates>

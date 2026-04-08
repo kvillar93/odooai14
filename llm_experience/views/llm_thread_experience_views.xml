@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="llm_thread_view_form_experience_selector" model="ir.ui.view">
+        <field name="name">llm.thread.form.experience.selector</field>
+        <field name="model">llm.thread</field>
+        <field name="inherit_id" ref="llm_thread.llm_thread_view_form" />
+        <field name="arch" type="xml">
+            <field name="tool_ids" position="after">
+                <field name="chat_work_mode_selector_enabled" />
+            </field>
+        </field>
+    </record>
+</odoo>

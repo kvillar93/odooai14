@@ -274,6 +274,7 @@ class LLMThread(models.Model):
             "tools": self.tool_ids,
             "stream": use_streaming,
             "prepend_messages": prepend_messages,
+            "llm_thread": self,
         }
         if use_streaming:
             # Handle streaming response - process tool calls directly from stream

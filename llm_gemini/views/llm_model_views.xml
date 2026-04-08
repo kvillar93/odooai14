@@ -11,6 +11,10 @@
                     name="gemini_google_search_grounding"
                     attrs="{'invisible': [('provider_service', '!=', 'gemini')]}"
                 />
+                <field
+                    name="gemini_afc_max_remote_calls"
+                    attrs="{'invisible': [('provider_service', '!=', 'gemini')]}"
+                />
             </field>
         </field>
     </record>
