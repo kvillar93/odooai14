@@ -32,8 +32,8 @@ Use cases include customer support automation, data analysis, training assistanc
 Contact: support@apexive.com
     """,
     "category": "Productivity, Discuss",
-    "version": "16.0.1.4.1",
-    "depends": ["base", "mail", "web", "llm", "llm_tool"],
+    "version": "16.0.1.5.4",
+    "depends": ["base", "mail", "web", "web_editor", "llm", "llm_tool"],
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
     "external_dependencies": {"python": ["emoji", "markdown2"]},
@@ -45,6 +45,7 @@ Contact: support@apexive.com
     ],
     "assets": {
         "web.assets_backend": [
+            "web_editor/static/lib/html2canvas.js",
             # Client Actions (must be loaded before models that depend on them)
             "llm_thread/static/src/client_actions/open_chatter_action.js",
             # Models
@@ -107,6 +108,10 @@ Contact: support@apexive.com
             "llm_thread/static/src/components/llm_chat_thread_related_record/llm_chat_thread_related_record.scss",
             # Client Actions
             "llm_thread/static/src/llm_chat_client_action.js",
+            # Systray: chat flotante (grupo group_llm_floating_chat)
+            "llm_thread/static/src/systray/llm_floating_systray.scss",
+            "llm_thread/static/src/systray/llm_floating_systray.xml",
+            "llm_thread/static/src/systray/llm_floating_systray.js",
             # Styles
             (
                 "after",

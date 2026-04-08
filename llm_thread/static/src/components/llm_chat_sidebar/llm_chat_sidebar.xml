@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
     <t t-name="llm_thread.LLMChatSidebar" owl="1">
-        <!-- Backdrop (mobile only) -->
-        <t t-if="llmChatView.isSmall">
+        <!-- Backdrop: móvil o popup flotante (mismo comportamiento que smartphone) -->
+        <t t-if="useMobileOverlaySidebar">
             <div
                 class="o_LLMChatSidebar_backdrop"
                 t-att-class="{ 'o-visible': llmChatView.isThreadListVisible }"
@@ -14,17 +14,17 @@
         <div
             class="o_LLMChatSidebar o_LLMChatSidebar--modern o_DiscussSidebar d-flex flex-column flex-shrink-0 h-100 border-end"
             t-att-class="{
-                'o-mobile': llmChatView.isSmall,
-                'o-visible': !llmChatView.isSmall || llmChatView.isThreadListVisible,
+                'o-mobile': useMobileOverlaySidebar,
+                'o-visible': !useMobileOverlaySidebar || llmChatView.isThreadListVisible,
                 'overflow-auto': !llmChatView.isSidebarCollapsed
             }"
-            t-att-style="!llmChatView.isSmall ? (llmChatView.isSidebarCollapsed ? 'width: 48px;' : 'width: 280px;') : ''"
+            t-att-style="sidebarWidthStyle"
         >
-            <!-- Desktop: Collapse/Expand Header -->
-            <t t-if="!llmChatView.isSmall">
+            <!-- Escritorio (no popup): cabecera colapsar + lista -->
+            <t t-if="useDesktopSidebar">
                 <div
-                    class="d-flex align-items-center border-bottom"
-                    t-att-class="llmChatView.isSidebarCollapsed ? 'justify-content-center px-2 py-3' : 'justify-content-between p-3'"
+                    class="o_LLMChatSidebar_topbar d-flex align-items-center border-bottom flex-shrink-0"
+                    t-att-class="llmChatView.isSidebarCollapsed ? 'justify-content-center px-2' : 'justify-content-between px-3'"
                 >
                     <!-- Expanded: Header content + collapse button -->
                     <t t-if="!llmChatView.isSidebarCollapsed">
@@ -51,7 +51,10 @@
                 </div>
 
                 <!-- Desktop: New Chat Button (only when expanded) -->
-                <div t-if="!llmChatView.isSidebarCollapsed" class="d-flex justify-content-center p-3">
+                <div
+                    t-if="!llmChatView.isSidebarCollapsed"
+                    class="o_LLMChatSidebar_newChatWrap o_LLMChatSidebar_newChatWrap--desktop d-flex justify-content-center p-3"
+                >
                     <button
                         class="btn btn-primary rounded w-100"
                         t-on-click="_onClickNewChat"
@@ -67,14 +70,14 @@
                 </div>
             </t>
 
-            <!-- Mobile: Simple layout -->
+            <!-- Móvil o popup flotante: overlay estilo smartphone (sin botón oi-panel-right) -->
             <t t-else="">
-                <div class="d-flex align-items-center justify-content-between border-bottom p-3">
+                <div class="o_LLMChatSidebar_topbar d-flex align-items-center justify-content-between border-bottom flex-shrink-0 px-3">
                     <h6 class="mb-0 text-muted">Conversations</h6>
                 </div>
 
                 <!-- Mobile: New Chat Button -->
-                <div class="d-flex justify-content-center p-3">
+                <div class="o_LLMChatSidebar_newChatWrap o_LLMChatSidebar_newChatWrap--overlay d-flex justify-content-center p-3">
                     <button
                         class="btn btn-primary rounded w-100"
                         t-on-click="_onClickNewChat"

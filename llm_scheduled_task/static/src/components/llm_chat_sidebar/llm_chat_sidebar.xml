@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
     <t t-inherit="llm_thread.LLMChatSidebar" t-inherit-mode="extension">
-        <!-- Escritorio: hijo directo t-if del panel (evita otros t-if en el árbol) -->
+        <!-- Escritorio: anclaje estable (antes: t-if !isSmall; ahora useDesktopSidebar) -->
         <xpath
-            expr="//div[hasclass('o_LLMChatSidebar') and hasclass('o_DiscussSidebar')]/t[@t-if='!llmChatView.isSmall']//div[hasclass('d-flex') and hasclass('justify-content-center') and hasclass('p-3')][1]"
+            expr="//div[hasclass('o_LLMChatSidebar_newChatWrap--desktop')]"
             position="before"
         >
             <div
-                t-if="scheduledTaskCount > 0"
+                t-if="scheduledTaskCount > 0 and !llmChatView.isSidebarCollapsed"
                 class="d-flex justify-content-center px-3 pt-3 pb-0"
             >
                 <button
@@ -20,9 +20,9 @@
                 </button>
             </div>
         </xpath>
-        <!-- Móvil: t-else hijo directo del panel (no el t-else interno del modo colapsado) -->
+        <!-- Móvil / popup flotante: overlay -->
         <xpath
-            expr="//div[hasclass('o_LLMChatSidebar') and hasclass('o_DiscussSidebar')]/t[@t-else='']//div[hasclass('d-flex') and hasclass('justify-content-center') and hasclass('p-3')][1]"
+            expr="//div[hasclass('o_LLMChatSidebar_newChatWrap--overlay')]"
             position="before"
         >
             <div

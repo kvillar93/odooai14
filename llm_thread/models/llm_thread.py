@@ -186,6 +186,14 @@ class LLMThread(models.Model):
         needs_unique_name = []
 
         for vals in vals_list:
+            # Herramientas marcadas como default en llm.tool (si no vienen ya en vals)
+            if not vals.get("tool_ids"):
+                default_tools = self.env["llm.tool"].search(
+                    [("active", "=", True), ("default", "=", True)]
+                )
+                if default_tools:
+                    vals["tool_ids"] = [(6, 0, default_tools.ids)]
+
             if not vals.get("name"):
                 # If linked to a record, use its display name
                 if vals.get("model") and vals.get("res_id"):
@@ -224,7 +232,7 @@ class LLMThread(models.Model):
         """Si el usuario renombra a un título no genérico, bloquear futuros reemplazos automáticos."""
         if vals.get("name") is not None:
             name = str(vals["name"]).strip() if vals.get("name") else ""
-            if name and not re.match(r"^New Chat #\d+$", name):
+            if name and not self._thread_name_is_generic_placeholder(name):
                 if "title_auto_generated" not in vals:
                     vals["title_auto_generated"] = False
         return super().write(vals)
@@ -278,17 +286,22 @@ class LLMThread(models.Model):
         return super().message_post(message_type=message_type, **kwargs)
 
     def _get_llm_email_from(self, subtype_xmlid, author_id, llm_role=None):
-        """Generate appropriate email_from for LLM messages."""
+        """Generate appropriate email_from for LLM messages (texto legible, sin nombres técnicos)."""
         if author_id:
             return None  # Let standard flow handle it
 
-        provider_name = self.provider_id.name
-        model_name = self.model_id.name
+        company_name = (self.env.company.name or "").strip()
 
         if subtype_xmlid == "llm.mt_tool" or llm_role == "tool":
-            return f"Tool <tool@{provider_name.lower().replace(' ', '')}.ai>"
-        elif subtype_xmlid == "llm.mt_assistant" or llm_role == "assistant":
-            return f"{model_name} <ai@{provider_name.lower().replace(' ', '')}.ai>"
+            # Nombre genérico para mensajes de herramienta
+            label = _("Herramientas")
+            return label if not company_name else f"{company_name} · {label}"
+
+        if subtype_xmlid == "llm.mt_assistant" or llm_role == "assistant":
+            return f"{company_name} AI".strip() if company_name else "AI"
+
+        if subtype_xmlid == "llm.mt_system" or llm_role == "system":
+            return f"{company_name} AI".strip() if company_name else "AI"
 
         return None
 
@@ -369,18 +382,25 @@ class LLMThread(models.Model):
     # GENERATION FLOW - Refactored to use message_post with roles
     # ============================================================================
 
-    def _is_default_thread_title(self):
-        """True si el nombre sigue siendo el genérico 'New Chat #id' y puede sustituirse por IA."""
-        self.ensure_one()
-        if not self.name:
+    @api.model
+    def _thread_name_is_generic_placeholder(self, name):
+        """Nombres que el cliente envía como placeholder (EN/ES) o el formato estándar New Chat #id."""
+        if name is None:
             return True
-        stripped = self.name.strip()
-        # Título ya personalizado (no patrón genérico) y marcado como no autogenerado → no tocar
-        if self.title_auto_generated is False and not re.match(
-            r"^New Chat #\d+$", stripped
-        ):
-            return False
-        return bool(re.match(r"^New Chat #\d+$", stripped))
+        stripped = str(name).strip()
+        if not stripped:
+            return True
+        if re.match(r"^New Chat #\d+$", stripped, re.IGNORECASE):
+            return True
+        # create() / JS envían "Nuevo chat", "New chat", etc.; deben poder renombrarse por IA
+        if stripped.lower() in {"nuevo chat", "new chat"}:
+            return True
+        return False
+
+    def _is_default_thread_title(self):
+        """True si el nombre sigue siendo placeholder y puede sustituirse (IA o primer mensaje)."""
+        self.ensure_one()
+        return self._thread_name_is_generic_placeholder(self.name)
 
     def _apply_auto_title_from_first_user_message(self, text, attachment_ids=None):
         """Genera un título corto a partir del primer mensaje o nombres de adjuntos."""

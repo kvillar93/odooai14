@@ -165,5 +165,31 @@ registerPatch({
         return toolData?.tool_calls || [];
       },
     }),
+
+    /**
+     * Nombre visible del asistente: «{compañía activa} AI» (no modelo/email técnico).
+     */
+    authorName: {
+      compute() {
+        if (this.llmRole === "assistant" || this.llmRole === "system") {
+          const name = this.messaging?.companyName || "";
+          const suffix = this.env._t("AI");
+          return name ? `${name} ${suffix}`.trim() : suffix;
+        }
+        return this._super();
+      },
+    },
+
+    /**
+     * Avatar con letras «AI» para mensajes del asistente.
+     */
+    avatarUrl: {
+      compute() {
+        if (this.llmRole === "assistant" || this.llmRole === "system") {
+          return "/llm_thread/static/src/img/llm_ai_avatar.svg";
+        }
+        return this._super();
+      },
+    },
   },
 });

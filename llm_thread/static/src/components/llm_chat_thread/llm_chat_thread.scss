@@ -15,6 +15,5 @@
   }
 }
 
-.o_LLMChatThread_content {
-  max-height: calc(100% - 140px);
-}
+// Altura: la columna del hilo usa flex (min-h-0 + contenido scrollable + compositor fijo abajo).
+// No usar max-height fijo: con adjuntos altos el área de mensajes debe encogerse, no ocultar el prompt.

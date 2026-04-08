@@ -1,3 +1,17 @@
+.o_LLMChatThread_header_dropdowns--compact {
+  .o_LLMChat_headerIconBtn {
+    width: 2.25rem;
+    height: 2.25rem;
+    min-width: 2.25rem;
+    padding: 0 !important;
+
+    .fa {
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+  }
+}
+
 .o_ThreadViewTopbar {
   // Only keep styles that are specific to our use case and not covered by Odoo's classes
   .o_ThreadViewTopbar_threadName {

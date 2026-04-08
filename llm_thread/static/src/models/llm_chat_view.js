@@ -17,6 +17,16 @@ registerModel({
      * @private
      */
     _updateLayoutState() {
+      if (this.llmChat.isSystrayFloatingMode) {
+        const isSmall = this._isSmall();
+        this.update({
+          isSmall,
+          // Mismo patrón que smartphone: lista oculta por defecto; la hamburguesa abre el overlay
+          isThreadListVisible: false,
+          isSidebarCollapsed: false,
+        });
+        return;
+      }
       const isSmall = this._isSmall();
       const isChatterMode = Boolean(this.llmChat.isChatterMode);
 
@@ -36,6 +46,9 @@ registerModel({
      * @private
      */
     _onLLMChatActiveThreadChanged() {
+      if (this.llmChat.isSystrayFloatingMode) {
+        return;
+      }
       this.env.services.router.pushState({
         action: this.llmChat.llmChatView.actionId,
         active_id: this.llmChat.activeId,
@@ -146,7 +159,12 @@ registerModel({
       methodName: "_onLLMChatActiveThreadChanged",
     },
     {
-      dependencies: ["llmChat.isChatterMode", "llmChat.relatedThreadModel", "llmChat.relatedThreadId"],
+      dependencies: [
+        "llmChat.isChatterMode",
+        "llmChat.relatedThreadModel",
+        "llmChat.relatedThreadId",
+        "llmChat.isSystrayFloatingMode",
+      ],
       methodName: "_onContextChanged",
     },
   ],

@@ -13,6 +13,10 @@ registerModel({
       identifying: true,
     }),
     name: attr(),
+    /** Coincide con llm.assistant.is_default (asistente preferido al crear hilos) */
+    isDefault: attr({
+      default: false,
+    }),
     /**
      * Threads associated with this assistant
      */

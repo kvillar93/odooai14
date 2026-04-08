@@ -4,34 +4,36 @@
         <div
       class="o_LLMChatThread_header_modern o_ThreadViewTopbar d-flex flex-shrink-0 w-100 px-3 bg-100 border-bottom align-items-center"
       t-ref="root"
-      style="height: 50px;"
     >
-            <!-- Toggle Button (Mobile) -->
+            <!-- Lista de hilos: hamburguesa en móvil y siempre en popup flotante -->
             <button
-        t-if="isSmall"
+        t-if="showThreadListHamburger"
         class="o_ThreadViewTopbar_button btn px-2 border-none rounded shadow-none me-2 flex-shrink-0"
         t-on-click="_onToggleThreadList"
+        t-att-title="env._t('Mostrar u ocultar conversaciones')"
+        type="button"
       >
                 <i
           class="fa fa-lg fa-bars text-700"
           role="img"
-          aria-label="Toggle thread list"
+          t-att-aria-label="env._t('Mostrar u ocultar conversaciones')"
         />
             </button>
 
-            <!-- Thread Name (Editable) -->
+            <!-- Nombre del hilo (oculto en popup flotante: ya se muestra en la cabecera morada) -->
             <div
+        t-if="!useCompactHeaderIcons"
         class="o_ThreadViewTopbar_title d-flex flex-grow-1 align-items-center min-w-0 me-2"
       >
                 <t t-if="!llmChatThreadHeaderView.isEditingName || isSmall">
                     <div
             class="o_ThreadViewTopbar_threadName o_ThreadViewTopbar_editableItem lead flex-shrink-1 px-1 border text-truncate fw-bold"
-            t-att-title="thread.name"
+            t-att-title="displayThreadName"
             t-on-click="llmChatThreadHeaderView.onClickTopbarThreadName"
             t-attf-class="{{ isSmall ? 'border-0' : 'border-light' }}"
             style="cursor: pointer;"
           >
-                        <t t-esc="thread.name" />
+                        <t t-esc="displayThreadName" />
                     </div>
                 </t>
                 <t t-if="llmChatThreadHeaderView.isEditingName and !isSmall">
@@ -64,15 +66,172 @@
                 </t>
             </div>
 
-            <!-- Related Record Component -->
-            <div class="me-2 flex-shrink-0">
+            <!-- Enlace a registro (+ Enlace): oculto en popup flotante -->
+            <div t-if="!useCompactHeaderIcons" class="me-2 flex-shrink-0">
                 <LLMChatThreadRelatedRecord thread="thread" />
             </div>
 
             <!-- Dropdowns (Desktop) -->
             <div
-        t-if="!isSmall and !thread.hideThreadSettings"
-        class="o_ThreadDropdowns d-flex align-items-center flex-shrink-0"
+        t-if="thread and !isSmall and !thread.hideThreadSettings and llmChat and useCompactHeaderIcons"
+        class="o_ThreadDropdowns o_LLMChatThread_header_dropdowns--compact d-flex align-items-center flex-shrink-0 gap-1 ms-auto"
+      >
+                <div class="dropdown">
+                    <button
+            class="btn btn-sm btn-outline-secondary dropdown-toggle o-no-caret o_LLMChat_headerIconBtn d-flex align-items-center justify-content-center"
+            type="button"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+            t-att-title="compactProviderTitle"
+            t-att-aria-label="compactProviderTitle"
+          >
+                        <i class="fa fa-cloud text-body"/>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <t
+              t-foreach="llmProviders"
+              t-as="provider"
+              t-key="provider.id"
+            >
+                            <li>
+                                <a
+                  class="dropdown-item text-truncate"
+                  href="#"
+                  t-on-click.prevent="() => this.onSelectProvider(provider)"
+                  t-att-title="provider.name"
+                  t-attf-class="{{ llmChatThreadHeaderView.selectedProviderId === provider.id ? 'active' : '' }}"
+                >
+                                    <t t-esc="provider.name" />
+                                </a>
+                            </li>
+                        </t>
+                    </ul>
+                </div>
+                <div class="dropdown" t-ref="modelDropdown">
+                    <button
+            class="btn btn-sm btn-outline-secondary dropdown-toggle o-no-caret o_LLMChat_headerIconBtn d-flex align-items-center justify-content-center"
+            type="button"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+            t-att-disabled="!llmChatThreadHeaderView.selectedProviderId"
+            t-att-title="compactModelTitle"
+            t-att-aria-label="compactModelTitle"
+          >
+                        <i class="fa fa-android text-body" aria-hidden="true"/>
+                    </button>
+                    <div
+            class="dropdown-menu dropdown-menu-end p-0"
+            data-bs-auto-close="outside"
+            style="min-width: 250px; max-height: 300px; overflow-y: auto;"
+          >
+                        <div class="p-2 border-bottom">
+                             <input
+                type="text"
+                class="form-control form-control-sm"
+                placeholder="Buscar asistentes..."
+                t-att-value="state.modelSearchQuery"
+                t-on-input="onModelSearchInput"
+                t-on-click="_preventDropdownClose"
+                t-ref="modelSearchInput"
+                aria-label="Buscar asistentes"
+              />
+                         </div>
+                        <ul class="list-unstyled mb-0">
+                            <t t-if="filteredModels.length > 0">
+                                <t
+                  t-foreach="filteredModels"
+                  t-as="model"
+                  t-key="model.id"
+                >
+                                    <li>
+                                        <a
+                      href="#"
+                      class="dropdown-item text-truncate d-block"
+                      t-on-click.prevent="() => onSelectModel(model)"
+                      t-att-title="model.name"
+                      t-attf-class="{{ llmChatThreadHeaderView.selectedModelId === model.id ? 'active' : '' }}"
+                    >
+                                            <t t-esc="model.name" />
+                                        </a>
+                                    </li>
+                                </t>
+                            </t>
+                            <t t-else="">
+                                <li
+                  class="dropdown-item text-muted disabled"
+                >No hay asistentes<t t-if="state.modelSearchQuery"> para «<t
+                      t-esc="state.modelSearchQuery"
+                    />»</t>.</li>
+                            </t>
+                         </ul>
+                    </div>
+                </div>
+                <div class="dropdown">
+                    <button
+            class="btn btn-sm btn-outline-secondary dropdown-toggle o-no-caret o_LLMChat_headerIconBtn o_LLMChat_headerIconBtn--withNotify d-flex align-items-center justify-content-center position-relative"
+            type="button"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+            t-att-title="compactToolsTitle"
+            t-att-aria-label="compactToolsTitle"
+          >
+                        <i class="fa fa-wrench text-body"/>
+                        <t t-if="thread.selectedToolIds and thread.selectedToolIds.length > 0">
+                            <span class="o_LLMChat_toolNotifyBadge">
+                                <t t-esc="thread.selectedToolIds.length"/>
+                            </span>
+                        </t>
+                    </button>
+                    <div
+            class="dropdown-menu dropdown-menu-end p-2"
+            data-bs-auto-close="outside"
+            style="min-width: 200px;"
+          >
+                        <h6
+              class="dropdown-header px-2 py-1"
+            >Available Tools</h6>
+                        <div style="max-height: 250px; overflow-y: auto;">
+                            <t
+                t-if="llmToolsList.length > 0"
+              >
+                                <t
+                  t-foreach="llmToolsList"
+                  t-as="tool"
+                  t-key="tool.id"
+                >
+                                    <div
+                    class="form-check dropdown-item mb-0"
+                  >
+                                        <input
+                      type="checkbox"
+                      class="form-check-input"
+                      t-att-id="'tool-checkbox-' + tool.id"
+                      t-att-value="tool.id"
+                      t-att-checked="thread.selectedToolIds and thread.selectedToolIds.includes(tool.id)"
+                      t-on-change="(ev) => onToolSelectChange(ev, tool)"
+                    />
+                                        <label
+                      class="form-check-label"
+                      t-att-for="'tool-checkbox-' + tool.id"
+                    >
+                                            <t t-esc="tool.name" />
+                                        </label>
+                                    </div>
+                                </t>
+                            </t>
+                            <t t-else="">
+                                <div
+                  class="dropdown-item text-muted disabled"
+                >No tools available.</div>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div
+        t-if="thread and !isSmall and !thread.hideThreadSettings and llmChat and !useCompactHeaderIcons"
+        class="o_ThreadDropdowns o_ThreadDropdowns--expanded d-flex align-items-center flex-shrink-0"
       >
                 <!-- LLM Provider Dropdown -->
                 <div class="dropdown">
@@ -218,10 +377,10 @@
             >Available Tools</h6>
                         <div style="max-height: 250px; overflow-y: auto;">
                             <t
-                t-if="llmChat.tools and llmChat.tools.length > 0"
+                t-if="llmToolsList.length > 0"
               >
                                 <t
-                  t-foreach="llmChat.tools"
+                  t-foreach="llmToolsList"
                   t-as="tool"
                   t-key="tool.id"
                 >

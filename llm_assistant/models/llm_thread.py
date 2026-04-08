@@ -11,6 +11,28 @@ _logger = logging.getLogger(__name__)
 class LLMThread(models.Model):
     _inherit = "llm.thread"
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Asigna asistente por defecto (is_default) y su configuración si no se indicó uno."""
+        for vals in vals_list:
+            if vals.get("assistant_id"):
+                continue
+            default_asst = self.env["llm.assistant"].search(
+                [("active", "=", True), ("is_default", "=", True)], limit=1
+            )
+            if not default_asst:
+                continue
+            vals["assistant_id"] = default_asst.id
+            if default_asst.provider_id:
+                vals.setdefault("provider_id", default_asst.provider_id.id)
+            if default_asst.model_id:
+                vals.setdefault("model_id", default_asst.model_id.id)
+            if default_asst.tool_ids:
+                vals["tool_ids"] = [(6, 0, default_asst.tool_ids.ids)]
+            if default_asst.prompt_id:
+                vals.setdefault("prompt_id", default_asst.prompt_id.id)
+        return super().create(vals_list)
+
     assistant_id = fields.Many2one(
         "llm.assistant",
         string="Assistant",

@@ -17,11 +17,30 @@ export class LLMChatSidebar extends Component {
     return this.props.record;
   }
 
+  /** Escritorio ancho: barra con ancho fijo y botón colapsar panel. */
+  get useDesktopSidebar() {
+    const v = this.llmChatView;
+    return !v.isSmall && !v.llmChat.isSystrayFloatingMode;
+  }
+
+  /** Móvil o popup flotante: overlay lateral como en smartphone. */
+  get useMobileOverlaySidebar() {
+    const v = this.llmChatView;
+    return v.isSmall || v.llmChat.isSystrayFloatingMode;
+  }
+
+  get sidebarWidthStyle() {
+    if (!this.useDesktopSidebar) {
+      return "";
+    }
+    return this.llmChatView.isSidebarCollapsed ? "width: 48px;" : "width: 280px;";
+  }
+
   /**
    * Handle backdrop click to close sidebar on mobile
    */
   _onBackdropClick() {
-    if (this.llmChatView.isSmall) {
+    if (this.useMobileOverlaySidebar) {
       this.llmChatView.update({ isThreadListVisible: false });
     }
   }
@@ -51,14 +70,14 @@ export class LLMChatSidebar extends Component {
         llmChat.update({ activeThread: thread });
 
         // Close sidebar on mobile/aside
-        if (this.llmChatView.isSmall) {
+        if (this.useMobileOverlaySidebar) {
           this.llmChatView.update({ isThreadListVisible: false });
         }
       }
     } else {
       // Standalone mode - existing behavior
       await llmChat.createNewThread();
-      if (this.llmChatView.isSmall) {
+      if (this.useMobileOverlaySidebar) {
         this.llmChatView.update({ isThreadListVisible: false });
       }
     }

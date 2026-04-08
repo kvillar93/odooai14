@@ -165,9 +165,11 @@ registerModel({
       if (this.isEditingName || isSmall) {
         return;
       }
+      const t = this.threadView.thread;
+      const nm = t.name && String(t.name).trim() ? t.name : t.id ? `Chat #${t.id}` : "";
       this.update({
         isEditingName: true,
-        pendingName: this.threadView.thread.name,
+        pendingName: nm,
       });
     },
 

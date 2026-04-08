@@ -104,15 +104,20 @@ export class LLMChatThreadHeader extends Component {
   }
 
   get thread() {
-    return this.threadView.thread;
+    return this.threadView?.thread;
   }
 
   get llmChat() {
-    return this.thread.llmChat;
+    return this.thread?.llmChat;
   }
 
   get llmProviders() {
-    return this.llmChat.llmProviders;
+    return this.llmChat?.llmProviders ?? [];
+  }
+
+  /** Herramientas del chat; vacío si el hilo aún no está enlazado al LLMChat (evita errores OWL). */
+  get llmToolsList() {
+    return this.llmChat?.tools ?? [];
   }
 
   get llmModels() {
@@ -140,6 +145,55 @@ export class LLMChatThreadHeader extends Component {
     return this.llmChat?.llmChatView?.isSmall ?? this.messaging.device.isSmall;
   }
 
+  /**
+   * Botón hamburguesa para mostrar/ocultar la lista de hilos: en móvil y siempre en el popup flotante.
+   */
+  get showThreadListHamburger() {
+    return this.isSmall || Boolean(this.llmChat?.isSystrayFloatingMode);
+  }
+
+  /** Panel flotante (systray): cabecera con iconos y tooltips para ahorrar espacio. */
+  get useCompactHeaderIcons() {
+    return Boolean(this.llmChat?.isSystrayFloatingMode);
+  }
+
+  get compactProviderTitle() {
+    const n =
+      this.llmChatThreadHeaderView.selectedProvider?.name ||
+      this.env._t("Seleccionar proveedor");
+    return `${this.env._t("Proveedor")}: ${n}`;
+  }
+
+  get compactModelTitle() {
+    const n =
+      this.llmChatThreadHeaderView.selectedModel?.name ||
+      this.env._t("Seleccionar asistente");
+    return `${this.env._t("Asistente")}: ${n}`;
+  }
+
+  get compactToolsTitle() {
+    const n = this.thread?.selectedToolIds?.length || 0;
+    return `${this.env._t("Herramientas")} (${n})`;
+  }
+
+  /**
+   * Título estable: evita vacío y "New Chat" suelto si el servidor ya devolvió otro nombre tras refresco.
+   */
+  get displayThreadName() {
+    const thread = this.thread;
+    if (!thread) {
+      return "";
+    }
+    const raw = thread.name;
+    if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
+      return String(raw).trim();
+    }
+    if (thread.id) {
+      return `Chat #${thread.id}`;
+    }
+    return this.env._t("Chat");
+  }
+
   // --------------------------------------------------------------------------
   // Event Handlers
   // --------------------------------------------------------------------------
@@ -163,7 +217,7 @@ export class LLMChatThreadHeader extends Component {
   getDefaultModelForProvider(providerId) {
     // Note: Use llmChat.llmModels here to check *all* models, not just those already filtered
     const availableModels =
-      this.llmChat.llmModels?.filter(
+      this.llmChat?.llmModels?.filter(
         (model) => model.llmProvider?.id === providerId
       ) || [];
     const defaultModel = availableModels.find((model) => model.default);
@@ -225,8 +279,12 @@ export class LLMChatThreadHeader extends Component {
    * Toggle thread list visibility on mobile
    */
   _onToggleThreadList() {
-    this.llmChat.llmChatView.update({
-      isThreadListVisible: !this.llmChat.llmChatView.isThreadListVisible,
+    const v = this.llmChat?.llmChatView;
+    if (!v) {
+      return;
+    }
+    v.update({
+      isThreadListVisible: !v.isThreadListVisible,
     });
   }
 
@@ -261,6 +319,9 @@ export class LLMChatThreadHeader extends Component {
    * @param {Object} tool - The tool object being selected/deselected
    */
   async onToolSelectChange(ev, tool) {
+    if (!this.thread) {
+      return;
+    }
     const checked = ev.target.checked;
 
     const currentSelectedIds = this.thread.selectedToolIds || [];

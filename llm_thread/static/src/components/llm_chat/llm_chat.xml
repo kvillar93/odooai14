@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
     <t t-name="llm_thread.LLMChat" owl="1">
-        <div class="o_LLMChat o_LLMChat--modern d-flex h-100">
-            <!-- Thread List Section -->
+        <div
+            class="o_LLMChat o_LLMChat--modern d-flex h-100"
+            t-att-class="{'o_LLMChat--systrayFloat': llmChatView.llmChat.isSystrayFloatingMode}"
+        >
+            <!-- Lista de hilos (misma lógica que pantalla completa: colapsar barra lateral, etc.) -->
             <LLMChatSidebar record="llmChatView" />
 
             <!-- Chat Section -->
-            <div class="o_LLMChat_content flex-grow-1 d-flex flex-column min-w-0">
+            <div class="o_LLMChat_content flex-grow-1 d-flex flex-column min-w-0 min-h-0 h-100">
                 <t t-if="llmChatView.llmChat.activeThread">
                     <LLMChatThread
             record="llmChatView.llmChat.activeThread"

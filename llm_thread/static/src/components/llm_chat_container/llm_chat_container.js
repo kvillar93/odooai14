@@ -13,10 +13,12 @@ export class LLMChatContainer extends Component {
 
     this.env.services.messaging.modelManager.messagingCreatedPromise.then(
       async () => {
-        const { action } = this.props;
+        const action = this.props.action;
         const initActiveId =
-          (action.context && action.context.active_id) ||
-          (action.params && action.params.default_active_id) ||
+          action?.context?.active_id ??
+          action?.context?.default_active_id ??
+          action?.params?.default_active_id ??
+          action?.params?.active_id ??
           null;
 
         if (!this.messaging.llmChat) {

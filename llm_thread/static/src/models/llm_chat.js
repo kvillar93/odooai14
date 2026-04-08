@@ -141,10 +141,17 @@ registerModel({
      * @private
      */
     _mapThreadDataFromServer(threadData) {
+      const rawName = threadData.name;
+      const safeName =
+        rawName !== undefined &&
+        rawName !== null &&
+        String(rawName).trim() !== ""
+          ? String(rawName).trim()
+          : `New Chat #${threadData.id}`;
       const mappedData = {
         id: threadData.id,
         model: "llm.thread",
-        name: threadData.name,
+        name: safeName,
         message_needaction_counter: 0,
         creator: threadData.create_uid
           ? { id: threadData.create_uid }
@@ -206,19 +213,14 @@ registerModel({
 
         const mappedThreadData = this._mapThreadDataFromServer(result[0]);
 
-        // Find the thread in the collection and update it directly
-        if (this.threads) {
-          const threadIndex = this.threads.findIndex(
-            (thread) => thread.id === threadId
-          );
-
-          if (threadIndex !== -1) {
-            // Get the existing thread
-            const thread = this.threads[threadIndex];
-
-            // Update the thread directly
-            thread.update(mappedThreadData);
-          }
+        // Actualizar el registro Thread aunque aún no esté en this.threads (p. ej. recién creado)
+        const threadRecord =
+          this.messaging.models.Thread.findFromIdentifyingData({
+            id: threadId,
+            model: "llm.thread",
+          });
+        if (threadRecord) {
+          threadRecord.update(mappedThreadData);
         }
       } catch (error) {
         console.error("Error refreshing thread:", error);
@@ -235,6 +237,8 @@ registerModel({
         model: "llm.thread",
       });
       if (thread) {
+        // Sincroniza nombre y campos con el servidor para evitar títulos obsoletos o "New Chat" fantasma
+        await this.refreshThread(threadId);
         this.update({ activeThread: thread });
       }
     },
@@ -293,10 +297,16 @@ registerModel({
       }
 
       const threadData = {
-        name,
         model_id: defaultModel.id,
         provider_id: defaultModel.llmProvider.id,
       };
+      if (
+        name !== undefined &&
+        name !== null &&
+        String(name).trim() !== ""
+      ) {
+        threadData.name = name;
+      }
       if (this.scopedChatWindowId) {
         threadData.chat_window_id = this.scopedChatWindowId;
       }
@@ -497,6 +507,10 @@ registerModel({
           await this.openInitThread();
         }
       }
+      // Refresco final: al abrir por menú / F5 el título y M2O quedan alineados con el servidor
+      if (this.activeThread?.id) {
+        await this.refreshThread(this.activeThread.id);
+      }
     },
 
     /**
@@ -515,7 +529,6 @@ registerModel({
           args: [
             [
               {
-                name: "Nuevo chat",
                 chat_window_id: windowId,
               },
             ],
@@ -543,13 +556,14 @@ registerModel({
           method: "search_read",
           kwargs: {
             domain: [["active", "=", true]],
-            fields: ["name", "id"],
+            fields: ["name", "id", "default"],
           },
         });
 
         const toolData = result.map((tool) => ({
           id: tool.id,
           name: tool.name,
+          default: Boolean(tool.default),
         }));
 
         this.update({ tools: toolData });
@@ -629,6 +643,8 @@ registerModel({
     scopedChatWindowId: attr({ default: null }),
     /** Evita mezclar hilos al cambiar de acción cliente / ventana. */
     chatInitScopeKey: attr({ default: "" }),
+    /** Panel compacto desde el icono de la barra superior (systray). */
+    isSystrayFloatingMode: attr({ default: false }),
     // Context tracking for chatter mode
     relatedThreadModel: attr(),
     relatedThreadId: attr(),

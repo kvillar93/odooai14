@@ -5,11 +5,60 @@
     t-inherit="llm_thread.LLMChatThreadHeader"
     t-inherit-mode="extension"
   >
+        <!-- Modo compacto (chat flotante systray): solo icono, mismo estilo que proveedor/modelo/herramientas -->
         <xpath
-      expr="//div[hasclass('o_ThreadDropdowns')]/div[hasclass('dropdown')][1]"
+      expr="//div[hasclass('o_LLMChatThread_header_dropdowns--compact')]/div[hasclass('dropdown')][1]"
       position="before"
     >
-            <!-- LLM Assistant Dropdown -->
+            <div class="dropdown me-2">
+                <button
+          class="btn btn-sm btn-outline-secondary dropdown-toggle o-no-caret o_LLMChat_headerIconBtn d-flex align-items-center justify-content-center"
+          type="button"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+          t-att-title="compactAssistantTitle"
+          t-att-aria-label="compactAssistantTitle"
+        >
+                    <i class="fa fa-id-badge text-body" aria-hidden="true"/>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                        <a
+              class="dropdown-item text-truncate"
+              href="#"
+              t-on-click="onClearAssistant"
+              t-attf-class="{{ !llmChatThreadHeaderView.selectedAssistant ? 'active' : '' }}"
+            >
+                            <i class="fa fa-times me-1" aria-hidden="true"/>
+                            <t t-esc="env._t('Sin asistente predefinido')"/>
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"/></li>
+                    <t
+            t-foreach="llmAssistants"
+            t-as="assistant"
+            t-key="assistant.id"
+          >
+                        <li>
+                            <a
+                class="dropdown-item text-truncate"
+                href="#"
+                t-on-click="() => this.onSelectAssistant(assistant)"
+                t-att-title="assistant.name"
+                t-attf-class="{{ llmChatThreadHeaderView.selectedAssistant and llmChatThreadHeaderView.selectedAssistant.id === assistant.id ? 'active' : '' }}"
+              >
+                                <t t-esc="assistant.name"/>
+                            </a>
+                        </li>
+                    </t>
+                </ul>
+            </div>
+        </xpath>
+        <!-- Modo expandido (ventana completa): texto visible -->
+        <xpath
+      expr="//div[hasclass('o_ThreadDropdowns--expanded')]/div[hasclass('dropdown')][1]"
+      position="before"
+    >
             <div class="dropdown me-2">
                 <button
           class="btn btn-light dropdown-toggle d-flex align-items-center gap-2"
@@ -25,7 +74,7 @@
               />
                         </t>
                         <t t-else="">
-                            Select Assistant
+                            <t t-esc="env._t('Seleccionar asistente')"/>
                         </t>
                     </div>
                 </button>
@@ -37,10 +86,11 @@
               t-on-click="onClearAssistant"
               t-attf-class="{{ !llmChatThreadHeaderView.selectedAssistant ? 'active' : '' }}"
             >
-                            <i class="fa fa-times me-1" /> No Assistant
+                            <i class="fa fa-times me-1" aria-hidden="true"/>
+                            <t t-esc="env._t('Sin asistente predefinido')"/>
                         </a>
                     </li>
-                    <li><hr class="dropdown-divider" /></li>
+                    <li><hr class="dropdown-divider"/></li>
                     <t
             t-foreach="llmAssistants"
             t-as="assistant"
@@ -54,7 +104,7 @@
                 t-att-title="assistant.name"
                 t-attf-class="{{ llmChatThreadHeaderView.selectedAssistant and llmChatThreadHeaderView.selectedAssistant.id === assistant.id ? 'active' : '' }}"
               >
-                                <t t-esc="assistant.name" />
+                                <t t-esc="assistant.name"/>
                             </a>
                         </li>
                     </t>

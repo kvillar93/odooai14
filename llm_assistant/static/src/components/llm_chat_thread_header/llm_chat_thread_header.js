@@ -34,5 +34,13 @@ patch(
     onClearAssistant() {
       this.llmChatThreadHeaderView.saveSelectedAssistant(false);
     },
+
+    get compactAssistantTitle() {
+      const a = this.llmChatThreadHeaderView.selectedAssistant;
+      if (a) {
+        return `${this.env._t("Asistente predefinido")}: ${a.name}`;
+      }
+      return this.env._t("Sin asistente predefinido");
+    },
   }
 );

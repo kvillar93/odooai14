@@ -58,6 +58,12 @@
   box-shadow: var(--llm-shadow-soft);
   overflow-x: hidden;
 
+  // Misma altura que o_LLMChatThread_header_modern (50px) para alinear border-bottom
+  .o_LLMChatSidebar_topbar {
+    height: 50px;
+    box-sizing: border-box;
+  }
+
   h6 {
     color: var(--llm-text-muted);
     font-weight: 600;
@@ -84,24 +90,84 @@
   background: var(--llm-surface-elevated) !important;
   border-color: var(--llm-border-subtle) !important;
   backdrop-filter: blur(8px);
-  height: 52px !important;
+  height: 50px !important;
+  box-sizing: border-box;
 
   .btn-light {
     background: var(--llm-composer-bg) !important;
     border: 1px solid var(--llm-border-subtle) !important;
     border-radius: var(--llm-radius-sm);
   }
+
+  // Contador de tools estilo notificación (esquina superior derecha del botón)
+  .o_LLMChat_headerIconBtn--withNotify {
+    overflow: visible;
+  }
+
+  .o_LLMChat_toolNotifyBadge {
+    position: absolute;
+    top: -0.28rem;
+    right: -0.22rem;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    padding: 0 0.28rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.62rem;
+    font-weight: 700;
+    line-height: 1;
+    color: $white;
+    background: $o-brand-primary;
+    border: 2px solid var(--llm-surface-elevated);
+    border-radius: 100rem;
+    box-shadow: 0 1px 4px rgba($black, 0.28);
+    pointer-events: none;
+  }
+
+  // Iconos del popup flotante: contraste explícito (evita iconos “en blanco”)
+  .o_LLMChatThread_header_dropdowns--compact .o_LLMChat_headerIconBtn.btn-outline-secondary {
+    color: var(--llm-text) !important;
+    background: var(--llm-surface) !important;
+    border-color: var(--llm-border-subtle) !important;
+
+    .fa {
+      color: var(--llm-text) !important;
+      opacity: 1;
+    }
+
+    &:hover,
+    &:focus {
+      background: var(--llm-composer-bg) !important;
+      border-color: rgba($o-brand-primary, 0.35) !important;
+    }
+  }
 }
 
 // -----------------------------------------------------------------------------
+// Cabecera por encima del contenido (evita que el área de mensajes tape los dropdown)
 // Área de mensajes
 // -----------------------------------------------------------------------------
 .o_LLMChatThread.o_LLMChatThread--modern {
-  .o_LLMChatThread_content {
+  min-height: 0;
+
+  > .o_LLMChatThread_header_modern.o_ThreadViewTopbar {
+    position: relative;
+    z-index: 25;
+  }
+
+  > .o_LLMChatThread_content {
+    position: relative;
+    z-index: 1;
     padding: 0.5rem 0.75rem 1rem;
     max-width: 100%;
+    min-height: 0;
     background: transparent;
     scroll-behavior: smooth;
+  }
+
+  > .o_LLMChatThread_header_modern .dropdown-menu {
+    z-index: 1080;
   }
 
   .o_LLMChatThread_composer {
@@ -605,6 +671,14 @@
   .o_LLMChatComposer_container {
     padding-left: 0.5rem !important;
     padding-right: 0.5rem !important;
+    min-height: 0;
+    // Adjuntos arriba: limitar altura para que la píldora de texto siga visible
+    .o_LLMChatComposer_attachmentList,
+    .o_Composer_attachmentList {
+      max-height: 9rem;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
   }
 
   .o_LLMChatComposer_pill {

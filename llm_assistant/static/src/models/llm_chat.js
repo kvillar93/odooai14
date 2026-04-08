@@ -33,7 +33,7 @@ registerPatch({
         method: "search_read",
         kwargs: {
           domain: [["active", "=", true]],
-          fields: ["name", "default_values", "prompt_id"],
+          fields: ["name", "default_values", "prompt_id", "is_default"],
         },
       });
 
@@ -70,6 +70,7 @@ registerPatch({
         const data = {
           id: assistant.id,
           name: assistant.name,
+          isDefault: Boolean(assistant.is_default),
           defaultValues: assistant.default_values,
           // Don't set evaluatedDefaultValues here - it will be fetched dynamically when needed
         };
@@ -155,17 +156,27 @@ registerPatch({
           id: assistantId,
           name: threadData.assistant_id[1],
         };
-
-        // Only fetch thread-specific evaluated default values for the active thread
-        if (this.activeId === threadData.id) {
-          this._fetchAssistantValuesForThread(threadData.id, assistantId);
-        }
       } else {
         // IMPORTANT: Clear the llmAssistant field when assistant_id is not present
         mappedData.llmAssistant = clear();
       }
 
       return mappedData;
+    },
+
+    /**
+     * Tras elegir hilo, cargar valores evaluados del asistente (antes fallaba si activeId aún no coincidía).
+     * @override
+     */
+    async selectThread(threadId) {
+      await this._super(threadId);
+      const thread = this.messaging.models.Thread.findFromIdentifyingData({
+        id: threadId,
+        model: "llm.thread",
+      });
+      if (thread?.llmAssistant?.id) {
+        await this._fetchAssistantValuesForThread(thread.id, thread.llmAssistant.id);
+      }
     },
 
     /**

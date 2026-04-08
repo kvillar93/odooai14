@@ -1,0 +1,152 @@
+.o_llm_floating_systray_menu {
+  min-width: 300px;
+  max-width: #{"min(360px, 92vw)"};
+  max-height: #{"min(420px, 70vh)"};
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+// Móvil: ancho casi completo y lista legible (evita texto cortado)
+.o_llm_floating_systray_menu--mobile {
+  min-width: #{"calc(100vw - 20px)"} !important;
+  max-width: #{"calc(100vw - 20px)"} !important;
+  width: #{"calc(100vw - 20px)"} !important;
+  max-height: #{"min(70vh, 520px)"};
+
+  .o_llm_floating_systray_head input {
+    font-size: 16px; // evita zoom iOS al enfocar
+  }
+
+  .o_llm_floating_systray_thread {
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+
+// Pantalla pequeña: menú tipo Discuss (casi toda la vista)
+.o_llm_floating_systray_menu--fullscreen.o-dropdown--menu {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  transform: none !important;
+  margin: 0 !important;
+  max-width: none !important;
+  width: 100vw !important;
+  min-width: 100% !important;
+  max-height: 100dvh !important;
+  height: 100dvh !important;
+  border-radius: 0;
+  z-index: 10060 !important;
+
+  .o_llm_floating_systray_head {
+    flex-shrink: 0;
+  }
+
+  .o_llm_floating_systray_list {
+    max-height: none !important;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}
+
+.o_llm_floating_systray_list {
+  max-height: #{"min(320px, 55vh)"};
+
+  .o_llm_floating_systray_menu--mobile:not(.o_llm_floating_systray_menu--fullscreen) & {
+    max-height: #{"min(50vh, 360px)"};
+  }
+}
+
+.o_llm_floating_systray_thread {
+  cursor: pointer;
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+  }
+}
+
+.o_llm_floating_panel {
+  position: fixed;
+  z-index: 10050;
+  bottom: 12px;
+  right: 12px;
+  width: #{"min(440px, calc(100vw - 24px))"};
+  height: #{"min(620px, calc(100vh - 24px))"};
+  background: var(--o-view-background-color, #fff);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  min-height: 0;
+
+  &--minimized {
+    height: auto !important;
+    max-height: none !important;
+    width: #{"min(320px, calc(100vw - 24px))"};
+
+    .o_llm_floating_panel_header {
+      cursor: pointer;
+    }
+  }
+}
+
+.o_llm_floating_panel_header {
+  background: var(--o-navbar-bg, #714b67);
+  color: #fff;
+  .btn-light {
+    background: transparent;
+    color: #fff;
+    &:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+  }
+}
+
+.o_llm_floating_panel_body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+
+  .o_LLMChat {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+  }
+
+  // Lista de hilos tipo smartphone: overlay dentro del panel (no pantalla completa)
+  .o_LLMChat--systrayFloat {
+    position: relative;
+
+    .o_LLMChatSidebar_backdrop {
+      position: absolute !important;
+      inset: 0;
+      z-index: 18;
+    }
+
+    .o_LLMChatSidebar.o-mobile {
+      position: absolute !important;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: 19;
+      max-width: #{"min(300px, 100%)"};
+    }
+  }
+}
+
+.o_llm_floating_panel_loading {
+  min-height: 200px;
+}
+
+@include media-breakpoint-down(md) {
+  .o_llm_floating_panel:not(.o_llm_floating_panel--minimized) {
+    width: #{"calc(100vw - 16px)"};
+    right: 8px;
+    bottom: 8px;
+    height: #{"min(85vh, calc(100dvh - 16px))"};
+  }
+}

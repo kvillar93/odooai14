@@ -12,5 +12,9 @@ registerModel({
     name: attr({
       required: true,
     }),
+    /** Marca en llm.tool: se ofrece marcada por defecto en hilos nuevos */
+    default: attr({
+      default: false,
+    }),
   },
 });

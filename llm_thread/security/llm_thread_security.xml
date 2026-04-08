@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
+    <record id="group_llm_floating_chat" model="res.groups">
+        <field name="name">Chat IA flotante (barra superior)</field>
+        <field name="category_id" ref="base.module_category_productivity" />
+        <field name="comment">
+            Muestra el acceso al chat IA junto al menú de mensajes: lista de conversaciones,
+            búsqueda y panel flotante con contexto de pantalla.
+        </field>
+    </record>
+
     <record id="llm_thread_rule_personal" model="ir.rule">
         <field name="name">Personal Chat Threads</field>
         <field name="model_id" ref="model_llm_thread" />
