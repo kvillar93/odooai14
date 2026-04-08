@@ -12,10 +12,8 @@ import { Component, onWillStart, useState } from "@odoo/owl";
 /** Debe coincidir con el action.id usado en initializeLLMChat para el ámbito del chat. */
 export const LLM_SYSTRAY_ACTION_ID = "llm_systray_float";
 
-/** Escala base html2canvas; con scroll corto se mantiene ligera. */
-const LLM_CAPTURE_HTML2CANVAS_SCALE = 0.65;
-/** Límite por lado del canvas (Chrome ~16384). Por encima: captura por franjas. */
-const LLM_CAPTURE_MAX_CANVAS_SIDE = 16384;
+/** Tamaño máximo del HTML adjunto (caracteres) para no colgar el navegador. */
+const LLM_ACTIVE_VIEW_HTML_MAX_CHARS = 2_500_000;
 
 /**
  * Cuerpo del menú bajo el icono de barita: debe ser hijo directo de `Dropdown`
@@ -346,286 +344,102 @@ export class LLMFloatingSystray extends Component {
 
   noop() {}
 
+  _escapeHtmlForSnapshot(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
   /**
-   * Ancho y alto lógicos para capturar la vista completa, incluyendo regiones con scroll interno.
+   * Serializa el HTML de la zona de acción actual (`.o_action_manager`) para el LLM.
+   * Clona el DOM, elimina scripts/iframes y envuelve en un documento mínimo con metadatos.
    */
-  _getCaptureFullDimensions(target) {
-    const docEl = document.documentElement;
-    const body = document.body;
-    let maxW = Math.max(
-      target.scrollWidth,
-      target.clientWidth,
-      target.offsetWidth
-    );
-    let maxH = Math.max(
-      target.scrollHeight,
-      target.clientHeight,
-      target.offsetHeight
-    );
-    target.querySelectorAll("*").forEach((node) => {
-      try {
-        if (node.scrollHeight > node.clientHeight + 2) {
-          maxH = Math.max(maxH, node.scrollHeight);
-        }
-        if (node.scrollWidth > node.clientWidth + 2) {
-          maxW = Math.max(maxW, node.scrollWidth);
-        }
-      } catch (e) {
-        /* nodos sin layout */
-      }
+  _buildActiveViewHtmlDocument() {
+    const root =
+      document.querySelector(".o_action_manager") || document.body;
+    const clone = root.cloneNode(true);
+    clone.querySelectorAll("script, iframe, object, embed").forEach((n) => {
+      n.remove();
     });
-    try {
-      const reportBody = target.querySelector(".o_account_reports_body");
-      if (reportBody) {
-        maxH = Math.max(
-          maxH,
-          reportBody.scrollHeight,
-          reportBody.offsetHeight
-        );
-        maxW = Math.max(
-          maxW,
-          reportBody.scrollWidth,
-          reportBody.offsetWidth
-        );
-      }
-    } catch (e) {
-      /* ignore */
-    }
-    if (target === body || target === docEl) {
-      maxW = Math.ceil(
-        Math.max(maxW, docEl.scrollWidth, body ? body.scrollWidth : 0)
-      );
-      maxH = Math.ceil(
-        Math.max(maxH, docEl.scrollHeight, body ? body.scrollHeight : 0)
-      );
-    } else {
-      maxW = Math.ceil(maxW);
-      maxH = Math.ceil(maxH);
-    }
-    return {
-      width: Math.max(1, maxW),
-      height: Math.max(1, maxH),
-    };
-  }
-
-  /**
-   * Escala html2canvas: en vistas muy altas fuerza ≥ 1 CSS px = 1 px de canvas
-   * (evita texto borroso). No limita aquí al tamaño del canvas: si hace falta se
-   * parte en franjas en `_renderHtml2CanvasCapture`.
-   */
-  _computeAdaptiveHtml2CanvasScale(fullWidth, fullHeight) {
-    const base = LLM_CAPTURE_HTML2CANVAS_SCALE;
-    const h = fullHeight;
-    const w = fullWidth;
-    const heightBoost = Math.min(0.38, Math.max(0, (h - 2000) / 10000));
-    let scale = base + heightBoost;
-    if (w > 2400) {
-      scale += Math.min(0.1, (w - 2400) / 16000);
-    }
-    // Pisos: por debajo de 1.0 el texto se ve borroso al estirar la imagen
-    if (h >= 2200) {
-      scale = Math.max(scale, 1.0);
-    }
-    if (h >= 3800) {
-      scale = Math.max(scale, 1.12);
-    }
-    if (h >= 5000) {
-      scale = Math.max(scale, 1.25);
-    }
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    if (h >= 3000 && dpr > 1) {
-      scale *= Math.min(1.18, 0.98 + 0.1 * (dpr - 1));
-    }
-    scale = Math.min(scale, 1.55);
-    return Math.max(0.55, scale);
-  }
-
-  /**
-   * Expande overflow en el documento clonado (misma lógica para captura total o por franjas).
-   */
-  _html2CanvasOnClone(clonedDoc, referenceElement) {
-    const scope =
-      referenceElement ||
-      clonedDoc.querySelector(".o_action_manager") ||
-      clonedDoc.body;
-    const selectors = [
-      ".o_action_manager",
-      ".o_content",
-      ".o_view_controller",
-      ".o_list_view",
-      ".o_list_renderer",
-      ".o_form_view",
-      ".o_kanban_view",
-      ".o_graph_view",
-      ".o_pivot_view",
-      ".o_account_reports_body",
-      ".o_account_reports_page",
+    const ctrl = this.action.currentController;
+    const act = ctrl?.action;
+    const metaLines = [
+      `${this.env._t("URL")}: ${window.location.href}`,
+      `${this.env._t("Título")}: ${document.title}`,
     ];
-    selectors.forEach((sel) => {
-      clonedDoc.querySelectorAll(sel).forEach((node) => {
-        if (node.style) {
-          node.style.overflow = "visible";
-          node.style.maxHeight = "none";
-        }
-      });
-    });
-    if (scope && scope.style) {
-      scope.style.overflow = "visible";
-      scope.style.maxHeight = "none";
+    if (act?.name) {
+      metaLines.push(`${this.env._t("Acción")}: ${act.name}`);
     }
+    if (ctrl?.props?.resModel) {
+      metaLines.push(`${this.env._t("Modelo")}: ${ctrl.props.resModel}`);
+    }
+    if (ctrl?.props?.resId) {
+      metaLines.push(`${this.env._t("Registro ID")}: ${ctrl.props.resId}`);
+    }
+    const metaComment = `<!--\n${metaLines.join("\n")}\n-->`;
+    const title = this._escapeHtmlForSnapshot(document.title);
+    return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width"/>
+<title>${title}</title>
+</head>
+<body>
+${metaComment}
+${clone.outerHTML}
+</body>
+</html>`;
   }
 
   /**
-   * Opciones html2canvas para un trozo vertical (yOffset y altura en px CSS del target).
+   * Adjunta un archivo .html con el DOM de la vista activa (ligero para el navegador).
    */
-  /**
-   * @param {number} heightCss - Alto de la porción a rasterizar (px CSS).
-   * @param {number} windowHeightCss - Alto del «viewport» del clon; debe ser el
-   *   scroll total del target para que franjas inferiores no queden vacías.
-   */
-  _buildHtml2CanvasSliceOptions(dims, scale, yCss, heightCss, windowHeightCss) {
-    const w = dims.width;
-    const hWin = windowHeightCss != null ? windowHeightCss : heightCss;
-    return {
-      scale,
-      useCORS: true,
-      logging: false,
-      allowTaint: false,
-      imageTimeout: 45000,
-      x: 0,
-      y: yCss,
-      width: w,
-      height: heightCss,
-      windowWidth: w,
-      windowHeight: hWin,
-      scrollX: 0,
-      scrollY: 0,
-      onclone: (clonedDoc, referenceElement) => {
-        this._html2CanvasOnClone(clonedDoc, referenceElement);
-      },
-    };
-  }
-
-  /**
-   * Genera el canvas: una sola pasada si cabe en el límite del navegador; si no,
-   * varias franjas verticales a la misma escala y se unen (sin bajar la resolución).
-   */
-  async _renderHtml2CanvasCapture(h2c, target) {
-    const dims = this._getCaptureFullDimensions(target);
-    const scale = this._computeAdaptiveHtml2CanvasScale(dims.width, dims.height);
-    const maxPx = LLM_CAPTURE_MAX_CANVAS_SIDE;
-    const outW = Math.round(dims.width * scale);
-    const outH = Math.round(dims.height * scale);
-
-    if (outW <= maxPx && outH <= maxPx) {
-      return await h2c(
-        target,
-        this._buildHtml2CanvasSliceOptions(dims, scale, 0, dims.height, dims.height)
-      );
-    }
-
-    const cssTileH = Math.max(400, Math.floor(maxPx / scale) - 4);
-    const canvas = document.createElement("canvas");
-    canvas.width = outW;
-    canvas.height = outH;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, outW, outH);
-    let yCss = 0;
-    let yPix = 0;
-    while (yCss < dims.height) {
-      const sliceH = Math.min(cssTileH, dims.height - yCss);
-      const opts = this._buildHtml2CanvasSliceOptions(
-        dims,
-        scale,
-        yCss,
-        sliceH,
-        dims.height
-      );
-      const tile = await h2c(target, opts);
-      ctx.drawImage(tile, 0, yPix);
-      yPix += tile.height;
-      yCss += sliceH;
-    }
-    return canvas;
-  }
-
-  async onClickCaptureVisual() {
-    const h2c = window.html2canvas;
-    const target = document.querySelector(".o_action_manager") || document.body;
-    if (typeof h2c !== "function") {
-      await this.onClickContextText();
+  async onClickAttachActiveViewHtml() {
+    const cv =
+      this.messaging.llmChat?.llmChatView?.composer?.composerViews?.[0];
+    if (!cv?.fileUploader) {
       this.notification.add(
-        this.env._t(
-          "La captura visual no está disponible; se insertó solo el contexto en texto."
-        ),
+        this.env._t("Abre un chat y el compositor para adjuntar la vista."),
         { type: "warning" }
       );
       return;
     }
     try {
-      const canvas = await this._renderHtml2CanvasCapture(h2c, target);
-      const blob = await new Promise((resolve) =>
-        canvas.toBlob(resolve, "image/png")
-      );
-      if (!blob) {
-        await this.onClickContextText();
-        return;
+      let html = this._buildActiveViewHtmlDocument();
+      let truncated = false;
+      if (html.length > LLM_ACTIVE_VIEW_HTML_MAX_CHARS) {
+        html =
+          html.slice(0, LLM_ACTIVE_VIEW_HTML_MAX_CHARS) +
+          `\n\n<!-- ${this.env._t(
+            "Contenido truncado por tamaño máximo."
+          )} -->\n`;
+        truncated = true;
       }
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
       const file = new File(
         [blob],
-        `captura-pantalla-${Date.now()}.png`,
-        { type: "image/png" }
+        `vista-activa-${Date.now()}.html`,
+        { type: "text/html" }
       );
-      const cv =
-        this.messaging.llmChat?.llmChatView?.composer?.composerViews?.[0];
-      if (cv?.fileUploader) {
-        cv.fileUploader.uploadFiles([file]);
-      } else {
-        await this.onClickContextText();
+      cv.fileUploader.uploadFiles([file]);
+      if (truncated) {
+        this.notification.add(
+          this.env._t(
+            "El HTML se ha truncado por tamaño; adjunta solo una parte de la vista."
+          ),
+          { type: "warning" }
+        );
       }
     } catch (e) {
-      console.error("LLMFloatingSystray.onClickCaptureVisual", e);
-      await this.onClickContextText();
+      console.error("LLMFloatingSystray.onClickAttachActiveViewHtml", e);
       this.notification.add(
-        this.env._t(
-          "No se pudo generar la imagen; se insertó el contexto en texto."
-        ),
-        { type: "warning" }
+        this.env._t("No se pudo generar el HTML de la vista."),
+        { type: "danger" }
       );
     }
-  }
-
-  async onClickContextText() {
-    const lines = this._gatherContextLines();
-    const block = lines.join("\n");
-    const composer = this.messaging.llmChat?.llmChatView?.composer;
-    const cv = composer?.composerViews?.[0];
-    if (cv?.composer) {
-      const prev = cv.composer.textInputContent || "";
-      cv.composer.update({
-        textInputContent: `[${this.env._t("Contexto de pantalla")}]\n${block}\n\n${prev}`,
-      });
-      cv.update({ doFocus: true });
-    }
-  }
-
-  _gatherContextLines() {
-    const lines = [];
-    lines.push(`${this.env._t("URL")}: ${window.location.href}`);
-    lines.push(`${this.env._t("Título")}: ${document.title}`);
-    const ctrl = this.action.currentController;
-    const act = ctrl?.action;
-    if (act?.name) {
-      lines.push(`${this.env._t("Acción")}: ${act.name}`);
-    }
-    if (ctrl?.props?.resModel) {
-      lines.push(`${this.env._t("Modelo")}: ${ctrl.props.resModel}`);
-    }
-    if (ctrl?.props?.resId) {
-      lines.push(`${this.env._t("Registro ID")}: ${ctrl.props.resId}`);
-    }
-    return lines;
   }
 }
 

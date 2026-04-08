@@ -45,7 +45,6 @@ Contact: support@apexive.com
     ],
     "assets": {
         "web.assets_backend": [
-            "web_editor/static/lib/html2canvas.js",
             # Client Actions (must be loaded before models that depend on them)
             "llm_thread/static/src/client_actions/open_chatter_action.js",
             # Models

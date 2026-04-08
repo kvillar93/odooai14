@@ -104,18 +104,10 @@
                             <button
                                 type="button"
                                 class="btn btn-light border-0"
-                                t-att-title="env._t('Contexto de pantalla (texto)')"
-                                t-on-click="onClickContextText"
+                                t-att-title="env._t('Adjuntar HTML de la vista activa')"
+                                t-on-click="onClickAttachActiveViewHtml"
                             >
-                                <i class="fa fa-crosshairs"/>
-                            </button>
-                            <button
-                                type="button"
-                                class="btn btn-light border-0"
-                                t-att-title="env._t('Captura visual de la vista')"
-                                t-on-click="onClickCaptureVisual"
-                            >
-                                <i class="fa fa-camera"/>
+                                <i class="fa fa-code"/>
                             </button>
                             <button
                                 type="button"
