@@ -12,6 +12,9 @@ import { Component, onWillStart, useState } from "@odoo/owl";
 /** Debe coincidir con el action.id usado en initializeLLMChat para el ámbito del chat. */
 export const LLM_SYSTRAY_ACTION_ID = "llm_systray_float";
 
+/** Escala html2canvas (antes 0.45): algo más alta para mejor legibilidad sin disparar demasiado el tamaño. */
+const LLM_CAPTURE_HTML2CANVAS_SCALE = 0.65;
+
 /**
  * Cuerpo del menú bajo el icono de barita: debe ser hijo directo de `Dropdown`
  * para tener `env[DROPDOWN]` y poder cerrar el menú al elegir un hilo.
@@ -341,6 +344,102 @@ export class LLMFloatingSystray extends Component {
 
   noop() {}
 
+  /**
+   * Ancho y alto lógicos para capturar la vista completa, incluyendo regiones con scroll interno.
+   */
+  _getCaptureFullDimensions(target) {
+    const docEl = document.documentElement;
+    const body = document.body;
+    let maxW = Math.max(
+      target.scrollWidth,
+      target.clientWidth,
+      target.offsetWidth
+    );
+    let maxH = Math.max(
+      target.scrollHeight,
+      target.clientHeight,
+      target.offsetHeight
+    );
+    target.querySelectorAll("*").forEach((node) => {
+      try {
+        if (node.scrollHeight > node.clientHeight + 2) {
+          maxH = Math.max(maxH, node.scrollHeight);
+        }
+        if (node.scrollWidth > node.clientWidth + 2) {
+          maxW = Math.max(maxW, node.scrollWidth);
+        }
+      } catch (e) {
+        /* nodos sin layout */
+      }
+    });
+    if (target === body || target === docEl) {
+      maxW = Math.ceil(
+        Math.max(maxW, docEl.scrollWidth, body ? body.scrollWidth : 0)
+      );
+      maxH = Math.ceil(
+        Math.max(maxH, docEl.scrollHeight, body ? body.scrollHeight : 0)
+      );
+    } else {
+      maxW = Math.ceil(maxW);
+      maxH = Math.ceil(maxH);
+    }
+    return {
+      width: Math.max(1, maxW),
+      height: Math.max(1, maxH),
+    };
+  }
+
+  /**
+   * Opciones html2canvas: pantalla completa de la zona de acción (scroll + scroll interno)
+   * y calidad algo mayor que la captura solo de viewport.
+   */
+  _getHtml2CanvasFullPageOptions(target) {
+    const { width: fullWidth, height: fullHeight } =
+      this._getCaptureFullDimensions(target);
+    return {
+      scale: LLM_CAPTURE_HTML2CANVAS_SCALE,
+      useCORS: true,
+      logging: false,
+      allowTaint: false,
+      imageTimeout: 20000,
+      width: fullWidth,
+      height: fullHeight,
+      windowWidth: fullWidth,
+      windowHeight: fullHeight,
+      scrollX: 0,
+      scrollY: 0,
+      onclone: (clonedDoc, referenceElement) => {
+        const scope =
+          referenceElement ||
+          clonedDoc.querySelector(".o_action_manager") ||
+          clonedDoc.body;
+        const selectors = [
+          ".o_action_manager",
+          ".o_content",
+          ".o_view_controller",
+          ".o_list_view",
+          ".o_list_renderer",
+          ".o_form_view",
+          ".o_kanban_view",
+          ".o_graph_view",
+          ".o_pivot_view",
+        ];
+        selectors.forEach((sel) => {
+          clonedDoc.querySelectorAll(sel).forEach((node) => {
+            if (node.style) {
+              node.style.overflow = "visible";
+              node.style.maxHeight = "none";
+            }
+          });
+        });
+        if (scope && scope.style) {
+          scope.style.overflow = "visible";
+          scope.style.maxHeight = "none";
+        }
+      },
+    };
+  }
+
   async onClickCaptureVisual() {
     const h2c = window.html2canvas;
     const target = document.querySelector(".o_action_manager") || document.body;
@@ -355,12 +454,8 @@ export class LLMFloatingSystray extends Component {
       return;
     }
     try {
-      const canvas = await h2c(target, {
-        scale: 0.45,
-        useCORS: true,
-        logging: false,
-        scrollY: -window.scrollY,
-      });
+      const opts = this._getHtml2CanvasFullPageOptions(target);
+      const canvas = await h2c(target, opts);
       const blob = await new Promise((resolve) =>
         canvas.toBlob(resolve, "image/png")
       );
