@@ -12,8 +12,10 @@ import { Component, onWillStart, useState } from "@odoo/owl";
 /** Debe coincidir con el action.id usado en initializeLLMChat para el ámbito del chat. */
 export const LLM_SYSTRAY_ACTION_ID = "llm_systray_float";
 
-/** Escala html2canvas (antes 0.45): algo más alta para mejor legibilidad sin disparar demasiado el tamaño. */
+/** Escala base html2canvas; con scroll corto se mantiene ligera. */
 const LLM_CAPTURE_HTML2CANVAS_SCALE = 0.65;
+/** Límite conservador por lado del canvas (Chrome suele permitir ~16384). */
+const LLM_CAPTURE_MAX_CANVAS_SIDE = 12288;
 
 /**
  * Cuerpo del menú bajo el icono de barita: debe ser hijo directo de `Dropdown`
@@ -372,6 +374,23 @@ export class LLMFloatingSystray extends Component {
         /* nodos sin layout */
       }
     });
+    try {
+      const reportBody = target.querySelector(".o_account_reports_body");
+      if (reportBody) {
+        maxH = Math.max(
+          maxH,
+          reportBody.scrollHeight,
+          reportBody.offsetHeight
+        );
+        maxW = Math.max(
+          maxW,
+          reportBody.scrollWidth,
+          reportBody.offsetWidth
+        );
+      }
+    } catch (e) {
+      /* ignore */
+    }
     if (target === body || target === docEl) {
       maxW = Math.ceil(
         Math.max(maxW, docEl.scrollWidth, body ? body.scrollWidth : 0)
@@ -390,14 +409,45 @@ export class LLMFloatingSystray extends Component {
   }
 
   /**
+   * Escala html2canvas: sube la resolución cuando el contenido es muy alto (informes
+   * contables, listas largas) para que el texto no quede borroso; acotada al máximo
+   * del canvas del navegador.
+   */
+  _computeAdaptiveHtml2CanvasScale(fullWidth, fullHeight) {
+    const base = LLM_CAPTURE_HTML2CANVAS_SCALE;
+    const h = fullHeight;
+    const w = fullWidth;
+    // Cuanto más largo el scroll vertical, más escala (hasta ~1.0+)
+    const heightBoost = Math.min(0.34, Math.max(0, (h - 2000) / 10500));
+    let scale = base + heightBoost;
+    // Scroll horizontal muy ancho: pequeño extra
+    if (w > 2400) {
+      scale += Math.min(0.06, (w - 2400) / 20000);
+    }
+    scale = Math.min(scale, 1.05);
+    // Pantallas HiDPI: ligero extra solo si DPR > 1 (no penalizar monitores 1x)
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (h > 2800 && dpr > 1) {
+      const dprBoost = Math.min(1.12, 1 + 0.08 * (dpr - 1));
+      scale *= dprBoost;
+    }
+    // No superar el lado máximo del canvas (evita fallos o degradación del navegador)
+    const capW = LLM_CAPTURE_MAX_CANVAS_SIDE / w;
+    const capH = LLM_CAPTURE_MAX_CANVAS_SIDE / h;
+    scale = Math.min(scale, capW, capH);
+    return Math.max(0.52, scale);
+  }
+
+  /**
    * Opciones html2canvas: pantalla completa de la zona de acción (scroll + scroll interno)
    * y calidad algo mayor que la captura solo de viewport.
    */
   _getHtml2CanvasFullPageOptions(target) {
     const { width: fullWidth, height: fullHeight } =
       this._getCaptureFullDimensions(target);
+    const scale = this._computeAdaptiveHtml2CanvasScale(fullWidth, fullHeight);
     return {
-      scale: LLM_CAPTURE_HTML2CANVAS_SCALE,
+      scale,
       useCORS: true,
       logging: false,
       allowTaint: false,
@@ -423,6 +473,8 @@ export class LLMFloatingSystray extends Component {
           ".o_kanban_view",
           ".o_graph_view",
           ".o_pivot_view",
+          ".o_account_reports_body",
+          ".o_account_reports_page",
         ];
         selectors.forEach((sel) => {
           clonedDoc.querySelectorAll(sel).forEach((node) => {
