@@ -14,8 +14,8 @@ export const LLM_SYSTRAY_ACTION_ID = "llm_systray_float";
 
 /** Escala base html2canvas; con scroll corto se mantiene ligera. */
 const LLM_CAPTURE_HTML2CANVAS_SCALE = 0.65;
-/** Límite conservador por lado del canvas (Chrome suele permitir ~16384). */
-const LLM_CAPTURE_MAX_CANVAS_SIDE = 12288;
+/** Límite por lado del canvas (Chrome ~16384). Por encima: captura por franjas. */
+const LLM_CAPTURE_MAX_CANVAS_SIDE = 16384;
 
 /**
  * Cuerpo del menú bajo el icono de barita: debe ser hijo directo de `Dropdown`
@@ -409,87 +409,145 @@ export class LLMFloatingSystray extends Component {
   }
 
   /**
-   * Escala html2canvas: sube la resolución cuando el contenido es muy alto (informes
-   * contables, listas largas) para que el texto no quede borroso; acotada al máximo
-   * del canvas del navegador.
+   * Escala html2canvas: en vistas muy altas fuerza ≥ 1 CSS px = 1 px de canvas
+   * (evita texto borroso). No limita aquí al tamaño del canvas: si hace falta se
+   * parte en franjas en `_renderHtml2CanvasCapture`.
    */
   _computeAdaptiveHtml2CanvasScale(fullWidth, fullHeight) {
     const base = LLM_CAPTURE_HTML2CANVAS_SCALE;
     const h = fullHeight;
     const w = fullWidth;
-    // Cuanto más largo el scroll vertical, más escala (hasta ~1.0+)
-    const heightBoost = Math.min(0.34, Math.max(0, (h - 2000) / 10500));
+    const heightBoost = Math.min(0.38, Math.max(0, (h - 2000) / 10000));
     let scale = base + heightBoost;
-    // Scroll horizontal muy ancho: pequeño extra
     if (w > 2400) {
-      scale += Math.min(0.06, (w - 2400) / 20000);
+      scale += Math.min(0.1, (w - 2400) / 16000);
     }
-    scale = Math.min(scale, 1.05);
-    // Pantallas HiDPI: ligero extra solo si DPR > 1 (no penalizar monitores 1x)
+    // Pisos: por debajo de 1.0 el texto se ve borroso al estirar la imagen
+    if (h >= 2200) {
+      scale = Math.max(scale, 1.0);
+    }
+    if (h >= 3800) {
+      scale = Math.max(scale, 1.12);
+    }
+    if (h >= 5000) {
+      scale = Math.max(scale, 1.25);
+    }
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    if (h > 2800 && dpr > 1) {
-      const dprBoost = Math.min(1.12, 1 + 0.08 * (dpr - 1));
-      scale *= dprBoost;
+    if (h >= 3000 && dpr > 1) {
+      scale *= Math.min(1.18, 0.98 + 0.1 * (dpr - 1));
     }
-    // No superar el lado máximo del canvas (evita fallos o degradación del navegador)
-    const capW = LLM_CAPTURE_MAX_CANVAS_SIDE / w;
-    const capH = LLM_CAPTURE_MAX_CANVAS_SIDE / h;
-    scale = Math.min(scale, capW, capH);
-    return Math.max(0.52, scale);
+    scale = Math.min(scale, 1.55);
+    return Math.max(0.55, scale);
   }
 
   /**
-   * Opciones html2canvas: pantalla completa de la zona de acción (scroll + scroll interno)
-   * y calidad algo mayor que la captura solo de viewport.
+   * Expande overflow en el documento clonado (misma lógica para captura total o por franjas).
    */
-  _getHtml2CanvasFullPageOptions(target) {
-    const { width: fullWidth, height: fullHeight } =
-      this._getCaptureFullDimensions(target);
-    const scale = this._computeAdaptiveHtml2CanvasScale(fullWidth, fullHeight);
+  _html2CanvasOnClone(clonedDoc, referenceElement) {
+    const scope =
+      referenceElement ||
+      clonedDoc.querySelector(".o_action_manager") ||
+      clonedDoc.body;
+    const selectors = [
+      ".o_action_manager",
+      ".o_content",
+      ".o_view_controller",
+      ".o_list_view",
+      ".o_list_renderer",
+      ".o_form_view",
+      ".o_kanban_view",
+      ".o_graph_view",
+      ".o_pivot_view",
+      ".o_account_reports_body",
+      ".o_account_reports_page",
+    ];
+    selectors.forEach((sel) => {
+      clonedDoc.querySelectorAll(sel).forEach((node) => {
+        if (node.style) {
+          node.style.overflow = "visible";
+          node.style.maxHeight = "none";
+        }
+      });
+    });
+    if (scope && scope.style) {
+      scope.style.overflow = "visible";
+      scope.style.maxHeight = "none";
+    }
+  }
+
+  /**
+   * Opciones html2canvas para un trozo vertical (yOffset y altura en px CSS del target).
+   */
+  /**
+   * @param {number} heightCss - Alto de la porción a rasterizar (px CSS).
+   * @param {number} windowHeightCss - Alto del «viewport» del clon; debe ser el
+   *   scroll total del target para que franjas inferiores no queden vacías.
+   */
+  _buildHtml2CanvasSliceOptions(dims, scale, yCss, heightCss, windowHeightCss) {
+    const w = dims.width;
+    const hWin = windowHeightCss != null ? windowHeightCss : heightCss;
     return {
       scale,
       useCORS: true,
       logging: false,
       allowTaint: false,
-      imageTimeout: 20000,
-      width: fullWidth,
-      height: fullHeight,
-      windowWidth: fullWidth,
-      windowHeight: fullHeight,
+      imageTimeout: 45000,
+      x: 0,
+      y: yCss,
+      width: w,
+      height: heightCss,
+      windowWidth: w,
+      windowHeight: hWin,
       scrollX: 0,
       scrollY: 0,
       onclone: (clonedDoc, referenceElement) => {
-        const scope =
-          referenceElement ||
-          clonedDoc.querySelector(".o_action_manager") ||
-          clonedDoc.body;
-        const selectors = [
-          ".o_action_manager",
-          ".o_content",
-          ".o_view_controller",
-          ".o_list_view",
-          ".o_list_renderer",
-          ".o_form_view",
-          ".o_kanban_view",
-          ".o_graph_view",
-          ".o_pivot_view",
-          ".o_account_reports_body",
-          ".o_account_reports_page",
-        ];
-        selectors.forEach((sel) => {
-          clonedDoc.querySelectorAll(sel).forEach((node) => {
-            if (node.style) {
-              node.style.overflow = "visible";
-              node.style.maxHeight = "none";
-            }
-          });
-        });
-        if (scope && scope.style) {
-          scope.style.overflow = "visible";
-          scope.style.maxHeight = "none";
-        }
+        this._html2CanvasOnClone(clonedDoc, referenceElement);
       },
     };
+  }
+
+  /**
+   * Genera el canvas: una sola pasada si cabe en el límite del navegador; si no,
+   * varias franjas verticales a la misma escala y se unen (sin bajar la resolución).
+   */
+  async _renderHtml2CanvasCapture(h2c, target) {
+    const dims = this._getCaptureFullDimensions(target);
+    const scale = this._computeAdaptiveHtml2CanvasScale(dims.width, dims.height);
+    const maxPx = LLM_CAPTURE_MAX_CANVAS_SIDE;
+    const outW = Math.round(dims.width * scale);
+    const outH = Math.round(dims.height * scale);
+
+    if (outW <= maxPx && outH <= maxPx) {
+      return await h2c(
+        target,
+        this._buildHtml2CanvasSliceOptions(dims, scale, 0, dims.height, dims.height)
+      );
+    }
+
+    const cssTileH = Math.max(400, Math.floor(maxPx / scale) - 4);
+    const canvas = document.createElement("canvas");
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, outW, outH);
+    let yCss = 0;
+    let yPix = 0;
+    while (yCss < dims.height) {
+      const sliceH = Math.min(cssTileH, dims.height - yCss);
+      const opts = this._buildHtml2CanvasSliceOptions(
+        dims,
+        scale,
+        yCss,
+        sliceH,
+        dims.height
+      );
+      const tile = await h2c(target, opts);
+      ctx.drawImage(tile, 0, yPix);
+      yPix += tile.height;
+      yCss += sliceH;
+    }
+    return canvas;
   }
 
   async onClickCaptureVisual() {
@@ -506,8 +564,7 @@ export class LLMFloatingSystray extends Component {
       return;
     }
     try {
-      const opts = this._getHtml2CanvasFullPageOptions(target);
-      const canvas = await h2c(target, opts);
+      const canvas = await this._renderHtml2CanvasCapture(h2c, target);
       const blob = await new Promise((resolve) =>
         canvas.toBlob(resolve, "image/png")
       );
