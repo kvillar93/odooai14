@@ -353,6 +353,23 @@ export class LLMFloatingSystray extends Component {
   }
 
   /**
+   * Nombre de archivo seguro a partir de `document.title` (p. ej. pestaña «Odoo - Pérdidas y ganancias»).
+   */
+  _sanitizeFilenameFromPageTitle() {
+    let s = (document.title || "").trim();
+    s = s.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "");
+    s = s.replace(/\s+/g, "-");
+    s = s.replace(/-+/g, "-").replace(/^-|-$/g, "");
+    if (s.length > 100) {
+      s = s.slice(0, 100).replace(/-+$/g, "");
+    }
+    if (!s) {
+      return `documento-${Date.now()}`;
+    }
+    return s;
+  }
+
+  /**
    * Serializa el HTML de la zona de acción actual (`.o_action_manager`) para el LLM.
    * Clona el DOM, elimina scripts/iframes y envuelve en un documento mínimo con metadatos.
    */
@@ -419,11 +436,8 @@ ${clone.outerHTML}
         truncated = true;
       }
       const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-      const file = new File(
-        [blob],
-        `vista-activa-${Date.now()}.html`,
-        { type: "text/html" }
-      );
+      const fileName = `${this._sanitizeFilenameFromPageTitle()}.html`;
+      const file = new File([blob], fileName, { type: "text/html" });
       cv.fileUploader.uploadFiles([file]);
       if (truncated) {
         this.notification.add(
