@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <t t-inherit="llm_thread.LLMChatThreadList" t-inherit-mode="extension" owl="1">
+        <xpath
+            expr="//span[hasclass('o_DiscussSidebarCategoryItem_name')]"
+            position="attributes"
+        >
+            <attribute name="t-att-title">thread.experienceCostTooltip || thread.name</attribute>
+        </xpath>
+    </t>
+</templates>

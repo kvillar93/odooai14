@@ -259,11 +259,23 @@ export class LLMContextMeter extends Component {
       return "";
     }
     const last = d.last || {};
+    const costUsd =
+      d.cost_usd_total !== undefined && d.cost_usd_total !== null
+        ? Number(d.cost_usd_total)
+        : null;
+    const costCur = d.cost_currency || "USD";
     const lines = [
       `Contexto: ${d.live || 0} / ${d.limit || 0} tokens (${this.pct}%).`,
       `Modo: ${this.currentOption.label} (${this.currentOption.abbr}).`,
       `Umbrales: aviso ~${Math.round((d.soft_ratio || 0.8) * 100)} % · compactación ~${Math.round((d.hard_ratio || 0.92) * 100)} %.`,
     ];
+    if (costUsd !== null && !Number.isNaN(costUsd)) {
+      lines.splice(
+        1,
+        0,
+        `Coste USD acumulado: ${costUsd.toFixed(6)} ${costCur}.`
+      );
+    }
     if (last.prompt != null || last.output != null) {
       lines.push(
         `Última respuesta: prompt ${last.prompt || 0}, salida ${last.output || 0}, caché ${last.cached || 0}, pensamiento ${last.thoughts || 0}.`

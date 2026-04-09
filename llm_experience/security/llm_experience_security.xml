@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="llm_thread_cost_line_rule_own" model="ir.rule">
+        <field name="name">Líneas coste: solo mis chats</field>
+        <field name="model_id" ref="model_llm_thread_cost_line" />
+        <field name="domain_force">[("thread_id.user_id", "=", user.id)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+    </record>
+    <record id="llm_thread_cost_line_rule_manager" model="ir.rule">
+        <field name="name">Líneas coste: gestores LLM (todos)</field>
+        <field name="model_id" ref="model_llm_thread_cost_line" />
+        <field name="domain_force">[(1, "=", 1)]</field>
+        <field name="groups" eval="[(4, ref('llm.group_llm_manager'))]" />
+    </record>
+</odoo>

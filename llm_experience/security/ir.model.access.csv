@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_llm_gemini_pricing_rate_manager,llm.gemini.pricing.rate.manager,model_llm_gemini_pricing_rate,llm.group_llm_manager,1,1,1,1
+access_llm_thread_cost_line_user,llm.thread.cost.line.user,model_llm_thread_cost_line,base.group_user,1,0,0,0
+access_llm_thread_cost_line_manager,llm.thread.cost.line.manager,model_llm_thread_cost_line,llm.group_llm_manager,1,1,1,1

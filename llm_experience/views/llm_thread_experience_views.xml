@@ -8,6 +8,89 @@
             <field name="tool_ids" position="after">
                 <field name="chat_work_mode_selector_enabled" />
             </field>
+            <xpath expr="//sheet/group[last()]" position="after">
+                <group string="Coste estimado (Gemini)" groups="base.group_user">
+                    <field name="usage_cost_usd_total" />
+                    <field name="usage_cost_currency" readonly="1" />
+                    <field name="usage_billable_accumulated" />
+                </group>
+                <notebook>
+                    <page string="Seguimiento de costes" groups="base.group_user">
+                        <field name="cost_line_ids" readonly="1">
+                            <tree>
+                                <field name="create_date" />
+                                <field name="prompt_tokens" />
+                                <field name="output_tokens" />
+                                <field name="cached_tokens" />
+                                <field name="cost_usd_delta" />
+                                <field name="cumulative_usd_total" />
+                                <field name="model_name_snapshot" />
+                            </tree>
+                        </field>
+                    </page>
+                </notebook>
+            </xpath>
         </field>
     </record>
+
+    <record id="llm_gemini_pricing_rate_view_tree" model="ir.ui.view">
+        <field name="name">llm.gemini.pricing.rate.tree</field>
+        <field name="model">llm.gemini.pricing.rate</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="model_name_pattern" />
+                <field name="input_usd_per_million" />
+                <field name="output_usd_per_million" />
+                <field name="cached_input_usd_per_million" />
+                <field name="last_sync_date" />
+                <field name="active" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="llm_gemini_pricing_rate_view_form" model="ir.ui.view">
+        <field name="name">llm.gemini.pricing.rate.form</field>
+        <field name="model">llm.gemini.pricing.rate</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name" />
+                        <field name="active" />
+                        <field name="sequence" />
+                    </group>
+                    <group string="Coincidencia">
+                        <field name="model_ids" widget="many2many_tags" />
+                        <field name="model_name_pattern" />
+                    </group>
+                    <group string="USD por millón de tokens">
+                        <field name="input_usd_per_million" />
+                        <field name="output_usd_per_million" />
+                        <field name="cached_input_usd_per_million" />
+                    </group>
+                    <group>
+                        <field name="last_sync_date" readonly="1" />
+                        <field name="notes" />
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_llm_gemini_pricing_rate" model="ir.actions.act_window">
+        <field name="name">Tarifas Gemini (USD / M tokens)</field>
+        <field name="res_model">llm.gemini.pricing.rate</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem
+        id="menu_llm_gemini_pricing_rate"
+        name="Tarifas Gemini (coste)"
+        parent="llm.menu_llm_root"
+        action="action_llm_gemini_pricing_rate"
+        sequence="95"
+        groups="llm.group_llm_manager"
+    />
 </odoo>

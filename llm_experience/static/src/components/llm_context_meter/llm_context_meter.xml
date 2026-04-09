@@ -17,7 +17,11 @@
                     t-att-aria-label="ariaLabel"
                     t-on-click="toggleMenu"
                 >
-                    <span class="o_llm_ctxMeter__gauge" aria-hidden="true">
+                    <span
+                        class="o_llm_ctxMeter__gauge"
+                        aria-hidden="true"
+                        t-att-title="ctxTitle"
+                    >
                         <svg class="o_llm_ctxMeter__svg" viewBox="0 0 40 40">
                             <circle
                                 class="o_llm_ctxMeter__ring-bg"
@@ -66,8 +70,12 @@
                 </div>
             </t>
             <t t-if="state.loaded and !state.selectorEnabled">
-                <div class="o_llm_ctxMeter__gaugeOnly position-relative" t-att-title="ctxTitle">
-                    <span class="o_llm_ctxMeter__gauge" aria-hidden="true">
+                <div class="o_llm_ctxMeter__gaugeOnly position-relative">
+                    <span
+                        class="o_llm_ctxMeter__gauge"
+                        aria-hidden="true"
+                        t-att-title="ctxTitle"
+                    >
                         <svg class="o_llm_ctxMeter__svg" viewBox="0 0 40 40">
                             <circle
                                 class="o_llm_ctxMeter__ring-bg"

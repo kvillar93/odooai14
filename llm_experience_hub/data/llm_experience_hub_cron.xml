@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="ir_cron_llm_experience_hub_sync" model="ir.cron">
+        <field name="name">LLM Experience Hub: sincronizar costes remotos</field>
+        <field name="model_id" ref="model_llm_experience_hub_remote" />
+        <field name="state">code</field>
+        <field name="code">model.cron_sync_all_remotes()</field>
+        <field name="interval_number">6</field>
+        <field name="interval_type">hours</field>
+        <field name="numbercall">-1</field>
+        <field name="active" eval="True" />
+    </record>
+</odoo>

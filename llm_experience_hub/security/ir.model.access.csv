@@ -1,0 +1,6 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_llm_experience_hub_remote_system,llm.experience.hub.remote system,model_llm_experience_hub_remote,base.group_system,1,1,1,1
+access_llm_experience_hub_remote_thread_user,llm.experience.hub.remote.thread user,model_llm_experience_hub_remote_thread,base.group_user,1,0,0,0
+access_llm_experience_hub_remote_thread_system,llm.experience.hub.remote.thread system,model_llm_experience_hub_remote_thread,base.group_system,1,1,1,1
+access_llm_experience_hub_remote_line_user,llm.experience.hub.remote.line user,model_llm_experience_hub_remote_line,base.group_user,1,0,0,0
+access_llm_experience_hub_remote_line_system,llm.experience.hub.remote.line system,model_llm_experience_hub_remote_line,base.group_system,1,1,1,1

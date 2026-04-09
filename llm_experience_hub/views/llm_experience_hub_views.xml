@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="llm_experience_hub_remote_view_tree" model="ir.ui.view">
+        <field name="name">llm.experience.hub.remote.tree</field>
+        <field name="model">llm.experience.hub.remote</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="name" />
+                <field name="base_url" />
+                <field name="active" />
+                <field name="last_sync_at" />
+                <field name="thread_count" />
+                <field name="line_count" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="llm_experience_hub_remote_view_form" model="ir.ui.view">
+        <field name="name">llm.experience.hub.remote.form</field>
+        <field name="model">llm.experience.hub.remote</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button
+                        name="action_sync_now"
+                        type="object"
+                        string="Sincronizar ahora"
+                        class="btn-primary"
+                    />
+                </header>
+                <sheet>
+                    <group>
+                        <field name="name" />
+                        <field name="active" />
+                        <field name="base_url" placeholder="https://cliente.ejemplo.com" />
+                        <field name="api_token" password="True" />
+                    </group>
+                    <group string="Estado">
+                        <field name="last_sync_at" />
+                        <field name="last_sync_error" />
+                        <field name="remote_database_uuid" />
+                        <field name="thread_count" />
+                        <field name="line_count" />
+                    </group>
+                    <notebook>
+                        <page string="Chats remotos">
+                            <field name="thread_ids" readonly="1">
+                                <tree>
+                                    <field name="remote_thread_id" />
+                                    <field name="name" />
+                                    <field name="usage_cost_usd_total" />
+                                    <field name="usage_cost_currency" />
+                                    <field name="usage_billable_accumulated" />
+                                    <field name="remote_model_name" />
+                                    <field name="remote_write_date" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Líneas de coste">
+                            <field name="line_ids" readonly="1">
+                                <tree limit="200">
+                                    <field name="remote_line_id" />
+                                    <field name="remote_thread_id" />
+                                    <field name="remote_create_date" />
+                                    <field name="cost_usd_delta" />
+                                    <field name="cumulative_usd_total" />
+                                    <field name="prompt_tokens" />
+                                    <field name="output_tokens" />
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_llm_experience_hub_remote" model="ir.actions.act_window">
+        <field name="name">Instancias LLM (costes)</field>
+        <field name="res_model">llm.experience.hub.remote</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem
+        id="menu_llm_experience_hub_root"
+        name="Seguimiento LLM (hub)"
+        parent="base.menu_administration"
+        sequence="200"
+        groups="base.group_system"
+    />
+    <menuitem
+        id="menu_llm_experience_hub_remote"
+        name="Instancias remotas (costes)"
+        parent="menu_llm_experience_hub_root"
+        action="action_llm_experience_hub_remote"
+        sequence="10"
+    />
+</odoo>

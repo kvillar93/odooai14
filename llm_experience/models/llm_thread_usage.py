@@ -35,6 +35,23 @@ class LLMThread(models.Model):
     )
     usage_compaction_meta_json = fields.Json(string="Metadatos última compactación")
 
+    usage_cost_usd_total = fields.Float(
+        string="Coste estimado acumulado (USD)",
+        digits=(16, 8),
+        default=0.0,
+        help="Suma de costes estimados por turno según tarifas Gemini (llm.gemini.pricing.rate).",
+    )
+    usage_cost_currency = fields.Char(
+        string="Moneda coste",
+        default="USD",
+        size=8,
+    )
+    cost_line_ids = fields.One2many(
+        "llm.thread.cost.line",
+        "thread_id",
+        string="Líneas de coste",
+    )
+
     chat_work_mode = fields.Selection(
         [
             ("normal", "Respuesta normal"),
@@ -124,7 +141,42 @@ class LLMThread(models.Model):
                     "usage_billable_accumulated": self.usage_billable_accumulated + total,
                 }
             )
+        self._usage_apply_cost_line(usage_dict)
         self._usage_maybe_compact()
+
+    def _usage_apply_cost_line(self, usage_dict):
+        """Registra coste USD del turno y línea de seguimiento."""
+        self.ensure_one()
+        if not self.model_id:
+            return
+        rate = self.env["llm.gemini.pricing.rate"].get_rate_for_llm_model(
+            self.model_id
+        )
+        if not rate:
+            return
+        prompt = int(usage_dict.get("prompt") or 0)
+        output = int(usage_dict.get("output") or 0)
+        cached = int(usage_dict.get("cached") or 0)
+        cost = (prompt / 1e6) * (rate.input_usd_per_million or 0.0)
+        cost += (output / 1e6) * (rate.output_usd_per_million or 0.0)
+        cost += (cached / 1e6) * (rate.cached_input_usd_per_million or 0.0)
+        if cost <= 0 and (prompt + output + cached) <= 0:
+            return
+        prev = float(self.usage_cost_usd_total or 0.0)
+        new_total = prev + cost
+        self.write({"usage_cost_usd_total": new_total})
+        self.env["llm.thread.cost.line"].create(
+            {
+                "thread_id": self.id,
+                "prompt_tokens": prompt,
+                "output_tokens": output,
+                "cached_tokens": cached,
+                "cost_usd_delta": cost,
+                "cumulative_usd_total": new_total,
+                "pricing_rate_id": rate.id,
+                "model_name_snapshot": self.model_id.name,
+            }
+        )
 
     def _usage_recompute_live_from_parts(self):
         """Contexto vivo ≈ estimación última petición + margen (historial en servidor)."""
@@ -252,6 +304,8 @@ class LLMThread(models.Model):
             "compaction_count": self.usage_compaction_count,
             "work_mode": self.chat_work_mode,
             "work_mode_selector_enabled": self.chat_work_mode_selector_enabled,
+            "cost_usd_total": round(self.usage_cost_usd_total or 0.0, 8),
+            "cost_currency": self.usage_cost_currency or "USD",
         }
 
     @api.model
