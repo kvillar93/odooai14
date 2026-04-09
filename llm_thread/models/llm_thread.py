@@ -290,7 +290,7 @@ class LLMThread(models.Model):
         if author_id:
             return None  # Let standard flow handle it
 
-        company_name = (self.env.company.name or "").strip()
+        company_name = "Odoo"
 
         if subtype_xmlid == "llm.mt_tool" or llm_role == "tool":
             # Nombre genérico para mensajes de herramienta
