@@ -27,3 +27,6 @@ requests
 sqlparse
 xlrd
 xlsxwriter
+openai
+markdown2
+emoji
