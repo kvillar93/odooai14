@@ -1,18 +1,26 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
+    <!-- Restringir el menú raíz LLM al grupo group_llm_floating_chat.
+         Esto se hace desde llm_thread porque llm no conoce ese grupo. -->
+    <record id="llm.menu_llm_root" model="ir.ui.menu">
+        <field name="groups_id" eval="[(4, ref('group_llm_floating_chat'))]" />
+    </record>
+
     <!-- Chat Menu Item -->
     <menuitem
-    id="menu_llm_chat"
-    name="Chat"
-    action="action_llm_chat"
-    parent="llm.menu_llm_root"
-    sequence="10"
-  />
+        id="menu_llm_chat"
+        name="Chat"
+        action="action_llm_chat"
+        parent="llm.menu_llm_root"
+        sequence="10"
+        groups="llm_thread.group_llm_floating_chat"
+    />
     <menuitem
-    id="menu_llm_thread"
-    name="Threads"
-    action="llm_thread_action"
-    parent="llm.menu_llm_config"
-    sequence="27"
-  />
+        id="menu_llm_thread"
+        name="Threads"
+        action="llm_thread_action"
+        parent="llm.menu_llm_config"
+        sequence="27"
+        groups="llm_thread.group_llm_floating_chat"
+    />
 </odoo>

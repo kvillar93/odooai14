@@ -417,14 +417,21 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
             var self = this;
             var sup = this._super.apply(this, arguments);
 
-            this.$el.on('show.bs.dropdown', function () {
-                if (self._owl) {
-                    self._owl._onDropdownShow();
+            return session.user_has_group('llm_thread.group_llm_floating_chat').then(function (hasGroup) {
+                if (!hasGroup) {
+                    self.$el.addClass('d-none');
+                    return sup;
                 }
-            });
 
-            this._mountOwlDeferred();
-            return sup;
+                self.$el.on('show.bs.dropdown', function () {
+                    if (self._owl) {
+                        self._owl._onDropdownShow();
+                    }
+                });
+
+                self._mountOwlDeferred();
+                return sup;
+            });
         },
 
         _mountOwlDeferred: function () {
