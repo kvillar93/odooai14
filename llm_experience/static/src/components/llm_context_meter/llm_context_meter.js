@@ -36,9 +36,10 @@ odoo.define('llm_experience/static/src/components/llm_context_meter/llm_context_
                 loaded: false,
                 selectorEnabled: true,
             });
-            this._interval = null;
             this._onComposerInput = this._onComposerInput.bind(this);
             this._onDocClick = this._onDocClick.bind(this);
+            // Solo refrescar al recibir el evento de nuevo mensaje / fin de streaming.
+            // Antes había un setInterval(12s) que causaba flickering periódico.
             window.addEventListener('llm-experience-refresh-meter', this._onComposerInput);
 
             const self = this;
@@ -49,9 +50,6 @@ odoo.define('llm_experience/static/src/components/llm_context_meter/llm_context_
                 self._detachMenuLayoutListeners();
                 window.removeEventListener('llm-experience-refresh-meter', self._onComposerInput);
                 document.removeEventListener('click', self._onDocClick);
-                if (self._interval) {
-                    clearInterval(self._interval);
-                }
             });
             onWillUpdateProps(function (next) {
                 if (next.threadId !== self.props.threadId) {
@@ -62,9 +60,6 @@ odoo.define('llm_experience/static/src/components/llm_context_meter/llm_context_
             onWillStart(function () {
                 return self.fetch();
             });
-            this._interval = setInterval(function () {
-                self.fetch();
-            }, 12000);
             onPatched(function () {
                 if (self.state.menuOpen) {
                     requestAnimationFrame(function () {

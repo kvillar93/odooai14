@@ -65,9 +65,14 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
             useShouldUpdateBasedOnProps();
             useStore(function () {
                 var messaging = this.env.messaging;
+                var llmChat = messaging && messaging.llmChat;
+                var activeThread = llmChat && llmChat.activeThread;
                 return {
                     messaging: messaging ? messaging.__state : undefined,
                     isInitialized: messaging && messaging.isInitialized,
+                    // Trackear el nombre del hilo activo para que el título del
+                    // panel flotante se actualice cuando cambia (SSE o renombrado)
+                    activeThreadName: activeThread ? activeThread.name : undefined,
                 };
             }.bind(this));
 

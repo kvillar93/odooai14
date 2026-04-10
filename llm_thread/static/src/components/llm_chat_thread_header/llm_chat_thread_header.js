@@ -14,8 +14,13 @@ odoo.define('llm_thread/static/src/components/llm_chat_thread_header/llm_chat_th
             useShouldUpdateBasedOnProps();
             useStore(function () {
                 const record = this.props.record;
+                const threadView = record && record.threadView;
+                const thread = threadView && threadView.thread;
                 return {
                     headerView: record && record.__state,
+                    // Forzar re-render cuando cambie el nombre del hilo activo
+                    // (p. ej. al recibir thread_name_update SSE o al renombrarlo)
+                    threadName: thread && thread.name,
                 };
             }.bind(this));
 
