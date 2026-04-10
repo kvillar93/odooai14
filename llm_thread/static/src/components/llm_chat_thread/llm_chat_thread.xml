@@ -2,7 +2,10 @@
 <templates xml:space="preserve">
     <t t-name="llm_thread.LLMChatThread" owl="1">
         <div class="o_LLMChatThread o_LLMChatThread--modern d-flex flex-column h-100 min-h-0">
-            <LLMChatThreadHeader record="threadView.llmChatThreadHeaderView" />
+            <LLMChatThreadHeader
+                record="threadView.llmChatThreadHeaderView"
+                t-if="threadView and threadView.llmChatThreadHeaderView"
+            />
 
             <div
                 class="o_LLMChatThread_content flex-grow-1 min-h-0 overflow-auto position-relative d-flex flex-column"
