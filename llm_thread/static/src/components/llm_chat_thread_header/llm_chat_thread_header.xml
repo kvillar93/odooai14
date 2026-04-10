@@ -29,7 +29,7 @@
                     <div
             class="o_ThreadViewTopbar_threadName o_ThreadViewTopbar_editableItem lead flex-shrink-1 px-1 border text-truncate font-weight-bold"
             t-att-title="displayThreadName"
-            t-on-click="llmChatThreadHeaderView.onClickTopbarThreadName"
+            t-on-click="() => llmChatThreadHeaderView.onClickTopbarThreadName()"
             t-attf-class="{{ isSmall ? 'border-0' : 'border-light' }}"
             style="cursor: pointer;"
           >
@@ -51,14 +51,14 @@
           />
                     <button
             class="btn btn-sm btn-primary ml-1"
-            t-on-click="llmChatThreadHeaderView.saveThreadName"
+            t-on-click="() => llmChatThreadHeaderView.saveThreadName()"
             title="Save"
           >
                         <i class="fa fa-check" />
                     </button>
                     <button
             class="btn btn-sm btn-secondary ml-1"
-            t-on-click="llmChatThreadHeaderView.discardThreadNameEdition"
+            t-on-click="() => llmChatThreadHeaderView.discardThreadNameEdition()"
             title="Cancel"
           >
                         <i class="fa fa-times" />
@@ -418,7 +418,7 @@
             <button
         class="o_ThreadViewTopbar_button btn px-2 border-none rounded shadow-none ml-auto flex-shrink-0"
         t-if="isSmall"
-        t-on-click="llmChatThreadHeaderView.openThreadSettings"
+        t-on-click="() => llmChatThreadHeaderView.openThreadSettings()"
         title="Settings"
       >
                 <i class="fa fa-lg fa-gear text-700" />

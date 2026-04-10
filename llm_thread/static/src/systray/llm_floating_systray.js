@@ -263,6 +263,14 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
             } catch (e) {
                 console.error('LLMFloatingSystray.selectThread', e);
             }
+            var self = this;
+            [100, 400, 1000].forEach(function (ms) {
+                window.setTimeout(function () {
+                    if (self.env && self.env.messagingBus) {
+                        self.env.messagingBus.trigger('llm-stream-update');
+                    }
+                }, ms);
+            });
         }
 
         onClickFullChat() {
@@ -294,6 +302,14 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
 
         onClickRestorePanel() {
             this.state.panelMinimized = false;
+            var self = this;
+            [100, 400].forEach(function (ms) {
+                window.setTimeout(function () {
+                    if (self.env && self.env.messagingBus) {
+                        self.env.messagingBus.trigger('llm-stream-update');
+                    }
+                }, ms);
+            });
         }
 
         onClickFloatingHeaderBar() {
@@ -337,6 +353,15 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
 
         async onClickAttachActiveViewHtml() {
             try {
+                var panel = document.querySelector('.o_llm_floating_panel');
+                var input = panel && panel.querySelector('.o_FileUploader_input');
+                if (!input) {
+                    this.env.services.notification.notify({
+                        message: this.env._t('Abre una conversación antes de adjuntar el HTML.'),
+                        type: 'warning',
+                    });
+                    return;
+                }
                 var html = this._buildActiveViewHtmlDocument();
                 var truncated = false;
                 if (html.length > LLM_ACTIVE_VIEW_HTML_MAX_CHARS) {
@@ -346,8 +371,10 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
                 var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
                 var fileName = this._sanitizeFilenameFromPageTitle() + '.html';
                 var file = new File([blob], fileName, { type: 'text/html' });
-                console.log('[LLM_DEBUG attach] enviando por messagingBus:', fileName, file.size, 'bytes');
-                this.env.messagingBus.trigger('llm-upload-file', { file: file });
+                var dt = new DataTransfer();
+                dt.items.add(file);
+                input.files = dt.files;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
                 if (truncated) {
                     this.env.services.notification.notify({
                         message: this.env._t('El HTML se ha truncado por tamaño.'),
@@ -355,7 +382,7 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
                     });
                 }
             } catch (e) {
-                console.error('[LLM_DEBUG attach] ERROR:', e);
+                console.error('[LLM attach HTML] ERROR:', e);
                 this.env.services.notification.notify({
                     message: this.env._t('Error al adjuntar el HTML de la vista.'),
                     type: 'danger',

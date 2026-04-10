@@ -230,6 +230,7 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
                 textInputCursorEnd: 0,
                 textInputCursorStart: 0,
             });
+            this.env.messagingBus.trigger('llm-stream-update');
 
             try {
                 await this.startGeneration(messageBody, attachmentIds);
@@ -252,7 +253,9 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
 
         _handleMessageCreate(message) {
             const Message = this.env.models['mail.message'];
-            return Message.insert(Message.convertData(message));
+            var result = Message.insert(Message.convertData(message));
+            this.env.messagingBus.trigger('llm-stream-update');
+            return result;
         },
 
         _handleMessageUpdate(message) {
@@ -263,6 +266,7 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
             if (result) {
                 result.update(Message.convertData(message));
             }
+            this.env.messagingBus.trigger('llm-stream-update');
             return result;
         },
     });

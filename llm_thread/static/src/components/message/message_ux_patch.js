@@ -177,11 +177,29 @@ const _llmMessageUxPatch = {
     /** @param {string} text */
     async copyLlmTextToClipboard(text) {
         const t = text || "";
-        try {
-            await navigator.clipboard.writeText(t);
-            this.env.services.notification.notify({ message: "Copiado al portapapeles", type: "success" });
-        } catch (e) {
-            this.env.services.notification.notify({ message: "No se pudo copiar", type: "danger" });
+        const notify = this.env && this.env.services && this.env.services.notification;
+        const ok = () => notify && notify.notify({ message: "Copiado al portapapeles", type: "success" });
+        const fail = () => notify && notify.notify({ message: "No se pudo copiar", type: "danger" });
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            try {
+                await navigator.clipboard.writeText(t);
+                ok();
+            } catch (_e) {
+                fail();
+            }
+        } else {
+            try {
+                const ta = document.createElement("textarea");
+                ta.value = t;
+                ta.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0";
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand("copy");
+                document.body.removeChild(ta);
+                ok();
+            } catch (_e) {
+                fail();
+            }
         }
     },
 
@@ -222,12 +240,25 @@ const _llmMessageUxPatch = {
                     ev.preventDefault();
                     ev.stopPropagation();
                     const text = this._llmTableToTsv(table);
-                    navigator.clipboard.writeText(text).then(
-                        () =>
-                            this.env.services.notification.notify({ message: "Tabla copiada", type: "success" }),
-                        () =>
-                            this.env.services.notification.notify({ message: "No se pudo copiar", type: "danger" })
-                    );
+                    const notify = this.env && this.env.services && this.env.services.notification;
+                    const ok = () => notify && notify.notify({ message: "Tabla copiada", type: "success" });
+                    const fail = () => notify && notify.notify({ message: "No se pudo copiar", type: "danger" });
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).then(ok, fail);
+                    } else {
+                        try {
+                            const ta = document.createElement("textarea");
+                            ta.value = text;
+                            ta.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0";
+                            document.body.appendChild(ta);
+                            ta.select();
+                            document.execCommand("copy");
+                            document.body.removeChild(ta);
+                            ok();
+                        } catch (_e) {
+                            fail();
+                        }
+                    }
                 });
                 bar.appendChild(btn);
                 wrap.insertBefore(bar, table);
@@ -283,6 +314,8 @@ const _llmMessageUxPatch = {
 
             // Construir el wrapper del gráfico y reemplazar el div contenedor
             const wrapper = this._llmBuildChartWrapper(option, odooLinks);
+            // Guardar el JSON original para que willPatch pueda restaurar el div raw
+            wrapper._llmOriginalJson = optionStr;
             div.parentNode.replaceChild(wrapper, div);
 
             // Inicializar ECharts de forma asíncrona
@@ -657,7 +690,50 @@ function _sanitizeFilename(str) {
         .slice(0, 60);
 }
 
-console.log('[LLM_UPD PATCH] message_ux_patch.js cargado, parcheando Message.prototype._update');
+// ---------------------------------------------------------------------------
+// willPatch: deshacer cambios estructurales del DOM *antes* de que OWL parchee.
+// Sin esto, snabbdom encuentra la estructura real diferente a su vnode anterior
+// (tabla envuelta / div ECharts reemplazado) y lanza NotFoundError: insertBefore.
+// ---------------------------------------------------------------------------
+const _origWillPatch = Message.prototype.willPatch;
+Message.prototype.willPatch = function () {
+    if (_origWillPatch) {
+        _origWillPatch.call(this);
+    }
+    var contentEl = this._contentRef && this._contentRef.el;
+    if (!contentEl) { return; }
+
+    // Desenvuelve tablas: mueve <table> fuera del wrapper y elimina éste
+    var wraps = contentEl.querySelectorAll('.o_llm_table_wrap');
+    for (var wi = 0; wi < wraps.length; wi++) {
+        var wrap = wraps[wi];
+        var table = wrap.querySelector('table');
+        if (table && wrap.parentNode) {
+            table.classList.remove('o_llm_table_enhanced');
+            wrap.parentNode.insertBefore(table, wrap);
+            wrap.parentNode.removeChild(wrap);
+        }
+    }
+
+    // Restaura divs ECharts: reemplaza el wrapper por el div raw original
+    var chartWrappers = contentEl.querySelectorAll('.o_llm_echarts_wrapper');
+    for (var ci = 0; ci < chartWrappers.length; ci++) {
+        var wrapper = chartWrappers[ci];
+        if (wrapper._llmOriginalJson !== undefined && wrapper.parentNode) {
+            if (wrapper._echartsInstance) {
+                try { wrapper._echartsInstance.dispose(); } catch (_e) {}
+            }
+            if (wrapper._echartsObserver) {
+                try { wrapper._echartsObserver.disconnect(); } catch (_e) {}
+            }
+            var rawDiv = document.createElement('div');
+            rawDiv.className = 'o_llm_echarts_raw';
+            rawDiv.textContent = wrapper._llmOriginalJson;
+            wrapper.parentNode.replaceChild(rawDiv, wrapper);
+        }
+    }
+};
+
 const _origUpdate = Message.prototype._update;
 Message.prototype._update = function () {
     if (this._prettyBodyRef) {
@@ -675,25 +751,44 @@ Message.prototype._update = function () {
         var _html = _el.innerHTML || '';
         var _body = this.message.body || '';
         var _pretty = this.message.prettyBody || '';
-        console.log('[LLM_UPD] id=' + this.message.id +
-            ' role=' + (this.message.llmRole || '-') +
-            ' body.len=' + _body.length +
-            ' pretty.len=' + _pretty.length +
-            ' innerHTML.len=' + _html.length);
         if (_html.length === 0 && (_body.length > 0 || _pretty.length > 0)) {
-            console.warn('[LLM_UPD] FORZANDO innerHTML, body(80)=',
-                _body.substring(0, 80));
             _el.innerHTML = _pretty || _body;
             this._lastPrettyBody = _el.innerHTML;
         }
     }
 
     if (this._contentRef && this._contentRef.el) {
-        this._llmEnhanceAssistantDom(this._contentRef.el);
+        // Durante streaming no hacemos mejoras estructurales para no interferir
+        // con el parcheado continuo del DOM por parte de OWL.
+        var msg = this.message;
+        var thread = msg && (msg.originThread || msg.thread);
+        var isStreaming = thread && thread.composer && thread.composer.isStreaming;
+        if (!isStreaming) {
+            this._llmEnhanceAssistantDom(this._contentRef.el);
+        }
     }
 };
 
 Object.assign(Message.prototype, _llmMessageUxPatch);
+
+var LLM_AI_AVATAR_URL = '/llm_thread/static/src/img/llm_ai_avatar.svg';
+
+var _origAvatarDescriptor = Object.getOwnPropertyDescriptor(Message.prototype, 'avatar');
+Object.defineProperty(Message.prototype, 'avatar', {
+    get: function () {
+        if (this.message && this.message.llmRole === 'assistant' && !this.message.author) {
+            return LLM_AI_AVATAR_URL;
+        }
+        if (_origAvatarDescriptor && _origAvatarDescriptor.get) {
+            return _origAvatarDescriptor.get.call(this);
+        }
+        if (this.message && this.message.author) {
+            return this.message.author.avatarUrl;
+        }
+        return '/mail/static/src/img/smiley/avatar.jpg';
+    },
+    configurable: true,
+});
 
 return Message;
 });

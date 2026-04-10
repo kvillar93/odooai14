@@ -44,11 +44,11 @@ odoo.define('llm_thread/static/src/components/llm_chat_composer/llm_chat_compose
             if (!payload || !payload.file) {
                 return;
             }
-            if (this._fileUploaderRef.comp) {
-                console.log('[LLM_DEBUG] uploadFiles via messagingBus, archivo:', payload.file.name);
-                this._fileUploaderRef.comp.uploadFiles([payload.file]);
+            var uploader = this._fileUploaderRef && this._fileUploaderRef.comp;
+            if (uploader) {
+                uploader.uploadFiles([payload.file]);
             } else {
-                console.warn('[LLM_DEBUG] _fileUploaderRef.comp no disponible');
+                console.warn('[LLM Composer] FileUploader no disponible para subir:', payload.file.name);
             }
         }
 
@@ -87,6 +87,10 @@ odoo.define('llm_thread/static/src/components/llm_chat_composer/llm_chat_compose
                 return;
             }
             this.composer.postUserMessageForLLM();
+            var ta = this.el && this.el.querySelector('.o_ComposerTextInput_textarea');
+            if (ta) {
+                ta.value = '';
+            }
         }
 
         _onClickStop() {

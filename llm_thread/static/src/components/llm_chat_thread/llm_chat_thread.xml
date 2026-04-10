@@ -64,7 +64,7 @@
                         </div>
                     </t>
                     <MessageList
-                        class="o_LLMChatThread_messageList bg-view d-flex flex-column overflow-auto flex-grow-1"
+                        class="o_LLMChatThread_messageList bg-view d-flex flex-column flex-shrink-0 w-100"
                         getScrollableElement="getScrollableElement"
                         hasMessageCheckbox="false"
                         hasScrollAdjust="true"
@@ -80,6 +80,7 @@
                             <LLMStreamingIndicator />
                         </div>
                     </t>
+                    <div class="o_LLMChatThread_scrollEnd" aria-hidden="true"/>
                 </t>
             </div>
 

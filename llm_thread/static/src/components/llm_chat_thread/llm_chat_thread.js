@@ -34,7 +34,7 @@ odoo.define('llm_thread/static/src/components/llm_chat_thread/llm_chat_thread.js
             }.bind(this));
             this._scrollContentRef = useRef('scrollContent');
             this._messageListRef = useRef('messageList');
-            this._llmScrollRaf = null;
+            this._alive = false;
             this.getScrollableElement = function () {
                 return this._scrollContentRef.el;
             }.bind(this);
@@ -63,42 +63,160 @@ odoo.define('llm_thread/static/src/components/llm_chat_thread/llm_chat_thread.js
         }
 
         patched() {
-            if (this.thread && this.thread.composer && this.thread.composer.isStreaming) {
-                this._scheduleScrollToEnd();
+            var thread = this.props.record;
+            var threadKey = thread ? (thread.localId || ('id:' + String(thread.id))) : '';
+            if (threadKey !== this._lastThreadKey) {
+                this._lastThreadKey = threadKey;
+                this._lastMsgCount = -1;
+                this._autoScrollUntil = Date.now() + 6000;
+                var tv0 = this.props.threadView;
+                if (tv0 && typeof tv0.update === 'function') {
+                    tv0.update({ hasAutoScrollOnMessageReceived: true });
+                }
+                var self = this;
+                [0, 50, 150, 300, 500, 800, 1200, 2000, 3500].forEach(function (ms) {
+                    window.setTimeout(function () {
+                        if (self._alive) { self._doScroll(); }
+                    }, ms);
+                });
             }
+            var isStreaming = this.thread && this.thread.composer && this.thread.composer.isStreaming;
+            if (isStreaming) {
+                this._autoScrollUntil = Date.now() + 10000;
+                this._scheduleScroll();
+            }
+            var tv = this.props.threadView;
+            var count = tv && tv.nonEmptyMessages ? tv.nonEmptyMessages.length : 0;
+            if (count !== this._lastMsgCount) {
+                var self2 = this;
+                [50, 200, 500].forEach(function (ms) {
+                    window.setTimeout(function () {
+                        if (self2._alive) { self2._doScroll(); }
+                    }, ms);
+                });
+            }
+            this._lastMsgCount = count;
         }
 
         mounted() {
-            this._scheduleScrollToEnd();
-        }
-
-        _scheduleScrollToEnd() {
-            const self = this;
-            if (self._llmScrollRaf) {
-                return;
-            }
-            self._llmScrollRaf = window.requestAnimationFrame(function () {
-                self._llmScrollRaf = null;
-                self._scrollToEnd();
+            this._alive = true;
+            this._lastThreadKey = null;
+            this._lastMsgCount = -1;
+            this._autoScrollUntil = Date.now() + 6000;
+            this._onStreamUpdate = this._scheduleScroll.bind(this);
+            this.env.messagingBus.on('llm-stream-update', this, this._onStreamUpdate);
+            this._setupScrollResizeObserver();
+            var self = this;
+            [0, 100, 300, 600, 1200, 2500].forEach(function (ms) {
+                window.setTimeout(function () {
+                    if (self._alive) { self._doScroll(); }
+                }, ms);
             });
         }
 
-        _scrollToEnd() {
-            const el = this._scrollContentRef.el;
-            if (!el) {
+        willUnmount() {
+            this._alive = false;
+            this.env.messagingBus.off('llm-stream-update', this);
+            if (this._scrollResizeObserver) {
+                try {
+                    this._scrollResizeObserver.disconnect();
+                } catch (_e) {}
+                this._scrollResizeObserver = null;
+            }
+        }
+
+        _setupScrollResizeObserver() {
+            var self = this;
+            if (typeof ResizeObserver === 'undefined') {
                 return;
             }
-            const setEnd = function (node) {
-                if (!node) {
+            this._scrollResizeObserver = new ResizeObserver(function () {
+                if (!self._alive) {
                     return;
                 }
-                node.scrollTop = node.scrollHeight - node.clientHeight;
+                var streaming = self.thread && self.thread.composer && self.thread.composer.isStreaming;
+                var inAutoWindow = Date.now() < (self._autoScrollUntil || 0);
+                if (streaming || inAutoWindow) {
+                    self._doScroll();
+                }
+            });
+            window.requestAnimationFrame(function () {
+                var el = self._scrollContentRef.el;
+                if (el && self._scrollResizeObserver) {
+                    self._scrollResizeObserver.observe(el);
+                }
+                var ml = self._messageListRef && self._messageListRef.el;
+                if (ml && self._scrollResizeObserver) {
+                    self._scrollResizeObserver.observe(ml);
+                }
+            });
+        }
+
+        _scheduleScroll() {
+            var self = this;
+            window.setTimeout(function () {
+                if (self._alive) { self._doScroll(); }
+            }, 0);
+            window.setTimeout(function () {
+                if (self._alive) { self._doScroll(); }
+            }, 80);
+        }
+
+        _doScroll() {
+            var self = this;
+
+            // Mecanismo 1: scrollTop directo en todos los contenedores candidatos
+            var seen = {};
+            var targets = [];
+            var add = function (el) {
+                if (!el || el.nodeType !== 1 || seen[el]) {
+                    return;
+                }
+                seen[el] = true;
+                targets.push(el);
             };
-            setEnd(el);
-            const ml = this._messageListRef.el;
-            if (ml) {
-                setEnd(ml);
+            add(this._scrollContentRef.el);
+            var root = this.el;
+            if (root && root.closest) {
+                var panel = root.closest('.o_llm_floating_panel');
+                if (panel) {
+                    var found = panel.querySelectorAll('.o_LLMChatThread_content');
+                    for (var j = 0; j < found.length; j++) {
+                        add(found[j]);
+                    }
+                }
             }
+            var setInstant = function (node) {
+                var max = node.scrollHeight - node.clientHeight;
+                if (max > 0) {
+                    node.scrollTop = max;
+                }
+            };
+            for (var i = 0; i < targets.length; i++) {
+                setInstant(targets[i]);
+            }
+
+            // Mecanismo 2: scrollIntoView en el sentinel (funciona aunque el
+            // contenedor sea flex o block; el navegador calcula el scroll nativo)
+            if (root) {
+                var sentinel = root.querySelector('.o_LLMChatThread_scrollEnd');
+                if (sentinel) {
+                    try {
+                        sentinel.scrollIntoView({ behavior: 'instant', block: 'end' });
+                    } catch (_e) {
+                        // Fallback para navegadores sin soporte de behavior:'instant'
+                        try { sentinel.scrollIntoView(false); } catch (_e2) {}
+                    }
+                }
+            }
+
+            // Mecanismo 3: repetir en el siguiente frame para capturar reflows tardíos
+            window.requestAnimationFrame(function () {
+                if (!self._alive) { return; }
+                for (var k = 0; k < targets.length; k++) {
+                    setInstant(targets[k]);
+                }
+            });
         }
 
         get threadView() {

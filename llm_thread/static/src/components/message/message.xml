@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
 
     <t t-name="llm_thread.Message.AssistantContent" owl="1">
-        <div class="o_Message_prettyBody" t-ref="prettyBody" />
+        <div class="o_Message_prettyBody" t-ref="prettyBody" t-raw="message.prettyBody or message.body or ''" />
         <t t-if="message.toolCalls and message.toolCalls.length > 0">
             <details class="o_llm_tool_calls o_llm_tool_calls--subtle mt-2 small text-muted border-top pt-1">
                 <summary class="cursor-pointer user-select-none">
@@ -115,7 +115,7 @@
     </t>
 
     <t t-name="llm_thread.Message.DefaultContent" owl="1">
-        <div class="o_Message_prettyBody" t-ref="prettyBody" />
+        <div class="o_Message_prettyBody" t-ref="prettyBody" t-raw="message.prettyBody or message.body or ''" />
         <t t-if="message.subtype_description and !message.isBodyEqualSubtypeDescription">
             <p t-esc="message.subtype_description" class="mb-0" />
         </t>

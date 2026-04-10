@@ -27,8 +27,23 @@
 
 .o_llm_table_wrap {
   overflow-x: auto;
+
   .table {
     margin-bottom: 0;
+  }
+
+  // Botón "Copiar tabla": siempre visible (no solo en hover)
+  .btn-outline-secondary {
+    opacity: 1 !important;
+    visibility: visible !important;
+    color: #6c757d;
+    border-color: #6c757d;
+    background-color: #fff;
+
+    &:hover {
+      background-color: #6c757d;
+      color: #fff;
+    }
   }
 }
 

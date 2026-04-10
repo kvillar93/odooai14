@@ -17,3 +17,31 @@
 
 // Altura: la columna del hilo usa flex (min-h-0 + contenido scrollable + compositor fijo abajo).
 // No usar max-height fijo: con adjuntos altos el área de mensajes debe encogerse, no ocultar el prompt.
+
+// Un solo scroll vertical: el área es .o_LLMChatThread_content (getScrollableElement del MessageList).
+// Mail pone overflow:auto en .o_MessageList; si ambos tienen scroll, el scrollTop del padre no mueve la barra visible.
+.o_LLMChatThread_content .o_MessageList.o_LLMChatThread_messageList,
+.o_LLMChat .o_LLMChatThread_content .o_MessageList.o_LLMChatThread_messageList {
+  overflow: visible !important;
+  flex: 0 0 auto;
+}
+
+.o_LLMChatThread_scrollEnd {
+  flex: 0 0 1px;
+  width: 100%;
+  height: 1px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+// Evitar scroll suave por CSS (carga inicial y cambio de hilo deben ser instantáneos)
+.o_LLMChatThread_content {
+  scroll-behavior: auto !important;
+}
+
+// Eliminar fondo gris de los mensajes fuera de discusión en el chat LLM
+.o_LLMChatThread .o_Message.o-not-discussion,
+.o_LLMChat .o_Message.o-not-discussion {
+  background-color: transparent;
+  border-bottom-color: transparent;
+}

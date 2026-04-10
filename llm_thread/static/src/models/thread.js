@@ -99,8 +99,10 @@ odoo.define('llm_thread/static/src/models/thread.js', function (require) {
 
             if (focus && llmChat.llmChatView && llmChat.llmChatView.composer) {
                 const composer = llmChat.llmChatView.composer;
-                for (let i = 0; i < composer.composerViews.length; i++) {
-                    composer.composerViews[i].update({ doFocus: true });
+                if (composer.composerViews && composer.composerViews.length) {
+                    for (let i = 0; i < composer.composerViews.length; i++) {
+                        composer.composerViews[i].update({ doFocus: true });
+                    }
                 }
             }
         },

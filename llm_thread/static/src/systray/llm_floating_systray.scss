@@ -115,6 +115,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
   position: relative;
 
   .o_LLMChat {
@@ -122,7 +123,70 @@
     min-height: 0;
     height: 100%;
     max-height: 100%;
+    overflow: hidden;
   }
+
+  .o_LLMChat_content {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .o_LLMChatThread {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .o_LLMChatThread_content {
+    min-height: 0;
+  }
+
+  .o_LLMChatThread_messageList {
+    min-height: 0;
+  }
+
+  // El área de mensajes debe tener altura acotada para que overflow-y funcione (antes el contenido
+  // crecía sin límite y el scroll quedaba en otro nivel o no aparecía).
+    .o_LLMChat--systrayFloat {
+      min-height: 0;
+
+      .o_LLMChat_content {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .o_LLMChatThread {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      // Convertir el contenedor de scroll a display:block para que scrollHeight
+      // se calcule correctamente. Un flex-container con overflow:auto en algunos
+      // navegadores reporta scrollHeight == clientHeight aunque el contenido
+      // desborde, porque el algoritmo flex ajusta el tamaño de sus hijos.
+      // Con display:block el cálculo de scrollHeight es siempre correcto.
+      .o_LLMChatThread_content {
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+        display: block !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        scroll-behavior: auto !important;
+        overscroll-behavior: contain;
+      }
+
+      // Dentro del popup el MessageList es hijo de un bloque (no de un flex),
+      // por lo que flex: 0 0 auto no aplica. Forzamos ancho completo.
+      .o_LLMChatThread_content .o_MessageList {
+        width: 100%;
+        min-width: 0;
+        overflow: visible !important;
+      }
+    }
 
   // Lista de hilos tipo smartphone: overlay dentro del panel (no pantalla completa)
   .o_LLMChat--systrayFloat {

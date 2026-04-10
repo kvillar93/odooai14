@@ -49,6 +49,10 @@ odoo.define('llm_thread/static/src/components/llm_chat_composer_text_input/llm_c
                     }
                     this.composer.postUserMessageForLLM();
                     ev.preventDefault();
+                    if (this._textareaRef && this._textareaRef.el) {
+                        this._textareaRef.el.value = '';
+                        this._textareaLastInputValue = '';
+                    }
                 }
                 return;
             }
