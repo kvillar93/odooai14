@@ -6,9 +6,12 @@
   min-width: 300px;
   max-width: #{"min(360px, 92vw)"};
   max-height: #{"min(420px, 70vh)"};
-  display: flex;
   flex-direction: column;
   min-height: 0;
+
+  &.show {
+    display: flex;
+  }
 }
 
 // Móvil: ancho casi completo y lista legible (evita texto cortado)

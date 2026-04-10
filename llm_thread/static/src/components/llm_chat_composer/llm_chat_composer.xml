@@ -10,7 +10,6 @@
             <div class="o_LLMChatComposer_container d-flex flex-column mx-auto w-100">
                 <t t-if="composer.attachments.length > 0">
                     <AttachmentList
-                        className="'o_Composer_attachmentList o_LLMChatComposer_attachmentList flex-grow-1'"
                         areAttachmentsEditable="true"
                         attachmentsDetailsMode="'auto'"
                         attachmentsImageSize="'small'"

@@ -21,6 +21,10 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
             this._onSearchInput = this._onSearchInput.bind(this);
         }
 
+        get systray() {
+            return this.props.systray;
+        }
+
         _onSearchInput(ev) {
             this.props.systray.onSearchInput(ev);
         }
@@ -332,14 +336,6 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
         }
 
         async onClickAttachActiveViewHtml() {
-            var input = document.querySelector('.o_LLMChatThread_composer .o_FileUploader input[type="file"]');
-            if (!input) {
-                this.env.services.notification.notify({
-                    message: this.env._t('Abra el panel de chat y use el clip para adjuntar archivos.'),
-                    type: 'warning',
-                });
-                return;
-            }
             try {
                 var html = this._buildActiveViewHtmlDocument();
                 var truncated = false;
@@ -350,10 +346,8 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
                 var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
                 var fileName = this._sanitizeFilenameFromPageTitle() + '.html';
                 var file = new File([blob], fileName, { type: 'text/html' });
-                var dt = new DataTransfer();
-                dt.items.add(file);
-                input.files = dt.files;
-                input.dispatchEvent(new Event('change', { bubbles: true }));
+                console.log('[LLM_DEBUG attach] enviando por messagingBus:', fileName, file.size, 'bytes');
+                this.env.messagingBus.trigger('llm-upload-file', { file: file });
                 if (truncated) {
                     this.env.services.notification.notify({
                         message: this.env._t('El HTML se ha truncado por tamaño.'),
@@ -361,7 +355,11 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
                     });
                 }
             } catch (e) {
-                console.error('onClickAttachActiveViewHtml', e);
+                console.error('[LLM_DEBUG attach] ERROR:', e);
+                this.env.services.notification.notify({
+                    message: this.env._t('Error al adjuntar el HTML de la vista.'),
+                    type: 'danger',
+                });
             }
         }
 

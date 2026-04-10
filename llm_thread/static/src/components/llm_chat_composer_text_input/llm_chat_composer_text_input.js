@@ -25,38 +25,30 @@ odoo.define('llm_thread/static/src/components/llm_chat_composer_text_input/llm_c
                     ev.preventDefault();
                     return;
                 }
+                var matched = false;
                 if (
                     this.props.sendShortcuts.includes('ctrl-enter') &&
-                    !ev.altKey &&
-                    ev.ctrlKey &&
-                    !ev.metaKey &&
-                    !ev.shiftKey
+                    !ev.altKey && ev.ctrlKey && !ev.metaKey && !ev.shiftKey
                 ) {
-                    this.composer.postUserMessageForLLM();
-                    ev.preventDefault();
-                    return;
-                }
-                if (
+                    matched = true;
+                } else if (
                     this.props.sendShortcuts.includes('enter') &&
-                    !ev.altKey &&
-                    !ev.ctrlKey &&
-                    !ev.metaKey &&
-                    !ev.shiftKey
+                    !ev.altKey && !ev.ctrlKey && !ev.metaKey && !ev.shiftKey
                 ) {
-                    this.composer.postUserMessageForLLM();
-                    ev.preventDefault();
-                    return;
-                }
-                if (
+                    matched = true;
+                } else if (
                     this.props.sendShortcuts.includes('meta-enter') &&
-                    !ev.altKey &&
-                    !ev.ctrlKey &&
-                    ev.metaKey &&
-                    !ev.shiftKey
+                    !ev.altKey && !ev.ctrlKey && ev.metaKey && !ev.shiftKey
                 ) {
+                    matched = true;
+                }
+                if (matched) {
+                    if (this.composer.isSendDisabled) {
+                        ev.preventDefault();
+                        return;
+                    }
                     this.composer.postUserMessageForLLM();
                     ev.preventDefault();
-                    return;
                 }
                 return;
             }

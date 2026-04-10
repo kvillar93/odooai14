@@ -657,9 +657,37 @@ function _sanitizeFilename(str) {
         .slice(0, 60);
 }
 
+console.log('[LLM_UPD PATCH] message_ux_patch.js cargado, parcheando Message.prototype._update');
 const _origUpdate = Message.prototype._update;
 Message.prototype._update = function () {
+    if (this._prettyBodyRef) {
+        var el = this._prettyBodyRef.el;
+        if (el && el !== this._llmLastPrettyBodyEl) {
+            this._lastPrettyBody = undefined;
+            this._llmLastPrettyBodyEl = el;
+        }
+    }
+
     _origUpdate.apply(this, arguments);
+
+    if (this.message && this._prettyBodyRef && this._prettyBodyRef.el) {
+        var _el = this._prettyBodyRef.el;
+        var _html = _el.innerHTML || '';
+        var _body = this.message.body || '';
+        var _pretty = this.message.prettyBody || '';
+        console.log('[LLM_UPD] id=' + this.message.id +
+            ' role=' + (this.message.llmRole || '-') +
+            ' body.len=' + _body.length +
+            ' pretty.len=' + _pretty.length +
+            ' innerHTML.len=' + _html.length);
+        if (_html.length === 0 && (_body.length > 0 || _pretty.length > 0)) {
+            console.warn('[LLM_UPD] FORZANDO innerHTML, body(80)=',
+                _body.substring(0, 80));
+            _el.innerHTML = _pretty || _body;
+            this._lastPrettyBody = _el.innerHTML;
+        }
+    }
+
     if (this._contentRef && this._contentRef.el) {
         this._llmEnhanceAssistantDom(this._contentRef.el);
     }

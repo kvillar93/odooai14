@@ -148,11 +148,11 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
 
             try {
                 if (usePost) {
-                    const csrfToken = (typeof odoo !== 'undefined' && odoo.csrf_token) || '';
-                    const url = baseUrl + '&csrf_token=' + encodeURIComponent(csrfToken);
-                    const response = await fetch(url, {
+                    var csrfToken = (typeof odoo !== 'undefined' && odoo.csrf_token) || '';
+                    var url = baseUrl + '&csrf_token=' + encodeURIComponent(csrfToken);
+                    var response = await fetch(url, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'text/plain' },
                         credentials: 'include',
                         body: JSON.stringify({
                             message: messageBody || '',
@@ -202,9 +202,12 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
         },
 
         async postUserMessageForLLM() {
-            const thread = this.thread;
-            const messageBody = this.textInputContent.trim();
-            const attachmentIds = this.attachments.map(function (a) { return a.id; });
+            var thread = this.thread;
+            var messageBody = this.textInputContent.trim();
+            var attachmentIds = this.attachments
+                .map(function (a) { return a.id; })
+                .filter(function (id) { return typeof id === 'number' && id > 0; });
+
             if ((!messageBody && !attachmentIds.length) || !thread) {
                 llmEnvUtils.llmNotify(this.env, {
                     message: this.env._t('Escriba un mensaje o adjunte un archivo.'),
@@ -213,8 +216,31 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
                 return;
             }
 
-            this._reset();
-            await this.startGeneration(messageBody, attachmentIds);
+            if (this.hasUploadingAttachment) {
+                llmEnvUtils.llmNotify(this.env, {
+                    message: this.env._t('Espere a que los archivos terminen de subir.'),
+                    type: 'warning',
+                });
+                return;
+            }
+
+            this.update({
+                isLastStateChangeProgrammatic: true,
+                textInputContent: '',
+                textInputCursorEnd: 0,
+                textInputCursorStart: 0,
+            });
+
+            try {
+                await this.startGeneration(messageBody, attachmentIds);
+            } finally {
+                this.update({
+                    attachments: [['unlink-all']],
+                    mentionedChannels: [['unlink-all']],
+                    mentionedPartners: [['unlink-all']],
+                    subjectContent: '',
+                });
+            }
         },
 
         _closeEventSource() {

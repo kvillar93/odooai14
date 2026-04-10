@@ -169,6 +169,15 @@ odoo.define('llm_thread/static/src/components/llm_chat_thread/llm_chat_thread.js
         }
     }
 
+    var _origOnScrollThrottled = MessageList.prototype._onScrollThrottled;
+    MessageList.prototype._onScrollThrottled = function () {
+        var vals = this._lastRenderedValues && this._lastRenderedValues();
+        if (!vals) {
+            return;
+        }
+        return _origOnScrollThrottled.apply(this, arguments);
+    };
+
     Object.assign(LLMChatThread, {
         props: {
             record: Object,
