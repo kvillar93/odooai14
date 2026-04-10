@@ -96,8 +96,7 @@
   /* Posición: la fija el JS (viewport) para no recortarse por overflow de ancestros */
   &__menu {
     min-width: 220px;
-    /* CSS min(); interpolación evita que Sass lo interprete como su función min() */
-    max-width: #{"min(280px, calc(100vw - 16px))"};
+    max-width: 280px;
     border-radius: 0.5rem;
     box-sizing: border-box;
     padding-left: 0.35rem;

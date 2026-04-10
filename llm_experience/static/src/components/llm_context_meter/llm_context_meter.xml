@@ -9,6 +9,7 @@
                 <button
                     type="button"
                     class="o_llm_ctxMeter__trigger btn border-0 p-0 position-relative"
+                    style="width:28px;height:28px;line-height:0;"
                     t-ref="trigger"
                     t-att-title="ctxTitle"
                     t-att-disabled="state.saving"
@@ -20,9 +21,10 @@
                     <span
                         class="o_llm_ctxMeter__gauge"
                         aria-hidden="true"
+                        style="position:relative;display:inline-block;width:28px;height:28px;"
                         t-att-title="ctxTitle"
                     >
-                        <svg class="o_llm_ctxMeter__svg" viewBox="0 0 40 40">
+                        <svg class="o_llm_ctxMeter__svg" viewBox="0 0 40 40" width="28" height="28" style="display:block;">
                             <circle
                                 class="o_llm_ctxMeter__ring-bg"
                                 cx="20"
@@ -30,6 +32,7 @@
                                 r="16"
                                 fill="none"
                                 stroke-width="3"
+                                stroke="rgba(0,0,0,0.1)"
                             />
                             <circle
                                 t-att-class="ringFillClass"
@@ -70,13 +73,14 @@
                 </div>
             </t>
             <t t-if="state.loaded and !state.selectorEnabled">
-                <div class="o_llm_ctxMeter__gaugeOnly position-relative">
+                <div class="o_llm_ctxMeter__gaugeOnly position-relative" style="line-height:0;">
                     <span
                         class="o_llm_ctxMeter__gauge"
                         aria-hidden="true"
+                        style="position:relative;display:inline-block;width:28px;height:28px;"
                         t-att-title="ctxTitle"
                     >
-                        <svg class="o_llm_ctxMeter__svg" viewBox="0 0 40 40">
+                        <svg class="o_llm_ctxMeter__svg" viewBox="0 0 40 40" width="28" height="28" style="display:block;">
                             <circle
                                 class="o_llm_ctxMeter__ring-bg"
                                 cx="20"
@@ -84,6 +88,7 @@
                                 r="16"
                                 fill="none"
                                 stroke-width="3"
+                                stroke="rgba(0,0,0,0.1)"
                             />
                             <circle
                                 t-att-class="ringFillClass"
@@ -102,8 +107,8 @@
                 </div>
             </t>
             <t t-if="!state.loaded">
-                <span class="o_llm_ctxMeter__placeholder o_llm_ctxMeter__gauge" aria-hidden="true">
-                    <svg class="o_llm_ctxMeter__svg o_llm_ctxMeter__svg--muted" viewBox="0 0 40 40">
+                <span class="o_llm_ctxMeter__placeholder o_llm_ctxMeter__gauge" aria-hidden="true" style="position:relative;display:inline-block;width:28px;height:28px;">
+                    <svg class="o_llm_ctxMeter__svg o_llm_ctxMeter__svg--muted" viewBox="0 0 40 40" width="28" height="28" style="display:block;opacity:0.45;">
                         <circle
                             class="o_llm_ctxMeter__ring-bg"
                             cx="20"
@@ -111,6 +116,7 @@
                             r="16"
                             fill="none"
                             stroke-width="3"
+                            stroke="rgba(0,0,0,0.1)"
                         />
                     </svg>
                 </span>

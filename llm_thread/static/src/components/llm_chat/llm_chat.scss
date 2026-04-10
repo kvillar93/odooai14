@@ -5,11 +5,10 @@
   height: 100%;
 }
 
-// En modo chatter (chat embebido en un documento) no tiene sentido mostrar
-// la barra lateral de conversaciones: ocupa espacio y el usuario ya eligió
-// el hilo al abrir el tab AI. Se oculta completamente.
-.o_LLMChat--chatterMode {
-  .o_LLMChatSidebar_wrap {
-    display: none !important;
-  }
+// Cuando el LLMChat está embebido dentro del chatter de un documento
+// (.o_Chatter), no tiene sentido mostrar la barra lateral de conversaciones.
+// Se detecta puramente por jerarquía DOM: en popup y vista global no existe
+// ningún ancestro .o_Chatter, por lo que este selector nunca se activa ahí.
+.o_Chatter .o_LLMChatSidebar_wrap {
+  display: none !important;
 }

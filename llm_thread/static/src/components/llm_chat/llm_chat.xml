@@ -4,8 +4,7 @@
         <div
             class="o_LLMChat o_LLMChat--modern d-flex h-100"
             t-att-class="{
-                'o_LLMChat--systrayFloat': llmChatView.llmChat.isSystrayFloatingMode,
-                'o_LLMChat--chatterMode': props.isChatterEmbedded
+                'o_LLMChat--systrayFloat': llmChatView.llmChat.isSystrayFloatingMode
             }"
         >
             <!-- Lista de hilos (misma lógica que pantalla completa: colapsar barra lateral, etc.) -->

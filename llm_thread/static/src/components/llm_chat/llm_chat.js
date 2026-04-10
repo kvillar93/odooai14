@@ -33,7 +33,7 @@ odoo.define('llm_thread/static/src/components/llm_chat/llm_chat.js', function (r
     }
 
     Object.assign(LLMChat, {
-        props: { record: Object, isChatterEmbedded: { type: Boolean, optional: true } },
+        props: { record: Object },
         components: {
             LLMChatSidebar: LLMChatSidebar,
             LLMChatThread: LLMChatThread,

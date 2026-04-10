@@ -12,7 +12,7 @@
 
         <xpath expr="//div[hasclass('o_Chatter_scrollPanel')]" position="before">
             <t t-if="chatter.is_chatting_with_llm and chatter.messaging and chatter.messaging.llmChat and chatter.messaging.llmChat.llmChatView">
-                <LLMChat record="chatter.messaging.llmChat.llmChatView" isChatterEmbedded="true" />
+                <LLMChat record="chatter.messaging.llmChat.llmChatView" />
             </t>
         </xpath>
 
