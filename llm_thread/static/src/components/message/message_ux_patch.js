@@ -758,13 +758,25 @@ Message.prototype._update = function () {
     }
 
     if (this._contentRef && this._contentRef.el) {
-        // Durante streaming no hacemos mejoras estructurales para no interferir
-        // con el parcheado continuo del DOM por parte de OWL.
         var msg = this.message;
         var thread = msg && (msg.originThread || msg.thread);
         var isStreaming = thread && thread.composer && thread.composer.isStreaming;
         if (!isStreaming) {
-            this._llmEnhanceAssistantDom(this._contentRef.el);
+            // CRÍTICO: las mejoras estructurales del DOM (envolver tablas,
+            // reemplazar divs ECharts) DEBEN diferirse a setTimeout(0).
+            // Si se aplican de forma síncrona durante _update, snabbdom sigue
+            // iterando el árbol de hijos y encuentra nodos que ya no están en
+            // la posición que su vnode anterior indica → NotFoundError: insertBefore.
+            // Con setTimeout(0) las mejoras ocurren estrictamente DESPUÉS de que
+            // OWL haya terminado todo su ciclo de parche.
+            var self = this;
+            var contentEl = this._contentRef.el;
+            window.setTimeout(function () {
+                // Verificar que el elemento aún esté en el DOM antes de mejorar
+                if (document.body && document.body.contains(contentEl)) {
+                    self._llmEnhanceAssistantDom(contentEl);
+                }
+            }, 0);
         }
     }
 };
