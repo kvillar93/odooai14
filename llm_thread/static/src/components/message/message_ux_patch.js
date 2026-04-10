@@ -697,6 +697,13 @@ function _sanitizeFilename(str) {
 // ---------------------------------------------------------------------------
 const _origWillPatch = Message.prototype.willPatch;
 Message.prototype.willPatch = function () {
+    // Cancelar cualquier mejora DOM pendiente: si se dispara entre willPatch y
+    // el patch real de OWL, encuentra el DOM en estado inconsistente → insertBefore.
+    if (this._llmEnhanceTimer) {
+        window.clearTimeout(this._llmEnhanceTimer);
+        this._llmEnhanceTimer = null;
+    }
+
     if (_origWillPatch) {
         _origWillPatch.call(this);
     }
@@ -762,19 +769,24 @@ Message.prototype._update = function () {
         var thread = msg && (msg.originThread || msg.thread);
         var isStreaming = thread && thread.composer && thread.composer.isStreaming;
         if (!isStreaming) {
-            // CRÍTICO: las mejoras estructurales del DOM (envolver tablas,
-            // reemplazar divs ECharts) DEBEN diferirse a setTimeout(0).
-            // Si se aplican de forma síncrona durante _update, snabbdom sigue
-            // iterando el árbol de hijos y encuentra nodos que ya no están en
-            // la posición que su vnode anterior indica → NotFoundError: insertBefore.
-            // Con setTimeout(0) las mejoras ocurren estrictamente DESPUÉS de que
-            // OWL haya terminado todo su ciclo de parche.
+            // CRÍTICO: diferir las mejoras estructurales del DOM (tablas, ECharts)
+            // a setTimeout(0) para que ocurran DESPUÉS del ciclo de parche de OWL.
+            // Además, almacenamos el ID del timer en _llmEnhanceTimer para que
+            // willPatch pueda cancelarlo si OWL programa otro parche antes de que
+            // el timer se dispare, evitando la race condition → insertBefore.
+            if (this._llmEnhanceTimer) {
+                window.clearTimeout(this._llmEnhanceTimer);
+            }
             var self = this;
             var contentEl = this._contentRef.el;
-            window.setTimeout(function () {
-                // Verificar que el elemento aún esté en el DOM antes de mejorar
+            this._llmEnhanceTimer = window.setTimeout(function () {
+                self._llmEnhanceTimer = null;
                 if (document.body && document.body.contains(contentEl)) {
-                    self._llmEnhanceAssistantDom(contentEl);
+                    try {
+                        self._llmEnhanceAssistantDom(contentEl);
+                    } catch (e) {
+                        console.warn('[LLM] Error al mejorar DOM del mensaje:', e);
+                    }
                 }
             }, 0);
         }

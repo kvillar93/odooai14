@@ -448,6 +448,17 @@ class LLMThread(models.Model):
             # Call the actual generation implementation
             last_message = yield from self.generate_messages(last_message)
             self._maybe_generate_thread_title()
+
+            # Notificar al frontend del nombre actualizado DENTRO de la transacción,
+            # antes de que el cursor haga commit.  Si se esperara al refreshThread del
+            # evento 'done', la DB aún no habría commiteado y el cliente vería el
+            # nombre anterior.
+            yield {
+                "type": "thread_name_update",
+                "thread_id": self.id,
+                "name": self.name,
+            }
+
             return last_message
 
     def generate_messages(self, last_message=None):

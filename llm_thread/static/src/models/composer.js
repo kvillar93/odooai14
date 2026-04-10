@@ -82,6 +82,22 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
                     this._closeEventSource();
                     llmEnvUtils.llmNotify(this.env, { message: data.error, type: 'danger' });
                     break;
+                case 'thread_name_update': {
+                    // El nombre se envía dentro de la transacción del generador,
+                    // antes del commit, para que el cliente lo vea inmediatamente
+                    // sin tener que esperar al refreshThread del evento 'done'.
+                    if (data.thread_id && data.name) {
+                        const Thread = this.env.models['mail.thread'];
+                        const threadRecord = Thread.findFromIdentifyingData({
+                            id: data.thread_id,
+                            model: 'llm.thread',
+                        });
+                        if (threadRecord) {
+                            threadRecord.update({ name: data.name });
+                        }
+                    }
+                    break;
+                }
                 case 'done': {
                     const llmChat = messaging.llmChat;
                     const sameThread = llmChat && llmChat.activeThread && this.thread &&
