@@ -1,29 +1,26 @@
-/** @odoo-module **/
+odoo.define('llm_thread/static/src/components/llm_chat_thread_related_record/llm_chat_thread_related_record.js', function (require) {
+  'use strict';
 
-import { registerMessagingComponent } from "@mail/utils/messaging_component";
-import { useModels } from "@mail/component_hooks/use_models";
+  const useShouldUpdateBasedOnProps = require('mail/static/src/component_hooks/use_should_update_based_on_props/use_should_update_based_on_props.js');
+  const { Component } = owl;
+  const { useState, onMounted } = owl.hooks;
 
-const { Component, useState, onMounted } = owl;
-
-export class LLMChatThreadRelatedRecord extends Component {
-  setup() {
-    useModels();
-    super.setup();
-
-    this.state = useState({
-      relatedRecordDisplayName: "",
-      isLoading: false,
-    });
-
-    onMounted(() => {
-      this._loadRelatedRecordDisplayName();
-    });
-
-    // Bind methods
-    this.onClickRelatedRecord = this.onClickRelatedRecord.bind(this);
-    this.onClickChooseRecord = this.onClickChooseRecord.bind(this);
-    this.onClickUnlinkRecord = this.onClickUnlinkRecord.bind(this);
-  }
+  class LLMChatThreadRelatedRecord extends Component {
+    constructor(...args) {
+      super(...args);
+      useShouldUpdateBasedOnProps();
+      this.state = useState({
+        relatedRecordDisplayName: '',
+        isLoading: false,
+      });
+      const self = this;
+      onMounted(function () {
+        self._loadRelatedRecordDisplayName();
+      });
+      this.onClickRelatedRecord = this.onClickRelatedRecord.bind(this);
+      this.onClickChooseRecord = this.onClickChooseRecord.bind(this);
+      this.onClickUnlinkRecord = this.onClickUnlinkRecord.bind(this);
+    }
 
   // --------------------------------------------------------------------------
   // Getters
@@ -42,7 +39,11 @@ export class LLMChatThreadRelatedRecord extends Component {
   get isSmall() {
     // Check llmChatView.isSmall which includes chatter aside detection
     // Falls back to device.isSmall if llmChatView not available
-    return this.thread.llmChat?.llmChatView?.isSmall ?? this.messaging.device.isSmall;
+    const lc = this.thread.llmChat;
+    if (lc && lc.llmChatView) {
+      return lc.llmChatView.isSmall;
+    }
+    return this.env.messaging.device.isSmall;
   }
 
   /**
@@ -75,7 +76,7 @@ export class LLMChatThreadRelatedRecord extends Component {
 
     try {
       this.state.isLoading = true;
-      const result = await this.messaging.rpc({
+      const result = await this.env.services.rpc({
         model: this.thread.relatedThreadModel,
         method: "name_get",
         args: [[this.thread.relatedThreadId]],
@@ -132,16 +133,18 @@ export class LLMChatThreadRelatedRecord extends Component {
     }
 
     try {
-      await this.env.services.action.doAction({
-        type: "ir.actions.act_window",
-        res_model: this.thread.relatedThreadModel,
-        res_id: this.thread.relatedThreadId,
-        views: [[false, "form"]],
-        target: "current",
+      this.env.bus.trigger('do-action', {
+        action: {
+          type: 'ir.actions.act_window',
+          res_model: this.thread.relatedThreadModel,
+          res_id: this.thread.relatedThreadId,
+          views: [[false, 'form']],
+          target: 'current',
+        },
       });
     } catch (error) {
       console.error("Error opening related record:", error);
-      this.messaging.notify({
+      this.env.services.notification.notify({
         message: this.env._t("Failed to open related record"),
         type: "danger",
       });
@@ -157,7 +160,7 @@ export class LLMChatThreadRelatedRecord extends Component {
       const models = await this._getAvailableModels();
 
       if (models.length === 0) {
-        this.messaging.notify({
+        this.env.services.notification.notify({
           message: this.env._t("No models available for linking"),
           type: "warning",
         });
@@ -168,7 +171,7 @@ export class LLMChatThreadRelatedRecord extends Component {
       this._openRecordPickerDialog(models);
     } catch (error) {
       console.error("Error opening record picker:", error);
-      this.messaging.notify({
+      this.env.services.notification.notify({
         message: this.env._t("Failed to open record picker"),
         type: "danger",
       });
@@ -191,7 +194,7 @@ export class LLMChatThreadRelatedRecord extends Component {
 
     try {
       // Use direct RPC call to update the thread instead of updateLLMChatThreadSettings
-      await this.messaging.rpc({
+      await this.env.services.rpc({
         model: "llm.thread",
         method: "write",
         args: [
@@ -217,13 +220,13 @@ export class LLMChatThreadRelatedRecord extends Component {
       // Clear the display name
       this.state.relatedRecordDisplayName = "";
 
-      this.messaging.notify({
+      this.env.services.notification.notify({
         message: this.env._t("Record unlinked successfully"),
         type: "success",
       });
     } catch (error) {
       console.error("Error unlinking record:", error);
-      this.messaging.notify({
+      this.env.services.notification.notify({
         message: this.env._t("Failed to unlink record"),
         type: "danger",
       });
@@ -240,9 +243,10 @@ export class LLMChatThreadRelatedRecord extends Component {
    */
   async _getAvailableModels() {
     try {
-      const result = await this.messaging.rpc({
+      const result = await this.env.services.rpc({
         model: "ir.model",
         method: "search_read",
+        orderBy: [{name: 'name', asc: true}],
         kwargs: {
           domain: [
             ["transient", "=", false],
@@ -251,11 +255,10 @@ export class LLMChatThreadRelatedRecord extends Component {
               "not in",
               ["mail.message", "mail.followers", "ir.attachment"],
             ],
-            ["access_ids", "!=", false], // Only models with access rights
+            ["access_ids", "!=", false],
           ],
           fields: ["model", "name"],
-          order: "name",
-          limit: 100, // Reasonable limit for common models
+          limit: 100,
         },
       });
 
@@ -337,11 +340,11 @@ export class LLMChatThreadRelatedRecord extends Component {
   }
 
   /**
-   * Create the HTML for the record picker modal
+   * Crea el HTML del modal selector de registros (Bootstrap 4 / jQuery).
    * @private
-   * @param {String} modalId - Unique modal ID
-   * @param {Array} models - Available models
-   * @returns {String} Modal HTML
+   * @param {String} modalId - ID único del modal
+   * @param {Array} models - Modelos disponibles
+   * @returns {String} HTML del modal
    */
   _createRecordPickerModalHtml(modalId, models) {
     const modelOptions = models
@@ -354,64 +357,63 @@ export class LLMChatThreadRelatedRecord extends Component {
           <div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title">
-                <i class="fa fa-link me-2"></i>Link Record to Chat
+                <i class="fa fa-link mr-2"></i>Vincular registro al chat
               </h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                <span aria-hidden="true">&times;</span>
+              </button>
             </div>
             <div class="modal-body">
-              <!-- Step 1: Model Selection -->
               <div class="step-1">
                 <div class="mb-3">
-                  <label class="form-label fw-bold">1. Choose Record Type</label>
-                  <select class="form-select model-select">
-                    <option value="">Select a record type...</option>
+                  <label class="font-weight-bold d-block">1. Elegir tipo de registro</label>
+                  <select class="form-control model-select">
+                    <option value="">Seleccione un tipo de registro…</option>
                     ${modelOptions}
                   </select>
                 </div>
               </div>
 
-              <!-- Step 2: Record Selection -->
               <div class="step-2" style="display: none;">
                 <div class="mb-3">
-                  <label class="form-label fw-bold">2. Search and Select Record</label>
+                  <label class="font-weight-bold d-block">2. Buscar y seleccionar registro</label>
                   <div class="input-group mb-2">
                     <input type="text" class="form-control record-search"
-                           placeholder="Type to search records...">
-                    <button class="btn btn-outline-secondary search-btn" type="button">
-                      <i class="fa fa-search"></i>
-                    </button>
-                  </div>
-
-                  <!-- Search Results -->
-                  <div class="record-results" style="max-height: 300px; overflow-y: auto;">
-                    <div class="text-muted text-center p-3 no-results">
-                      <i class="fa fa-search fa-2x mb-2"></i>
-                      <p>Search for records above</p>
+                           placeholder="Escriba para buscar…">
+                    <div class="input-group-append">
+                      <button class="btn btn-outline-secondary search-btn" type="button">
+                        <i class="fa fa-search"></i>
+                      </button>
                     </div>
                   </div>
 
-                  <!-- Loading State -->
+                  <div class="record-results" style="max-height: 300px; overflow-y: auto;">
+                    <div class="text-muted text-center p-3 no-results">
+                      <i class="fa fa-search fa-2x mb-2"></i>
+                      <p>Busque registros arriba</p>
+                    </div>
+                  </div>
+
                   <div class="loading-state text-center p-3" style="display: none;">
-                    <div class="spinner-border spinner-border-sm me-2"></div>
-                    Searching...
+                    <div class="spinner-border spinner-border-sm mr-2"></div>
+                    Buscando…
                   </div>
                 </div>
               </div>
 
-              <!-- Selected Record Preview -->
               <div class="selected-record alert alert-info" style="display: none;">
                 <h6 class="alert-heading">
-                  <i class="fa fa-check-circle me-2"></i>Selected Record
+                  <i class="fa fa-check-circle mr-2"></i>Registro seleccionado
                 </h6>
                 <div class="selected-record-info"></div>
               </div>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                Cancel
+              <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                Cancelar
               </button>
               <button type="button" class="btn btn-primary link-btn" disabled>
-                <i class="fa fa-link me-2"></i>Link to Chat
+                <i class="fa fa-link mr-2"></i>Vincular al chat
               </button>
             </div>
           </div>
@@ -421,10 +423,10 @@ export class LLMChatThreadRelatedRecord extends Component {
   }
 
   /**
-   * Setup event handlers for the record picker modal
+   * Configura los manejadores del modal selector de registros.
    * @private
-   * @param {HTMLElement} modalElement - Modal DOM element
-   * @param {bootstrap.Modal} modal - Bootstrap modal instance
+   * @param {HTMLElement} modalElement - Elemento raíz del modal
+   * @param {{ show: Function, hide: Function }} modal - API jQuery .modal()
    */
   _setupRecordPickerEventHandlers(modalElement, modal) {
     const modelSelect = modalElement.querySelector(".model-select");
@@ -451,7 +453,7 @@ export class LLMChatThreadRelatedRecord extends Component {
       recordResults.innerHTML = `
         <div class="text-muted text-center p-3 no-results">
           <i class="fa fa-search fa-2x mb-2"></i>
-          <p>Search for records above</p>
+          <p>Busque registros arriba</p>
         </div>
       `;
     };
@@ -519,7 +521,7 @@ export class LLMChatThreadRelatedRecord extends Component {
         try {
           await this._linkRecordToThread(selectedModel, selectedRecordId);
           modal.hide();
-          this.messaging.notify({
+          this.env.services.notification.notify({
             message: this.env._t("Record linked successfully"),
             type: "success",
           });
@@ -527,7 +529,7 @@ export class LLMChatThreadRelatedRecord extends Component {
           await this._loadRelatedRecordDisplayName();
         } catch (error) {
           console.error("Error linking record:", error);
-          this.messaging.notify({
+          this.env.services.notification.notify({
             message: this.env._t("Failed to link record"),
             type: "danger",
           });
@@ -554,7 +556,7 @@ export class LLMChatThreadRelatedRecord extends Component {
     loadingContainer.style.display = "block";
 
     try {
-      const result = await this.messaging.rpc({
+      const result = await this.env.services.rpc({
         model: model,
         method: "name_search",
         kwargs: {
@@ -580,7 +582,7 @@ export class LLMChatThreadRelatedRecord extends Component {
              data-record-id="${id}" data-record-name="${name}" data-record-model="${model}"
              style="cursor: pointer;">
           <div>
-            <div class="fw-medium">${name}</div>
+            <div class="font-weight-bold">${name}</div>
             <small class="text-muted">${model} #${id}</small>
           </div>
           <i class="fa fa-chevron-right text-muted"></i>
@@ -616,8 +618,8 @@ export class LLMChatThreadRelatedRecord extends Component {
       resultsContainer.style.display = "block";
       resultsContainer.innerHTML = `
         <div class="alert alert-danger">
-          <i class="fa fa-exclamation-triangle me-2"></i>
-          Error searching records. Please try again.
+          <i class="fa fa-exclamation-triangle mr-2"></i>
+          Error al buscar registros. Inténtelo de nuevo.
         </div>
       `;
     }
@@ -631,8 +633,8 @@ export class LLMChatThreadRelatedRecord extends Component {
    */
   _showNoResults(container, query = "") {
     const message = query
-      ? `No records found for "${query}"`
-      : "Search for records above";
+      ? `No se encontraron registros para «${query}»`
+      : "Busque registros arriba";
 
     container.innerHTML = `
       <div class="text-muted text-center p-3">
@@ -650,7 +652,7 @@ export class LLMChatThreadRelatedRecord extends Component {
    */
   async _linkRecordToThread(model, recordId) {
     // Use direct RPC call to update the thread instead of updateLLMChatThreadSettings
-    await this.messaging.rpc({
+    await this.env.services.rpc({
       model: "llm.thread",
       method: "write",
       args: [
@@ -692,30 +694,32 @@ export class LLMChatThreadRelatedRecord extends Component {
             <div class="modal-content">
               <div class="modal-header">
                 <h5 class="modal-title">
-                  <i class="fa fa-unlink me-2 text-warning"></i>Unlink Record
+                  <i class="fa fa-unlink mr-2 text-warning"></i>Desvincular registro
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                  <span aria-hidden="true">&times;</span>
+                </button>
               </div>
               <div class="modal-body">
                 <div class="d-flex align-items-start">
-                  <i class="fa fa-exclamation-triangle fa-2x text-warning me-3 mt-1"></i>
+                  <i class="fa fa-exclamation-triangle fa-2x text-warning mr-3 mt-1"></i>
                   <div>
-                    <h6 class="mb-2">Are you sure you want to unlink this record?</h6>
+                    <h6 class="mb-2">¿Desea desvincular este registro del chat?</h6>
                     <p class="mb-2">
-                      <strong>${recordName}</strong> will no longer be associated with this chat thread.
+                      <strong>${recordName}</strong> dejará de estar asociado a este hilo.
                     </p>
                     <p class="text-muted small mb-0">
-                      This action won't delete the record itself, only remove the link to this chat.
+                      No se elimina el registro en Odoo; solo se quita el enlace con este chat.
                     </p>
                   </div>
                 </div>
               </div>
               <div class="modal-footer">
-                <button type="button" class="btn btn-secondary cancel-btn" data-bs-dismiss="modal">
-                  Cancel
+                <button type="button" class="btn btn-secondary cancel-btn" data-dismiss="modal">
+                  Cancelar
                 </button>
                 <button type="button" class="btn btn-warning confirm-btn">
-                  <i class="fa fa-unlink me-2"></i>Unlink Record
+                  <i class="fa fa-unlink mr-2"></i>Desvincular
                 </button>
               </div>
             </div>
@@ -744,7 +748,7 @@ export class LLMChatThreadRelatedRecord extends Component {
       });
 
       // Cancel/close handlers
-      [cancelBtn, modalElement.querySelector(".btn-close")].forEach((btn) => {
+      [cancelBtn, modalElement.querySelector(".modal-header .close")].forEach((btn) => {
         if (btn) {
           btn.addEventListener("click", () => {
             modal.hide();
@@ -769,7 +773,8 @@ Object.assign(LLMChatThreadRelatedRecord, {
   props: {
     thread: Object,
   },
-  template: "llm_thread.LLMChatThreadRelatedRecord",
+  template: 'llm_thread.LLMChatThreadRelatedRecord',
 });
 
-registerMessagingComponent(LLMChatThreadRelatedRecord);
+return LLMChatThreadRelatedRecord;
+});

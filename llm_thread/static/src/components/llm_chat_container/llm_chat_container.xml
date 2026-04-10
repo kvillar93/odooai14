@@ -11,7 +11,7 @@
         class="o_LLMChatContainer_spinner d-flex flex-grow-1 align-items-center justify-content-center"
       >
                 <i
-          class="o_LLMChatContainer_spinnerIcon fa fa-circle-o-notch fa-spin me-2"
+          class="o_LLMChatContainer_spinnerIcon fa fa-circle-o-notch fa-spin mr-2"
         />Please wait...
             </div>
         </div>

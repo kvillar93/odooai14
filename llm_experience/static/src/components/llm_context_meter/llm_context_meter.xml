@@ -50,19 +50,19 @@
                 <div
                     t-if="state.menuOpen"
                     t-ref="menu"
-                    class="o_llm_ctxMeter__menu shadow-sm bg-view border py-1"
+                    class="o_llm_ctxMeter__menu shadow-sm bg-white border py-1"
                     role="menu"
                 >
                     <t t-foreach="options" t-as="opt" t-key="opt.value">
                         <button
                             type="button"
-                            class="o_llm_ctxMeter__item d-flex align-items-center gap-2 py-2 px-2 w-100 border-0 bg-transparent text-start"
+                            class="o_llm_ctxMeter__item d-flex align-items-center py-2 px-2 w-100 border-0 bg-transparent text-start"
                             t-att-class="{'o_llm_ctxMeter__item--active': state.current === opt.value}"
                             role="menuitem"
                             t-att-data-mode="opt.value"
                             t-on-click="onPickMode"
                         >
-                            <i t-att-class="'fa ' + opt.icon + ' o_llm_ctxMeter__itemIcon flex-shrink-0'"/>
+                            <i t-att-class="'fa ' + opt.icon + ' o_llm_ctxMeter__itemIcon flex-shrink-0 mr-2'"/>
                             <span class="o_llm_ctxMeter__itemAbbr" t-esc="opt.abbr"/>
                             <span class="o_llm_ctxMeter__itemLabel text-truncate" t-esc="opt.label"/>
                         </button>

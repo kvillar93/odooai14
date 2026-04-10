@@ -1,34 +1,23 @@
+# -*- coding: utf-8 -*-
 {
     "name": "Web JSON Editor",
-    "version": "1.0",
+    "version": "14.0.1.0.0",
     "category": "Web",
-    "summary": "JSON Editor widget for Odoo",
+    "summary": "Widget de editor JSON para Odoo",
     "description": """
-        Provides a reusable JSON Editor widget for Odoo with schema-based autocomplete.
-        Features:
-        - JSON syntax highlighting
-        - Schema-based autocomplete
-        - Multiple view modes (code, tree, form, view)
-        - Validation
+        Proporciona un widget reutilizable de editor JSON para Odoo con autocompletado basado en esquema.
+        Características: resaltado de sintaxis JSON, autocompletado, modos de vista, validación.
     """,
     "depends": [
         "web",
     ],
-    "assets": {
-        "web.assets_backend": [
-            # JSONEditor library
-            "web_json_editor/static/lib/jsoneditor/jsoneditor.min.js",
-            "web_json_editor/static/lib/jsoneditor/jsoneditor.min.css",
-            "web_json_editor/static/lib/jsoneditor/img/jsoneditor-icons.svg",
-            # Field widget
-            "web_json_editor/static/src/fields/json_field.js",
-            "web_json_editor/static/src/fields/json_field.xml",
-            "web_json_editor/static/src/fields/json_field.scss",
-            # OWL Component
-            "web_json_editor/static/src/components/json_editor/json_editor.js",
-            "web_json_editor/static/src/components/json_editor/json_editor.xml",
-        ],
-    },
+    "data": [
+        "views/assets.xml",
+    ],
+    "qweb": [
+        "static/src/fields/json_field.xml",
+        "static/src/components/json_editor/json_editor.xml",
+    ],
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
     "installable": True,

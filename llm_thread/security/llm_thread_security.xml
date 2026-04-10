@@ -3,10 +3,16 @@
     <record id="group_llm_floating_chat" model="res.groups">
         <field name="name">Chat IA flotante (barra superior)</field>
         <field name="category_id" ref="base.module_category_productivity" />
+        <field name="users" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]" />
         <field name="comment">
             Muestra el acceso al chat IA junto al menú de mensajes: lista de conversaciones,
             búsqueda y panel flotante con contexto de pantalla.
         </field>
+    </record>
+
+    <!-- Todos los usuarios internos reciben automáticamente el grupo de chat flotante -->
+    <record id="base.group_user" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('group_llm_floating_chat'))]" />
     </record>
 
     <record id="llm_thread_rule_personal" model="ir.rule">

@@ -1,46 +1,46 @@
-/** @odoo-module **/
+odoo.define('llm_assistant/static/src/components/llm_chat_thread_header/llm_chat_thread_header.js', function (require) {
+    'use strict';
 
-import { LLMChatThreadHeader } from "@llm_thread/components/llm_chat_thread_header/llm_chat_thread_header";
-import { patch } from "@web/core/utils/patch";
+    const LLMChatThreadHeader = require('llm_thread/static/src/components/llm_chat_thread_header/llm_chat_thread_header.js');
 
-patch(
-  LLMChatThreadHeader.prototype,
-  "llm_assistant.llm_assistant_dropdown_patch",
-  {
+    Object.defineProperty(LLMChatThreadHeader.prototype, 'llmAssistants', {
+        get: function () {
+            if (!this.llmChat) {
+                return [];
+            }
+            return this.llmChat.llmAssistants || [];
+        },
+        configurable: true,
+    });
+
+    Object.defineProperty(LLMChatThreadHeader.prototype, 'compactAssistantTitle', {
+        get: function () {
+            const a = this.llmChatThreadHeaderView.selectedAssistant;
+            if (a) {
+                return this.env._t('Asistente predefinido') + ': ' + a.name;
+            }
+            return this.env._t('Sin asistente predefinido');
+        },
+        configurable: true,
+    });
+
+    LLMChatThreadHeader.prototype.onClearAssistant = function () {
+        this.llmChatThreadHeaderView.saveSelectedAssistant(false);
+    };
+
     /**
-     * Get all available assistants
+     * Se usa desde la plantilla con data-assistant-id (OWL 1 / QWeb).
      */
-    get llmAssistants() {
-      // Make sure we have a valid llmChat reference
-      if (!this.llmChat) {
-        return [];
-      }
+    LLMChatThreadHeader.prototype.onSelectAssistantFromEvent = function (ev) {
+        if (ev) {
+            ev.preventDefault();
+        }
+        const raw = ev && ev.currentTarget && ev.currentTarget.getAttribute('data-assistant-id');
+        const id = raw ? parseInt(raw, 10) : NaN;
+        if (!isNaN(id)) {
+            this.llmChatThreadHeaderView.saveSelectedAssistant(id);
+        }
+    };
 
-      // Return the assistants array
-      return this.llmChat.llmAssistants || [];
-    },
-
-    /**
-     * Handle assistant selection
-     * @param {Object} assistant - The selected assistant
-     */
-    onSelectAssistant(assistant) {
-      this.llmChatThreadHeaderView.saveSelectedAssistant(assistant.id);
-    },
-
-    /**
-     * Clear the selected assistant
-     */
-    onClearAssistant() {
-      this.llmChatThreadHeaderView.saveSelectedAssistant(false);
-    },
-
-    get compactAssistantTitle() {
-      const a = this.llmChatThreadHeaderView.selectedAssistant;
-      if (a) {
-        return `${this.env._t("Asistente predefinido")}: ${a.name}`;
-      }
-      return this.env._t("Sin asistente predefinido");
-    },
-  }
-);
+    return LLMChatThreadHeader;
+});

@@ -2,7 +2,7 @@
 {
     "name": "Hub seguimiento costes LLM Experience",
     "summary": "Sincroniza desde instancias cliente el resumen de costes de llm_experience (cada 6 h).",
-    "version": "16.0.1.0.0",
+    "version": "14.0.1.0.0",
     "category": "Productivity",
     "depends": ["base"],
     "author": "Custom",

@@ -58,9 +58,8 @@
   box-shadow: var(--llm-shadow-soft);
   overflow-x: hidden;
 
-  // Misma altura que o_LLMChatThread_header_modern (50px) para alinear border-bottom
   .o_LLMChatSidebar_topbar {
-    height: 50px;
+    min-height: 50px;
     box-sizing: border-box;
   }
 
@@ -90,8 +89,12 @@
   background: var(--llm-surface-elevated) !important;
   border-color: var(--llm-border-subtle) !important;
   backdrop-filter: blur(8px);
-  height: 50px !important;
+  min-height: 50px;
   box-sizing: border-box;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
 
   .btn-light {
     background: var(--llm-composer-bg) !important;
@@ -782,4 +785,9 @@
   .o_LLMChatComposer_toolBtn.o_LLMChatComposer_iconBtn {
     line-height: 1;
   }
+}
+
+// Espaciado entre ítems flex (Bootstrap 4 no incluye utilidades gap)
+.o_llm_flex_gap_sm.d-flex > * + * {
+  margin-left: 0.25rem;
 }

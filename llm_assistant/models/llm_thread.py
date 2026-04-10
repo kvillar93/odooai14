@@ -263,8 +263,16 @@ class LLMThread(models.Model):
         Args:
             prepend_messages (list): Pre-computed prepend messages to avoid duplicate calls
         """
-        # Use the new optimized method for LLM context
         message_history = self.get_llm_messages()
+
+        role_counts = {}
+        for m in message_history:
+            r = m.llm_role or "unknown"
+            role_counts[r] = role_counts.get(r, 0) + 1
+        _logger.info(
+            "LLM generate_assistant_response: thread=%s, historial=%d msgs, roles=%s",
+            self.id, len(message_history), role_counts,
+        )
 
         # Determine if we should use streaming
         use_streaming = getattr(self.model_id, "supports_streaming", True)

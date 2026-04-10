@@ -1,179 +1,159 @@
-/** @odoo-module **/
+odoo.define('llm_thread/static/src/models/thread.js', function (require) {
+    'use strict';
 
-import { attr, many, one } from "@mail/model/model_field";
-import { clear } from "@mail/model/model_field_command";
-import { registerPatch } from "@mail/model/model_core";
+    const { registerFieldPatchModel, registerInstancePatchModel } = require('mail/static/src/model/model_core.js');
+    const ModelField = require('mail/static/src/model/model_field.js');
+    const { clear } = require('mail/static/src/model/model_field_command.js');
+    const llmEnvUtils = require('llm_thread/static/src/js/llm_env_utils.js');
 
-/**
- * Utility function to convert camelCase to snake_case
- * @param {String} str - String to convert
- * @returns {String} - Converted string
- */
-function camelToSnakeCase(str) {
-  return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
-}
+    const attr = ModelField.attr;
+    const many2many = ModelField.many2many;
+    const many2one = ModelField.many2one;
+    const one2many = ModelField.one2many;
 
-registerPatch({
-  name: "Thread",
-  fields: {
-    llmChat: one("LLMChat", {
-      inverse: "threads",
-    }),
-    activeLLMChat: one("LLMChat", {
-      inverse: "activeThread",
-    }),
-    llmModel: one("LLMModel", {
-      inverse: "threads",
-    }),
-    updatedAt: attr(),
-    // Added for related thread functionality
-    relatedThreadModel: attr(),
-    // Added for related thread functionality
-    relatedThreadId: attr(),
-    relatedThread: one("Thread", {
-      compute() {
-        if (!this.relatedThreadModel || !this.relatedThreadId) {
-          return;
-        }
-        return {
-          model: this.relatedThreadModel,
-          id: this.relatedThreadId,
-        };
-      },
-    }),
-    // Track selected tool IDs for this thread
-    selectedToolIds: attr({
-      default: [],
-    }),
-
-    // Computed field to get selected tools information
-    selectedTools: many("LLMTool", {
-      compute() {
-        if (!this.selectedToolIds || !this.llmChat?.tools) {
-          return clear();
-        }
-
-        return this.llmChat.tools.filter((tool) =>
-          this.selectedToolIds.includes(tool.id)
-        );
-      },
-    }),
-    chatWindowId: attr({ default: null }),
-    hideThreadSettings: attr({ default: false }),
-  },
-  recordMethods: {
-    /**
-     * Opens this LLM thread in the appropriate view
-     * Follows the Odoo mail thread.open() pattern
-     *
-     * @param {Object} options - Opening options
-     * @param {boolean} options.focus - Whether to focus composer after opening (default: true)
-     * @returns {Promise<void>}
-     */
-    async openLLMThread({ focus = true } = {}) {
-      // Only for llm.thread model
-      if (this.model !== "llm.thread") {
-        return;
-      }
-
-      const messaging = this.messaging;
-      let llmChat = messaging.llmChat;
-
-      // Ensure llmChat exists
-      if (!llmChat) {
-        messaging.update({ llmChat: { isInitThreadHandled: false } });
-        llmChat = messaging.llmChat;
-      }
-
-      // Load data if not already loaded
-      await llmChat.ensureDataLoaded();
-
-      // Open view if not already open
-      if (!llmChat.llmChatView) {
-        // Wait for messaging to be fully initialized
-        await messaging.initializedPromise;
-        llmChat.open();
-      }
-
-      // Select this thread (model-driven update)
-      // This triggers activeThread update and view re-renders automatically
-      llmChat.update({ activeThread: this });
-
-      // Focus composer if requested
-      if (focus && llmChat.llmChatView?.composer) {
-        const composer = llmChat.llmChatView.composer;
-        for (const composerView of composer.composerViews) {
-          composerView.update({ doFocus: true });
-        }
-      }
-    },
-
-    /**
-     * Update thread settings
-     * @param {Object} settings - Settings object
-     * @param {String} [settings.name] - Thread name
-     * @param {Number} [settings.llmModelId] - Model ID
-     * @param {Number} [settings.llmProviderId] - Provider ID
-     * @param {Array} [settings.toolIds] - Tool IDs
-     * @param {Object} [settings.additionalValues] - Additional values
-     */
-    async updateLLMChatThreadSettings({
-      name,
-      llmModelId,
-      llmProviderId,
-      toolIds,
-      additionalValues = {},
-    } = {}) {
-      const values = { ...additionalValues };
-
-      // Only include name if it's a non-empty string
-      if (typeof name === "string" && name.trim()) {
-        values.name = name.trim();
-      }
-
-      // Only include model_id if it's a valid ID
-      if (Number.isInteger(llmModelId) && llmModelId > 0) {
-        values.model_id = llmModelId;
-      } else if (this.llmModel?.id) {
-        values.model_id = this.llmModel.id;
-      }
-
-      // Only include provider_id if it's a valid ID
-      if (Number.isInteger(llmProviderId) && llmProviderId > 0) {
-        values.provider_id = llmProviderId;
-      } else if (this.llmModel?.llmProvider?.id) {
-        values.provider_id = this.llmModel.llmProvider.id;
-      }
-
-      // Handle tools if provided
-      if (Array.isArray(toolIds)) {
-        values.tool_ids = [[6, 0, toolIds]];
-      }
-
-      // Only make the RPC call if there are values to update
-      if (Object.keys(values).length > 0) {
-        await this.messaging.rpc({
-          model: "llm.thread",
-          method: "write",
-          args: [[this.id], values],
+    function camelToSnakeCase(str) {
+        return str.replace(/[A-Z]/g, function (letter) {
+            return '_' + letter.toLowerCase();
         });
+    }
 
-        // If this thread is part of an LLMChat, use the refreshThread method to update it
-        if (this.llmChat) {
-          // Get the field names from additionalValues, ensuring they're in snake_case
-          const additionalFields = Object.keys(additionalValues).map((key) => {
-            // If the key is already snake_case (contains underscore), return as is
-            if (key.includes("_")) {
-              return key;
+    registerFieldPatchModel('mail.thread', 'llm_thread/static/src/models/thread.js', {
+        llmChat: many2one('mail.llm_chat', {
+            inverse: 'threads',
+        }),
+        activeLLMChat: one2many('mail.llm_chat', {
+            inverse: 'activeThread',
+        }),
+        llmModel: many2one('mail.llm_model', {
+            inverse: 'threads',
+        }),
+        updatedAt: attr(),
+        relatedThreadModel: attr(),
+        relatedThreadId: attr(),
+        relatedThread: many2one('mail.thread', {
+            compute: '_computeRelatedThread',
+            dependencies: ['relatedThreadModel', 'relatedThreadId'],
+        }),
+        selectedToolIds: attr({
+            default: [],
+        }),
+        selectedTools: many2many('mail.llm_tool', {
+            compute: '_computeSelectedTools',
+            dependencies: ['selectedToolIds', 'llmChat'],
+        }),
+        chatWindowId: attr({ default: null }),
+        hideThreadSettings: attr({ default: false }),
+        llmChatOrderedThreads: many2many('mail.llm_chat', {
+            inverse: 'orderedThreads',
+        }),
+    });
+
+    registerInstancePatchModel('mail.thread', 'llm_thread/static/src/models/thread.js', {
+        _computeRelatedThread() {
+            if (!this.relatedThreadModel || !this.relatedThreadId) {
+                return clear();
             }
-            // Otherwise convert from camelCase to snake_case
-            return camelToSnakeCase(key);
-          });
+            const Thread = this.env.models['mail.thread'];
+            const existing = Thread.findFromIdentifyingData({
+                model: this.relatedThreadModel,
+                id: this.relatedThreadId,
+            });
+            return existing ? [['link', existing]] : clear();
+        },
 
-          // Refresh the thread with any additional fields
-          await this.llmChat.refreshThread(this.id, additionalFields);
-        }
-      }
-    },
-  },
+        _computeSelectedTools() {
+            if (!this.selectedToolIds || !this.llmChat || !this.llmChat.tools) {
+                return clear();
+            }
+            const tools = this.llmChat.tools.filter(function (tool) {
+                return this.selectedToolIds.includes(tool.id);
+            }.bind(this));
+            return [['replace', tools]];
+        },
+
+        async openLLMThread(options) {
+            options = options || {};
+            const focus = options.focus !== false;
+            if (this.model !== 'llm.thread') {
+                return;
+            }
+
+            const messaging = this.env.messaging;
+            let llmChat = messaging.llmChat;
+
+            if (!llmChat) {
+                messaging.update({ llmChat: [['create', { isInitThreadHandled: false }]] });
+                llmChat = messaging.llmChat;
+            }
+
+            await llmChat.ensureDataLoaded();
+
+            if (!llmChat.llmChatView) {
+                await this.async(function () {
+                    return llmEnvUtils.waitMessagingReady(this.env);
+                }.bind(this));
+                llmChat.open();
+            }
+
+            llmChat.update({ activeThread: [['link', this]] });
+
+            if (focus && llmChat.llmChatView && llmChat.llmChatView.composer) {
+                const composer = llmChat.llmChatView.composer;
+                for (let i = 0; i < composer.composerViews.length; i++) {
+                    composer.composerViews[i].update({ doFocus: true });
+                }
+            }
+        },
+
+        async updateLLMChatThreadSettings(settings) {
+            settings = settings || {};
+            const name = settings.name;
+            const llmModelId = settings.llmModelId;
+            const llmProviderId = settings.llmProviderId;
+            const toolIds = settings.toolIds;
+            const additionalValues = settings.additionalValues || {};
+
+            const values = Object.assign({}, additionalValues);
+
+            if (typeof name === 'string' && name.trim()) {
+                values.name = name.trim();
+            }
+
+            if (Number.isInteger(llmModelId) && llmModelId > 0) {
+                values.model_id = llmModelId;
+            } else if (this.llmModel && this.llmModel.id) {
+                values.model_id = this.llmModel.id;
+            }
+
+            if (Number.isInteger(llmProviderId) && llmProviderId > 0) {
+                values.provider_id = llmProviderId;
+            } else if (this.llmModel && this.llmModel.llmProvider && this.llmModel.llmProvider.id) {
+                values.provider_id = this.llmModel.llmProvider.id;
+            }
+
+            if (Array.isArray(toolIds)) {
+                values.tool_ids = [[6, 0, toolIds]];
+            }
+
+            if (Object.keys(values).length > 0) {
+                await this.async(function () {
+                    return this.env.services.rpc({
+                        model: 'llm.thread',
+                        method: 'write',
+                        args: [[this.id], values],
+                    });
+                }.bind(this));
+
+                if (this.llmChat) {
+                    const additionalFields = Object.keys(additionalValues).map(function (key) {
+                        if (key.indexOf('_') >= 0) {
+                            return key;
+                        }
+                        return camelToSnakeCase(key);
+                    });
+                    await this.llmChat.refreshThread(this.id, additionalFields);
+                }
+            }
+        },
+    });
 });

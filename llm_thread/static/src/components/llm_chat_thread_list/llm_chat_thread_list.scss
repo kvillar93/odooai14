@@ -19,17 +19,33 @@
 
   &_row {
     max-width: 100%;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background-color: rgba($primary, 0.06);
+    }
   }
 
   &_select {
     overflow: hidden;
     min-width: 0;
+    background: transparent !important;
+    color: $body-color !important;
+    font-size: 0.875rem;
+    font-weight: 500;
+
+    .o_DiscussSidebarCategoryItem_name {
+      color: $body-color;
+    }
   }
 
   .o_DiscussSidebarCategoryItem {
     position: relative;
+    border-bottom: 1px solid rgba($border-color, 0.35);
 
     &.o-active {
+      background-color: rgba($primary, 0.1) !important;
+
       &::before {
         content: "";
         position: absolute;
@@ -38,6 +54,12 @@
         bottom: 0;
         width: 3px;
         background-color: $primary;
+        border-radius: 0 2px 2px 0;
+      }
+
+      .o_DiscussSidebarCategoryItem_name {
+        color: $primary;
+        font-weight: 600;
       }
     }
   }

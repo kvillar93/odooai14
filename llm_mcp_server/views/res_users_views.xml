@@ -12,7 +12,7 @@
           name="action_new_mcp_key"
           type="object"
           string="New MCP Key"
-          class="btn btn-secondary ms-2"
+          class="btn btn-secondary ml-2"
           title="Generate an API key with ready-to-use MCP client configurations"
         />
             </xpath>

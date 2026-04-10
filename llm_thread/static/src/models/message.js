@@ -1,195 +1,157 @@
-/** @odoo-module **/
+odoo.define('llm_thread/static/src/models/message.js', function (require) {
+    'use strict';
 
-import { attr } from "@mail/model/model_field";
-import { registerPatch } from "@mail/model/model_core";
+    const { registerClassPatchModel, registerFieldPatchModel, registerInstancePatchModel } = require('mail/static/src/model/model_core.js');
+    const ModelField = require('mail/static/src/model/model_field.js');
 
-/**
- * Helper function to safely parse JSON strings.
- * Returns defaultValue if parsing fails or input is invalid.
- * @param {String} jsonString - JSON string to parse
- * @param {any} [defaultValue=undefined] - Default value on failure
- * @returns {any} Parsed JSON or defaultValue
- */
-function safeJsonParse(jsonString, defaultValue = undefined) {
-  if (!jsonString || typeof jsonString !== "string") {
-    return defaultValue;
-  }
-  try {
-    return JSON.parse(jsonString);
-  } catch (e) {
-    return defaultValue;
-  }
-}
+    const attr = ModelField.attr;
 
-registerPatch({
-  name: "Message",
-  modelMethods: {
-    /**
-     * @override
-     */
-    convertData(data) {
-      const data2 = this._super(data);
-      if ("user_vote" in data) {
-        data2.user_vote = data.user_vote;
-      }
-      // Add LLM role data from the stored field
-      if ("llm_role" in data) {
-        data2.llmRole = data.llm_role;
-      }
-      // Add body_json data for tool messages
-      if ("body_json" in data) {
-        data2.bodyJson = data.body_json;
-      }
-      return data2;
-    },
-    
-  },
-  fields: {
-    // So that assisstant messages with tool_calls but no body does not missed from ui rendering
-    isEmpty: {
-      compute(){
-        return this._super() && !this.bodyJson;
-      }
-    },
-    user_vote: attr({
-      default: 0,
-    }),
+    registerClassPatchModel('mail.message', 'llm_thread/static/src/models/message.js', {
+        convertData(data) {
+            if ('channel_ids' in data && data.channel_ids && !Array.isArray(data.channel_ids)) {
+                data = Object.assign({}, data, { channel_ids: [] });
+            }
+            const data2 = this._super.apply(this, [data]);
+            if ('user_vote' in data) {
+                data2.user_vote = data.user_vote;
+            }
+            if ('llm_role' in data) {
+                data2.llmRole = data.llm_role;
+            }
+            if ('body_json' in data) {
+                var bj = data.body_json;
+                if (typeof bj === 'string' && bj) {
+                    try { bj = JSON.parse(bj); } catch (e) { bj = null; }
+                }
+                data2.bodyJson = bj || null;
+            }
+            return data2;
+        },
+    });
 
-    /**
-     * LLM role for this message ('user', 'assistant', 'tool', 'system')
-     * This comes directly from the backend stored field
-     */
-    llmRole: attr({
-      default: null,
-    }),
+    registerFieldPatchModel('mail.message', 'llm_thread/static/src/models/message.js', {
+        user_vote: attr({
+            default: 0,
+        }),
+        llmRole: attr({
+            default: null,
+        }),
+        bodyJson: attr({
+            default: null,
+        }),
+        toolData: attr({
+            compute: '_computeToolData',
+            dependencies: ['llmRole', 'bodyJson'],
+        }),
+        toolCallId: attr({
+            compute: '_computeToolCallId',
+            dependencies: ['toolData'],
+        }),
+        toolCallDefinitionFormatted: attr({
+            compute: '_computeToolCallDefinitionFormatted',
+            dependencies: ['toolData'],
+        }),
+        toolCallResultData: attr({
+            compute: '_computeToolCallResultData',
+            dependencies: ['toolData'],
+        }),
+        toolCallResultIsError: attr({
+            compute: '_computeToolCallResultIsError',
+            dependencies: ['toolData'],
+        }),
+        toolCallResultFormatted: attr({
+            compute: '_computeToolCallResultFormatted',
+            dependencies: ['toolCallResultData'],
+        }),
+        toolName: attr({
+            compute: '_computeToolName',
+            dependencies: ['toolData'],
+        }),
+        toolCalls: attr({
+            compute: '_computeToolCalls',
+            dependencies: ['toolData'],
+        }),
+        isEmpty: attr({
+            dependencies: [
+                'attachments',
+                'body',
+                'subtype_description',
+                'tracking_value_ids',
+                'bodyJson',
+            ],
+        }),
+    });
 
-    /**
-     * JSON body data for tool messages
-     */
-    bodyJson: attr({
-      default: null,
-    }),
+    registerInstancePatchModel('mail.message', 'llm_thread/static/src/models/message.js', {
+        _computeIsEmpty() {
+            if (this.bodyJson) {
+                return false;
+            }
+            return this._super.apply(this, arguments);
+        },
 
-    /**
-     * Get tool data from body_json field for tool/assistant messages
-     */
-    toolData: attr({
-      compute() {
-        return ['tool', 'assistant'].includes(this.llmRole) && this.bodyJson ? this.bodyJson : null;
-      },
-    }),
+        _computeToolData() {
+            if (['tool', 'assistant'].indexOf(this.llmRole) >= 0 && this.bodyJson) {
+                var val = this.bodyJson;
+                if (typeof val === 'string') {
+                    try { val = JSON.parse(val); } catch (e) { return null; }
+                }
+                return (typeof val === 'object' && val !== null) ? val : null;
+            }
+            return null;
+        },
 
-    /**
-     * Get tool call ID from tool data
-     */
-    toolCallId: attr({
-      compute() {
-        const toolData = this.toolData;
-        return toolData?.tool_call_id || null;
-      },
-    }),
+        _computeToolCallId() {
+            const toolData = this.toolData;
+            return toolData && toolData.tool_call_id ? toolData.tool_call_id : null;
+        },
 
-    /**
-     * Get tool call definition from tool data
-     */
-    toolCallDefinitionFormatted: attr({
-      compute() {
-        const toolData = this.toolData;
-        return toolData?.tool_call || null;
-      },
-    }),
+        _computeToolCallDefinitionFormatted() {
+            const toolData = this.toolData;
+            return toolData && toolData.tool_call ? toolData.tool_call : null;
+        },
 
-    /**
-     * Get tool call result from tool data
-     */
-    toolCallResultData: attr({
-      compute() {
-        const toolData = this.toolData;
-        if (toolData) {
-          if ("result" in toolData) {
-            return toolData.result;
-          } else if ("error" in toolData) {
-            return { error: toolData.error };
-          }
-        }
-        return null;
-      },
-    }),
+        _computeToolCallResultData() {
+            const toolData = this.toolData;
+            if (toolData) {
+                if ('result' in toolData) {
+                    return toolData.result;
+                }
+                if ('error' in toolData) {
+                    return { error: toolData.error };
+                }
+            }
+            return null;
+        },
 
-    /**
-     * Check if tool call result is an error
-     */
-    toolCallResultIsError: attr({
-      compute() {
-        const toolData = this.toolData;
-        return toolData && toolData.status === "error";
-      },
-    }),
+        _computeToolCallResultIsError() {
+            const toolData = this.toolData;
+            return Boolean(toolData && toolData.status === 'error');
+        },
 
-    /**
-     * Format tool call result for display
-     */
-    toolCallResultFormatted: attr({
-      compute() {
-        const resultData = this.toolCallResultData;
-        if (resultData === undefined || resultData === null) {
-          return "";
-        }
-        try {
-          return typeof resultData === "object"
-            ? JSON.stringify(resultData, null, 2)
-            : String(resultData);
-        } catch (e) {
-          console.error("Error formatting tool call result:", e);
-          return String(resultData);
-        }
-      },
-    }),
+        _computeToolCallResultFormatted() {
+            const resultData = this.toolCallResultData;
+            if (resultData === undefined || resultData === null) {
+                return '';
+            }
+            try {
+                return typeof resultData === 'object'
+                    ? JSON.stringify(resultData, null, 2)
+                    : String(resultData);
+            } catch (e) {
+                console.error('Error formatting tool call result:', e);
+                return String(resultData);
+            }
+        },
 
-    /**
-     * Get tool name from tool data
-     */
-    toolName: attr({
-      compute() {
-        const toolData = this.toolData;
-        return toolData?.tool_name || null;
-      },
-    }),
+        _computeToolName() {
+            const toolData = this.toolData;
+            return toolData && toolData.tool_name ? toolData.tool_name : null;
+        },
 
-    /**
-     * Tool calls associated with bodyJson(normally assistant message may have it)
-     */
-    toolCalls: attr({
-      compute() {
-        const toolData = this.toolData;
-        return toolData?.tool_calls || [];
-      },
-    }),
-
-    /**
-     * Nombre visible del asistente: «{compañía activa} AI» (no modelo/email técnico).
-     */
-    authorName: {
-      compute() {
-        if (this.llmRole === "assistant" || this.llmRole === "system") {
-          const name = this.messaging?.companyName || "";
-          const suffix = this.env._t("AI");
-          return name ? `${name} ${suffix}`.trim() : suffix;
-        }
-        return this._super();
-      },
-    },
-
-    /**
-     * Avatar con letras «AI» para mensajes del asistente.
-     */
-    avatarUrl: {
-      compute() {
-        if (this.llmRole === "assistant" || this.llmRole === "system") {
-          return "/llm_thread/static/src/img/llm_ai_avatar.svg";
-        }
-        return this._super();
-      },
-    },
-  },
+        _computeToolCalls() {
+            const toolData = this.toolData;
+            return toolData && toolData.tool_calls ? toolData.tool_calls : [];
+        },
+    });
 });

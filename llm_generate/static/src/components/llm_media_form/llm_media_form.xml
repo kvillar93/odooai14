@@ -1,162 +1,139 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
-    <t t-name="llm_thread.LLMMediaForm" owl="1">
+    <t t-name="llm_generate.LLMMediaForm" owl="1">
         <div class="o_LLMMediaForm p-3 border rounded bg-light">
             <form t-on-submit.prevent="onSubmit">
-                <div
-          class="d-flex justify-content-between align-items-center mb-3"
-        >
+                <div class="d-flex justify-content-between align-items-center mb-3">
                     <div>
-                        <h5 class="mt-0 mb-0">Generate Media</h5>
+                        <h5 class="mt-0 mb-0"><t t-esc="env._t('Generar medios')"/></h5>
                         <small class="text-muted" t-if="!state.isLoading">
-                            <i class="fa fa-info-circle me-1" />
-                            Schema source: <t t-esc="schemaSource.name" />
-                            <span t-if="schemaSource.type === 'prompt'" class="badge badge-primary ms-1">Prompt</span>
-                            <span t-elif="schemaSource.type === 'model'" class="badge badge-secondary ms-1">Model</span>
-                            <span t-elif="schemaSource.type === 'none'" class="badge badge-warning ms-1">None</span>
+                            <i class="fa fa-info-circle mr-1"/>
+                            <t t-esc="env._t('Origen del esquema')"/>: <t t-esc="schemaSource.name"/>
+                            <span t-if="schemaSource.type === 'prompt'" class="badge badge-primary ml-1">Prompt</span>
+                            <span t-elif="schemaSource.type === 'model'" class="badge badge-secondary ml-1">Modelo</span>
+                            <span t-elif="schemaSource.type === 'none'" class="badge badge-warning ml-1">—</span>
                         </small>
                     </div>
                     <div class="btn-group btn-group-sm" role="group">
                         <button
-              type="button"
-              class="btn"
-              t-att-class="state.inputMode === 'form' ? 'btn-primary' : 'btn-outline-secondary'"
-              t-on-click="() => this.toggleInputMode()"
-            >
-                            <i class="fa fa-wpforms me-1" /> Form
+                            type="button"
+                            class="btn"
+                            t-att-class="state.inputMode === 'form' ? 'btn-primary' : 'btn-outline-secondary'"
+                            t-on-click="toggleInputMode"
+                        >
+                            <i class="fa fa-wpforms mr-1"/> <t t-esc="env._t('Formulario')"/>
                         </button>
                         <button
-              type="button"
-              class="btn"
-              t-att-class="state.inputMode === 'json' ? 'btn-primary' : 'btn-outline-secondary'"
-              t-on-click="() => this.toggleInputMode()"
-            >
-                            <i class="fa fa-code me-1" /> JSON
+                            type="button"
+                            class="btn"
+                            t-att-class="state.inputMode === 'json' ? 'btn-primary' : 'btn-outline-secondary'"
+                            t-on-click="toggleInputMode"
+                        >
+                            <i class="fa fa-code mr-1"/> JSON
                         </button>
                     </div>
                 </div>
 
                 <t t-if="state.isLoading">
                     <div class="alert alert-info" role="alert">
-                        <i
-              class="fa fa-spinner fa-spin me-1"
-            /> Loading configuration and schema...
+                        <i class="fa fa-spinner fa-spin mr-1"/>
+                        <t t-esc="env._t('Cargando configuración y esquema…')"/>
                     </div>
                 </t>
 
                 <t t-if="state.error">
                     <div class="alert alert-danger" role="alert">
-                        <t t-esc="state.error" />
+                        <t t-esc="state.error"/>
                     </div>
                 </t>
 
-                <!-- Template Preview Section -->
                 <div class="mb-3">
                     <button
-            type="button"
-            class="btn btn-outline-info btn-sm"
-            t-on-click="() => this.toggleTemplatePreview()"
-            t-att-disabled="state.isLoadingPreview ? 'disabled' : null"
-          >
-                        <i
-              t-if="state.isLoadingPreview"
-              class="fa fa-spinner fa-spin me-1"
-            />
-                        <i t-else="" class="fa fa-eye me-1" />
-                        <t
-              t-if="!state.showTemplatePreview"
-            >Show Rendered Template</t>
-                        <t t-else="">Hide Rendered Template</t>
+                        type="button"
+                        class="btn btn-outline-info btn-sm"
+                        t-on-click="toggleTemplatePreview"
+                        t-att-disabled="state.isLoadingPreview ? 'disabled' : null"
+                    >
+                        <i t-if="state.isLoadingPreview" class="fa fa-spinner fa-spin mr-1"/>
+                        <i t-else="" class="fa fa-eye mr-1"/>
+                        <t t-if="!state.showTemplatePreview"><t t-esc="env._t('Mostrar plantilla renderizada')"/></t>
+                        <t t-else=""><t t-esc="env._t('Ocultar plantilla renderizada')"/></t>
                     </button>
                 </div>
 
                 <div t-if="state.showTemplatePreview" class="mb-3">
                     <div class="card border-info">
                         <div class="card-header bg-info text-white">
-                            <small><i
-                  class="fa fa-info-circle me-1"
-                />This shows the final rendered template/prompt that will be sent to the model</small>
+                            <small>
+                                <i class="fa fa-info-circle mr-1"/>
+                                <t t-esc="env._t('Vista previa del texto que se enviará al modelo')"/>
+                            </small>
                         </div>
                         <div class="card-body p-2">
                             <t t-if="state.isLoadingPreview">
                                 <div class="text-center text-muted">
-                                    <i
-                    class="fa fa-spinner fa-spin me-1"
-                  /> Loading template preview...
+                                    <i class="fa fa-spinner fa-spin mr-1"/>
+                                    <t t-esc="env._t('Cargando vista previa…')"/>
                                 </div>
                             </t>
                             <t t-elif="state.templatePreviewContent">
-                                <pre
-                  class="bg-light p-2 rounded small mb-0"
-                  style="max-height: 400px; overflow-y: auto;"
-                ><t t-esc="formattedTemplatePreview" /></pre>
+                                <pre class="bg-light p-2 rounded small mb-0" style="max-height: 400px; overflow-y: auto;">
+                                    <t t-esc="formattedTemplatePreview"/>
+                                </pre>
                             </t>
                             <t t-else="">
-                                <div
-                  class="text-muted small"
-                >No template preview available</div>
+                                <div class="text-muted small"><t t-esc="env._t('Sin vista previa')"/></div>
                             </t>
                         </div>
                     </div>
                 </div>
 
-                <!-- Form View -->
                 <div t-if="state.inputMode === 'form' and !state.isLoading">
-                    <!-- Show assistant defaults info if available -->
-                    <div
-            t-if="state.assistantDefaults and Object.keys(state.assistantDefaults || {}).length > 0"
-            class="alert alert-info small mb-3"
-          >
-                        <i class="fa fa-robot me-1" />
-                        <strong>Assistant defaults applied:</strong>
-                        <span
-              t-esc="Object.keys(state.assistantDefaults || {}).join(', ')"
-            />
+                    <div t-if="hasAssistantDefaults" class="alert alert-info small mb-3">
+                        <i class="fa fa-robot mr-1"/>
+                        <strong><t t-esc="env._t('Valores por defecto del asistente:')"/></strong>
+                        <span t-esc="assistantDefaultsKeysList"/>
                     </div>
 
-                    <!-- Show warning if no schema is available -->
-                    <div
-            t-if="schemaSource.type === 'none'"
-            class="alert alert-warning small mb-3"
-          >
-                        <i class="fa fa-exclamation-triangle me-1" />
-                        <strong>No input schema available.</strong> 
-                        Please select a prompt with defined arguments or ensure your model has an input schema configured.
+                    <div t-if="schemaSource.type === 'none'" class="alert alert-warning small mb-3">
+                        <i class="fa fa-exclamation-triangle mr-1"/>
+                        <strong><t t-esc="env._t('No hay esquema de entrada.')"/></strong>
+                        <t t-esc="env._t('Seleccione un prompt con argumentos o configure el modelo.')"/>
                     </div>
 
-                    <!-- Attachment Upload Section -->
                     <div class="mb-3">
                         <label class="form-label">
-                            <i class="fa fa-paperclip me-1"></i>
-                            Attachments
-                            <small class="text-muted">(Optional - for image-to-image generation)</small>
+                            <i class="fa fa-paperclip mr-1"/>
+                            <t t-esc="env._t('Adjuntos')"/>
+                            <small class="text-muted">(<t t-esc="env._t('opcional')"/>)</small>
                         </label>
                         <div class="attachment-upload-section">
-                            <input 
-                                type="file" 
+                            <input
+                                type="file"
                                 class="form-control"
-                                multiple="true"
+                                multiple="multiple"
                                 accept="image/*,application/pdf,.txt,.doc,.docx"
                                 t-on-change="onAttachmentChange"
                                 t-ref="attachmentInputRef"
                             />
                             <div t-if="state.attachments.length > 0" class="mt-2">
                                 <div class="uploaded-attachments">
-                                    <t t-foreach="state.attachments" t-as="attachment" t-key="attachment.id || attachment.name">
+                                    <t t-foreach="state.attachments" t-as="attachment" t-key="attachment_index">
                                         <div class="d-flex align-items-center justify-content-between border rounded p-2 mb-1">
                                             <div class="d-flex align-items-center">
-                                                <i class="fa fa-file me-2 text-muted"></i>
-                                                <span class="small" t-esc="attachment.name"></span>
-                                                <span t-if="attachment.size" class="text-muted small ms-2">
+                                                <i class="fa fa-file mr-2 text-muted"/>
+                                                <span class="small" t-esc="attachment.name"/>
+                                                <span t-if="attachment.size" class="text-muted small ml-2">
                                                     (<t t-esc="formatFileSize(attachment.size)"/>)
                                                 </span>
                                             </div>
-                                            <button 
-                                                type="button" 
+                                            <button
+                                                type="button"
                                                 class="btn btn-sm btn-outline-danger"
-                                                t-on-click="() => this.removeAttachment(attachment)"
+                                                t-att-data-attachment-index="attachment_index"
+                                                t-on-click="onRemoveAttachmentClick"
                                             >
-                                                <i class="fa fa-times"></i>
+                                                <i class="fa fa-times"/>
                                             </button>
                                         </div>
                                     </t>
@@ -166,61 +143,46 @@
                     </div>
 
                     <LLMFormFieldsView
-            state="state"
-            inputSchema="inputSchema"
-            formFields="formFields"
-            requiredFields="requiredFields"
-            optionalFields="optionalFields"
-            onInputChange="(fieldName, event) => this.onInputChange(fieldName, event)"
-            toggleAdvancedSettings="() => this.toggleAdvancedSettings()"
-          />
+                        state="state"
+                        inputSchema="inputSchema"
+                        formFields="formFields"
+                        requiredFields="requiredFields"
+                        optionalFields="optionalFields"
+                        onInputChange="onInputChange"
+                        toggleAdvancedSettings="toggleAdvancedSettings"
+                    />
                 </div>
 
-                <!-- JSON Editor View -->
                 <div t-if="state.inputMode === 'json' and !state.isLoading">
                     <JsonEditorComponent
-            value="state.formValues"
-            onChange.bind="onJsonEditorChange"
-            onValidationError.bind="onJsonValidationError"
-            onError.bind="onJsonEditorError"
-            schema="inputSchema"
-            height="'300px'"
-            mode="'code'"
-            modes="['code']"
-            allowSchemaSuggestions="true"
-          />
-                    <div
-            t-if="state.jsonEditorError"
-            class="alert alert-danger mt-2 small p-2"
-            role="alert"
-          >
-                        <i class="fa fa-exclamation-triangle me-1" /> <t
-              t-esc="state.jsonEditorError"
-            />
+                        value="state.formValues"
+                        onChange="onJsonEditorChange"
+                        onValidationError="onJsonValidationError"
+                        onError="onJsonEditorError"
+                        schema="inputSchema"
+                        height="'300px'"
+                        mode="'code'"
+                        allowSchemaSuggestions="true"
+                    />
+                    <div t-if="state.jsonEditorError" class="alert alert-danger mt-2 small p-2" role="alert">
+                        <i class="fa fa-exclamation-triangle mr-1"/>
+                        <t t-esc="state.jsonEditorError"/>
                     </div>
-                    <div
-            t-if="schemaSource.type === 'none'"
-            class="alert alert-info mt-2 small p-2"
-            role="alert"
-          >
-                        <i
-              class="fa fa-info-circle me-1"
-            /> Autocomplete is not available as no schema is defined for this model.
+                    <div t-if="schemaSource.type === 'none'" class="alert alert-info mt-2 small p-2" role="alert">
+                        <i class="fa fa-info-circle mr-1"/>
+                        <t t-esc="env._t('Sin esquema: el autocompletado JSON no está disponible.')"/>
                     </div>
                 </div>
 
                 <div class="d-flex justify-content-end mt-4">
                     <button
-            type="submit"
-            class="btn btn-primary"
-            t-att-disabled="(state.isLoading or isStreaming() or (state.inputMode === 'json' and !state.isJsonValid)) ? 'disabled' : null"
-          >
-                        <i
-              t-if="state.isLoading"
-              class="fa fa-spinner fa-spin me-1"
-            />
-                        <t t-if="!isStreaming()">Generate</t>
-                        <t t-else="">Processing...</t>
+                        type="submit"
+                        class="btn btn-primary"
+                        t-att-disabled="(state.isLoading or isStreaming or (state.inputMode === 'json' and !state.isJsonValid)) ? 'disabled' : null"
+                    >
+                        <i t-if="state.isLoading" class="fa fa-spinner fa-spin mr-1"/>
+                        <t t-if="!isStreaming"><t t-esc="env._t('Generar')"/></t>
+                        <t t-else=""><t t-esc="env._t('Procesando…')"/></t>
                     </button>
                 </div>
             </form>

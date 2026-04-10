@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
-    <t t-name="llm_thread.LLMFormFieldsView" owl="1">
+    <t t-name="llm_generate.LLMFormFieldsView" owl="1">
         <div>
             <div
-        t-if="!props.state.isLoading and !props.inputSchema?.error and props.formFields.length === 0"
+        t-if="!props.state.isLoading and !(props.inputSchema and props.inputSchema.error) and props.formFields.length === 0"
         class="alert alert-warning"
       >
-                No input fields defined for this model, or schema is missing properties.
+                Sin campos de entrada: falta el esquema o no tiene propiedades.
             </div>
 
             <!-- Required Fields Section - Always Visible -->
@@ -81,7 +81,7 @@
                             <select
                 t-if="field.type === 'enum' and field.choices and field.choices.length > 0"
                 t-attf-id="media_form_field_{{field.name}}"
-                class="form-select"
+                class="form-control"
                 t-att-name="field.name"
                 t-on-change="(ev) => props.onInputChange(field.name, ev)"
                 required="required"
@@ -107,7 +107,7 @@
                 t-if="field.description and field.type !== 'boolean'"
                 class="form-text text-muted"
               >
-                                <t t-out="field.description" />
+                                <t t-esc="field.description" />
                             </small>
                         </div>
                     </t>
@@ -124,18 +124,18 @@
           >
                         <i
               t-if="!props.state.showAdvancedSettings"
-              class="fa fa-caret-right me-1"
+              class="fa fa-caret-right mr-1"
             />
-                        <i t-else="1" class="fa fa-caret-down me-1" />
+                        <i t-else="1" class="fa fa-caret-down mr-1" />
                         Advanced Settings
                     </button>
-                    <span class="text-muted ms-2 small">(Optional)</span>
+                    <span class="text-muted ml-2 small">(Opcional)</span>
                 </div>
 
                 <!-- Optional Fields Section - Conditionally Visible with Two-Column Layout and Max Height -->
                 <div
           t-if="props.state.showAdvancedSettings"
-          class="mb-4 ps-2 border-start position-relative"
+          class="mb-4 pl-2 border-left position-relative"
         >
                     <!-- Bottom scroll indicator with gradient -->
                     <div
@@ -252,7 +252,7 @@
                                 <select
                   t-if="field.type === 'enum' and field.choices and field.choices.length > 0"
                   t-attf-id="media_form_field_{{field.name}}"
-                  class="form-select"
+                  class="form-control"
                   t-att-name="field.name"
                   t-on-change="(ev) => props.onInputChange(field.name, ev)"
                 >
@@ -277,7 +277,7 @@
                   t-if="field.description and field.type !== 'boolean'"
                   class="form-text text-muted"
                 >
-                                    <t t-out="field.description" />
+                                    <t t-esc="field.description" />
                                 </small>
                             </div>
                         </t>

@@ -8,7 +8,7 @@
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
     "category": "Technical",
-    "version": "16.0.1.0.3",
+    "version": "14.0.1.0.3",
     "depends": ["base", "llm_openai"],
     "external_dependencies": {
         "python": ["mistralai"],

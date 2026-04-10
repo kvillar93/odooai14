@@ -12,12 +12,24 @@ class MailMessage(models.Model):
 
     _inherit = "mail.message"
 
+    def _ensure_body_json_dict(self):
+        """Devuelve body_json como dict, parseando si llega como string."""
+        val = self.body_json
+        if not val:
+            return {}
+        if isinstance(val, str):
+            try:
+                val = json.loads(val)
+            except (ValueError, TypeError):
+                return {}
+        return val if isinstance(val, dict) else {}
+
     def get_tool_calls(self):
         """Get tool calls from assistant message body_json."""
         self.ensure_one()
         if self.llm_role != "assistant" or not self.body_json:
             return []
-        return self.body_json.get("tool_calls", [])
+        return self._ensure_body_json_dict().get("tool_calls", [])
 
     def has_tool_calls(self):
         """Check if assistant message has tool calls."""
@@ -302,7 +314,7 @@ class MailMessage(models.Model):
         """
         self.ensure_one()
         if self.llm_role == "tool" and self.body_json:
-            return self.body_json
+            return self._ensure_body_json_dict() or None
         return None
 
     def is_tool_message_with_status(self, status):

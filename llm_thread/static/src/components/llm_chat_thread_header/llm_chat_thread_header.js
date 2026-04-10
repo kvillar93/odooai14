@@ -1,353 +1,278 @@
-/** @odoo-module **/
-import { registerMessagingComponent } from "@mail/utils/messaging_component";
-import { useRefToModel } from "@mail/component_hooks/use_ref_to_model";
+odoo.define('llm_thread/static/src/components/llm_chat_thread_header/llm_chat_thread_header.js', function (require) {
+    'use strict';
 
-const { Component, useState, useRef, onMounted, onWillUnmount, onPatched } =
-  owl;
+    const useShouldUpdateBasedOnProps = require('mail/static/src/component_hooks/use_should_update_based_on_props/use_should_update_based_on_props.js');
+    const useStore = require('mail/static/src/component_hooks/use_store/use_store.js');
+    const LLMChatThreadRelatedRecord = require('llm_thread/static/src/components/llm_chat_thread_related_record/llm_chat_thread_related_record.js');
 
-export class LLMChatThreadHeader extends Component {
-  /**
-   * @override
-   */
-  setup() {
-    super.setup();
-    useRefToModel({
-      fieldName: "llmChatThreadNameInputRef",
-      refName: "threadNameInput",
-    });
+    const { Component } = owl;
+    const { useState, useRef, onMounted, onWillUnmount, onPatched } = owl.hooks;
 
-    // State for model search dropdown
-    this.state = useState({
-      modelSearchQuery: "",
-      shouldShowDropdown: false,
-      shouldFocusSearch: false,
-    });
+    class LLMChatThreadHeader extends Component {
+        constructor(...args) {
+            super(...args);
+            useShouldUpdateBasedOnProps();
+            useStore(function () {
+                const record = this.props.record;
+                return {
+                    headerView: record && record.__state,
+                };
+            }.bind(this));
 
-    // Refs for dropdown elements
-    this.modelDropdownRef = useRef("modelDropdown");
-    this.modelSearchInputRef = useRef("modelSearchInput");
+            this._threadNameInputRef = useRef('threadNameInput');
+            this.state = useState({
+                modelSearchQuery: '',
+                shouldShowDropdown: false,
+                shouldFocusSearch: false,
+            });
+            this.modelDropdownRef = useRef('modelDropdown');
+            this.modelSearchInputRef = useRef('modelSearchInput');
 
-    this.onToolSelectChange = this.onToolSelectChange.bind(this);
+            this.onToolSelectChange = this.onToolSelectChange.bind(this);
+            this._onModelDropdownShown = this._onModelDropdownShown.bind(this);
+            this._onModelDropdownHidden = this._onModelDropdownHidden.bind(this);
+            this.onSelectModel = this.onSelectModel.bind(this);
+            this.onSelectProvider = this.onSelectProvider.bind(this);
+            this._preventDropdownClose = this._preventDropdownClose.bind(this);
+            this.onModelSearchInput = this.onModelSearchInput.bind(this);
 
-    // Bind Bootstrap event listeners for better UX
-    this._onModelDropdownShown = this._onModelDropdownShown.bind(this);
-    this._onModelDropdownHidden = this._onModelDropdownHidden.bind(this);
-    this.onSelectModel = this.onSelectModel.bind(this);
-    this.onSelectProvider = this.onSelectProvider.bind(this);
-    this._preventDropdownClose = this._preventDropdownClose.bind(this);
-    this.onModelSearchInput = this.onModelSearchInput.bind(this);
-
-    onMounted(() => {
-      if (this.modelDropdownRef.el) {
-        this.modelDropdownRef.el.addEventListener(
-          "shown.bs.dropdown",
-          this._onModelDropdownShown
-        );
-        this.modelDropdownRef.el.addEventListener(
-          "hidden.bs.dropdown",
-          this._onModelDropdownHidden
-        );
-      }
-    });
-
-    onWillUnmount(() => {
-      if (this.modelDropdownRef.el) {
-        this.modelDropdownRef.el.removeEventListener(
-          "shown.bs.dropdown",
-          this._onModelDropdownShown
-        );
-        this.modelDropdownRef.el.removeEventListener(
-          "hidden.bs.dropdown",
-          this._onModelDropdownHidden
-        );
-      }
-    });
-
-    onPatched(() => {
-      if (this.state.shouldShowDropdown) {
-        const dropdownContainer = this.modelDropdownRef.el;
-        if (dropdownContainer) {
-          const dropdownTrigger = $(dropdownContainer).find(
-            '[data-bs-toggle="dropdown"]'
-          );
-          if (dropdownTrigger.length) {
-            dropdownTrigger.dropdown("show");
-          } else {
-            console.warn("Model dropdown trigger element not found on patch.");
-          }
-        } else {
-          console.warn("Model dropdown container element not found on patch.");
+            const self = this;
+            onMounted(function () {
+                if (self.modelDropdownRef.el) {
+                    self.modelDropdownRef.el.addEventListener('shown.bs.dropdown', self._onModelDropdownShown);
+                    self.modelDropdownRef.el.addEventListener('hidden.bs.dropdown', self._onModelDropdownHidden);
+                }
+                if (self.llmChatThreadHeaderView) {
+                    self.llmChatThreadHeaderView.update({
+                        llmChatThreadNameInputRef: self._threadNameInputRef,
+                    });
+                }
+            });
+            onWillUnmount(function () {
+                if (self.modelDropdownRef.el) {
+                    self.modelDropdownRef.el.removeEventListener('shown.bs.dropdown', self._onModelDropdownShown);
+                    self.modelDropdownRef.el.removeEventListener('hidden.bs.dropdown', self._onModelDropdownHidden);
+                }
+            });
+            onPatched(function () {
+                if (self.state.shouldShowDropdown) {
+                    const dropdownContainer = self.modelDropdownRef.el;
+                    if (dropdownContainer) {
+                        const dropdownTrigger = $(dropdownContainer).find('[data-toggle="dropdown"], [data-bs-toggle="dropdown"]');
+                        if (dropdownTrigger.length) {
+                            dropdownTrigger.dropdown('show');
+                        }
+                    }
+                    self.state.shouldShowDropdown = false;
+                }
+                if (self.state.shouldFocusSearch) {
+                    if (self.modelSearchInputRef.el) {
+                        self.modelSearchInputRef.el.focus();
+                        self.state.shouldFocusSearch = false;
+                    }
+                }
+            });
         }
-        // Reset the flag so it doesn't re-show on every patch
-        this.state.shouldShowDropdown = false;
-      }
-      if (this.state.shouldFocusSearch) {
-        if (this.modelSearchInputRef.el) {
-          this.modelSearchInputRef.el.focus();
-          // Reset the flag
-          this.state.shouldFocusSearch = false;
+
+        get llmChatThreadHeaderView() {
+            return this.props.record;
         }
-      }
-    });
-  }
 
-  // --------------------------------------------------------------------------
-  // Getters
-  // --------------------------------------------------------------------------
+        get threadView() {
+            return this.llmChatThreadHeaderView.threadView;
+        }
 
-  get llmChatThreadHeaderView() {
-    return this.props.record;
-  }
+        get thread() {
+            const tv = this.threadView;
+            return tv ? tv.thread : undefined;
+        }
 
-  get threadView() {
-    return this.llmChatThreadHeaderView.threadView;
-  }
+        get messaging() {
+            return this.env.messaging;
+        }
 
-  get thread() {
-    return this.threadView?.thread;
-  }
+        get llmChat() {
+            const t = this.thread;
+            return t ? t.llmChat : undefined;
+        }
 
-  get llmChat() {
-    return this.thread?.llmChat;
-  }
+        get llmProviders() {
+            const c = this.llmChat;
+            return c && c.llmProviders ? c.llmProviders : [];
+        }
 
-  get llmProviders() {
-    return this.llmChat?.llmProviders ?? [];
-  }
+        get llmToolsList() {
+            const c = this.llmChat;
+            return c && c.tools ? c.tools : [];
+        }
 
-  /** Herramientas del chat; vacío si el hilo aún no está enlazado al LLMChat (evita errores OWL). */
-  get llmToolsList() {
-    return this.llmChat?.tools ?? [];
-  }
+        get llmModels() {
+            return this.llmChatThreadHeaderView.modelsAvailableToSelect;
+        }
 
-  get llmModels() {
-    // Use the computed property from the view model
-    return this.llmChatThreadHeaderView.modelsAvailableToSelect;
-  }
+        get filteredModels() {
+            const query = this.state.modelSearchQuery.trim().toLowerCase();
+            if (!query) {
+                return this.llmModels;
+            }
+            const self = this;
+            return this.llmModels.filter(function (model) {
+                return model.name.toLowerCase().includes(query);
+            });
+        }
 
-  /**
-   * Filters the available models based on the search query.
-   */
-  get filteredModels() {
-    const query = this.state.modelSearchQuery.trim().toLowerCase();
-    if (!query) {
-      // Return all available models if no query
-      return this.llmModels;
+        get isSmall() {
+            const lc = this.llmChat;
+            if (lc && lc.llmChatView) {
+                return lc.llmChatView.isSmall;
+            }
+            return this.messaging.device.isSmall;
+        }
+
+        get showThreadListHamburger() {
+            return this.isSmall || Boolean(this.llmChat && this.llmChat.isSystrayFloatingMode);
+        }
+
+        get useCompactHeaderIcons() {
+            return Boolean(this.llmChat && this.llmChat.isSystrayFloatingMode);
+        }
+
+        get compactProviderTitle() {
+            const sp = this.llmChatThreadHeaderView.selectedProvider;
+            const n = sp && sp.name ? sp.name : this.env._t('Seleccionar proveedor');
+            return this.env._t('Proveedor') + ': ' + n;
+        }
+
+        get compactModelTitle() {
+            const sm = this.llmChatThreadHeaderView.selectedModel;
+            const n = sm && sm.name ? sm.name : this.env._t('Seleccionar asistente');
+            return this.env._t('Asistente') + ': ' + n;
+        }
+
+        get compactToolsTitle() {
+            const n = this.thread && this.thread.selectedToolIds ? this.thread.selectedToolIds.length : 0;
+            return this.env._t('Herramientas') + ' (' + n + ')';
+        }
+
+        get displayThreadName() {
+            const thread = this.thread;
+            if (!thread) {
+                return '';
+            }
+            const raw = thread.name;
+            if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
+                return String(raw).trim();
+            }
+            if (thread.id) {
+                return 'Chat #' + thread.id;
+            }
+            return this.env._t('Chat');
+        }
+
+        onSelectProvider(provider) {
+            if (provider.id !== this.llmChatThreadHeaderView.selectedProviderId) {
+                const defaultModel = this.getDefaultModelForProvider(provider.id);
+                this.llmChatThreadHeaderView.saveSelectedModel(defaultModel ? defaultModel.id : undefined);
+                this.state.modelSearchQuery = '';
+                this.state.shouldShowDropdown = true;
+            }
+        }
+
+        getDefaultModelForProvider(providerId) {
+            const llmChat = this.llmChat;
+            const availableModels = (llmChat && llmChat.llmModels ? llmChat.llmModels : []).filter(function (model) {
+                return model.llmProvider && model.llmProvider.id === providerId;
+            });
+            const defaultModel = availableModels.find(function (model) { return model.default; });
+            if (defaultModel) {
+                return defaultModel;
+            }
+            if (availableModels.length > 0) {
+                return availableModels[0];
+            }
+            return null;
+        }
+
+        onSelectModel(model) {
+            this.llmChatThreadHeaderView.saveSelectedModel(model.id);
+            this.state.modelSearchQuery = '';
+        }
+
+        onModelSearchInput(ev) {
+            this.state.modelSearchQuery = ev.target.value;
+        }
+
+        _preventDropdownClose(ev) {
+            ev.stopPropagation();
+        }
+
+        _onModelDropdownShown() {
+            const self = this;
+            setTimeout(function () {
+                if (self.modelSearchInputRef.el) {
+                    self.modelSearchInputRef.el.focus();
+                }
+            }, 0);
+        }
+
+        _onModelDropdownHidden() {
+            this.state.modelSearchQuery = '';
+        }
+
+        _onToggleThreadList() {
+            const v = this.llmChat && this.llmChat.llmChatView;
+            if (!v) {
+                return;
+            }
+            v.update({
+                isThreadListVisible: !v.isThreadListVisible,
+            });
+        }
+
+        onKeyDownThreadNameInput(ev) {
+            switch (ev.key) {
+                case 'Enter':
+                    ev.preventDefault();
+                    this.llmChatThreadHeaderView.saveThreadName();
+                    break;
+                case 'Escape':
+                    ev.preventDefault();
+                    this.llmChatThreadHeaderView.discardThreadNameEdition();
+                    break;
+            }
+        }
+
+        onInputThreadNameInput(ev) {
+            this.llmChatThreadHeaderView.update({ pendingName: ev.target.value });
+        }
+
+        async onToolSelectChange(ev, tool) {
+            if (!this.thread) {
+                return;
+            }
+            const checked = ev.target.checked;
+            const currentSelectedIds = this.thread.selectedToolIds || [];
+            const newSelectedToolIds = checked
+                ? currentSelectedIds.concat([tool.id])
+                : currentSelectedIds.filter(function (id) { return id !== tool.id; });
+
+            await this.thread.updateLLMChatThreadSettings({
+                toolIds: newSelectedToolIds,
+            });
+
+            this.thread.update({
+                selectedToolIds: newSelectedToolIds,
+            });
+        }
     }
-    return this.llmModels.filter((model) =>
-      model.name.toLowerCase().includes(query)
-    );
-  }
 
-  get isSmall() {
-    // Check llmChatView.isSmall which includes chatter aside detection
-    // Falls back to device.isSmall if llmChatView not available
-    return this.llmChat?.llmChatView?.isSmall ?? this.messaging.device.isSmall;
-  }
-
-  /**
-   * Botón hamburguesa para mostrar/ocultar la lista de hilos: en móvil y siempre en el popup flotante.
-   */
-  get showThreadListHamburger() {
-    return this.isSmall || Boolean(this.llmChat?.isSystrayFloatingMode);
-  }
-
-  /** Panel flotante (systray): cabecera con iconos y tooltips para ahorrar espacio. */
-  get useCompactHeaderIcons() {
-    return Boolean(this.llmChat?.isSystrayFloatingMode);
-  }
-
-  get compactProviderTitle() {
-    const n =
-      this.llmChatThreadHeaderView.selectedProvider?.name ||
-      this.env._t("Seleccionar proveedor");
-    return `${this.env._t("Proveedor")}: ${n}`;
-  }
-
-  get compactModelTitle() {
-    const n =
-      this.llmChatThreadHeaderView.selectedModel?.name ||
-      this.env._t("Seleccionar asistente");
-    return `${this.env._t("Asistente")}: ${n}`;
-  }
-
-  get compactToolsTitle() {
-    const n = this.thread?.selectedToolIds?.length || 0;
-    return `${this.env._t("Herramientas")} (${n})`;
-  }
-
-  /**
-   * Título estable: evita vacío y "New Chat" suelto si el servidor ya devolvió otro nombre tras refresco.
-   */
-  get displayThreadName() {
-    const thread = this.thread;
-    if (!thread) {
-      return "";
-    }
-    const raw = thread.name;
-    if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
-      return String(raw).trim();
-    }
-    if (thread.id) {
-      return `Chat #${thread.id}`;
-    }
-    return this.env._t("Chat");
-  }
-
-  // --------------------------------------------------------------------------
-  // Event Handlers
-  // --------------------------------------------------------------------------
-
-  /**
-   * @param {Object} provider
-   */
-  onSelectProvider(provider) {
-    if (provider.id !== this.llmChatThreadHeaderView.selectedProviderId) {
-      const defaultModel = this.getDefaultModelForProvider(provider.id);
-      // It should trigger saveSelectedModel via the underlying model's compute/onchange
-      this.llmChatThreadHeaderView.saveSelectedModel(defaultModel?.id);
-
-      // Clear search when provider changes
-      this.state.modelSearchQuery = "";
-
-      this.state.shouldShowDropdown = true;
-    }
-  }
-
-  getDefaultModelForProvider(providerId) {
-    // Note: Use llmChat.llmModels here to check *all* models, not just those already filtered
-    const availableModels =
-      this.llmChat?.llmModels?.filter(
-        (model) => model.llmProvider?.id === providerId
-      ) || [];
-    const defaultModel = availableModels.find((model) => model.default);
-
-    if (defaultModel) {
-      return defaultModel;
-    } else if (availableModels.length > 0) {
-      // Fallback to the first available model if no default is set
-      return availableModels[0];
-    }
-    return null;
-  }
-
-  /**
-   * @param {Object} model
-   */
-  onSelectModel(model) {
-    this.llmChatThreadHeaderView.saveSelectedModel(model.id);
-    // Clear search after selection
-    this.state.modelSearchQuery = "";
-    // Bootstrap dropdown might close automatically, but clearing state is important
-  }
-
-  /**
-   * Handle search input changes for models.
-   * @param {Event} ev
-   */
-  onModelSearchInput(ev) {
-    this.state.modelSearchQuery = ev.target.value;
-  }
-
-  /**
-   * Prevents the dropdown from closing when clicking inside the search input or results list.
-   * @param {Event} ev
-   */
-  _preventDropdownClose(ev) {
-    ev.stopPropagation();
-  }
-
-  /**
-   * Focus the search input when the model dropdown is shown.
-   */
-  _onModelDropdownShown() {
-    setTimeout(() => {
-      if (this.modelSearchInputRef.el) {
-        this.modelSearchInputRef.el.focus();
-      }
-    }, 0);
-  }
-
-  /**
-   * Clear the search query when the model dropdown is hidden.
-   */
-  _onModelDropdownHidden() {
-    this.state.modelSearchQuery = "";
-  }
-
-  /**
-   * Toggle thread list visibility on mobile
-   */
-  _onToggleThreadList() {
-    const v = this.llmChat?.llmChatView;
-    if (!v) {
-      return;
-    }
-    v.update({
-      isThreadListVisible: !v.isThreadListVisible,
-    });
-  }
-
-  /**
-   * Handle keydown in thread name input
-   * @param {KeyboardEvent} ev
-   */
-  onKeyDownThreadNameInput(ev) {
-    switch (ev.key) {
-      case "Enter":
-        ev.preventDefault();
-        this.llmChatThreadHeaderView.saveThreadName();
-        break;
-      case "Escape":
-        ev.preventDefault();
-        this.llmChatThreadHeaderView.discardThreadNameEdition();
-        break;
-    }
-  }
-
-  /**
-   * Handle input value change
-   * @param {Event} ev
-   */
-  onInputThreadNameInput(ev) {
-    this.llmChatThreadHeaderView.update({ pendingName: ev.target.value });
-  }
-
-  /**
-   * Handle tool selection change
-   * @param {Event} ev - The checkbox change event
-   * @param {Object} tool - The tool object being selected/deselected
-   */
-  async onToolSelectChange(ev, tool) {
-    if (!this.thread) {
-      return;
-    }
-    const checked = ev.target.checked;
-
-    const currentSelectedIds = this.thread.selectedToolIds || [];
-    const newSelectedToolIds = checked
-      ? [...currentSelectedIds, tool.id]
-      : currentSelectedIds.filter((id) => id !== tool.id);
-
-    // Update the thread settings with the new tool IDs
-    await this.thread.updateLLMChatThreadSettings({
-      toolIds: newSelectedToolIds,
+    Object.assign(LLMChatThreadHeader, {
+        props: { record: Object },
+        components: {
+            LLMChatThreadRelatedRecord: LLMChatThreadRelatedRecord,
+        },
+        template: 'llm_thread.LLMChatThreadHeader',
     });
 
-    // Optimistically update local state (or rely on fetch/reload)
-    // It might be better to rely on the reload triggered by onClose of the settings modal
-    // or ensure updateLLMChatThreadSettings refreshes the thread record correctly.
-    // Let's assume updateLLMChatThreadSettings handles the refresh or is followed by one.
-    // For immediate UI feedback, an optimistic update can be done:
-    this.thread.update({
-      selectedToolIds: newSelectedToolIds,
-    });
-  }
-}
-
-Object.assign(LLMChatThreadHeader, {
-  props: { record: Object },
-  template: "llm_thread.LLMChatThreadHeader",
+    return LLMChatThreadHeader;
 });
-
-registerMessagingComponent(LLMChatThreadHeader);

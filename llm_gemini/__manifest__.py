@@ -2,7 +2,7 @@
 {
     "name": "LLM Google Gemini",
     "summary": "Proveedor Google Gemini para chat y tools",
-    "version": "16.0.1.2.0",
+    "version": "14.0.1.2.0",
     "depends": ["llm", "llm_tool", "llm_openai"],
     "external_dependencies": {"python": ["google-genai"]},
     "data": [

@@ -40,49 +40,49 @@ class LLMThreadController(http.Controller):
             return False
 
     @classmethod
-    def _llm_thread_generate(cls, dbname, env, thread_id, user_message_body, **kwargs):
+    def _llm_thread_generate(cls, dbname, uid, context, thread_id, user_message_body, **kwargs):
         """Generate LLM responses with streaming and safe yielding."""
-        with registry(dbname).cursor() as cr:
-            env = api.Environment(cr, env.uid, env.context)
-            llm_thread = env["llm.thread"].browse(int(thread_id))
-            if not llm_thread.exists():
-                yield from cls._safe_yield(
-                    f"data: {json.dumps({'type': 'error', 'error': 'LLM Thread not found.'})}\n\n".encode()
-                )
-                return
-
-            client_connected = True
-            try:
-                for response in llm_thread.generate(user_message_body, **kwargs):
-                    json_data = json.dumps(response, default=str)
-                    success = yield from cls._safe_yield(
-                        f"data: {json_data}\n\n".encode()
-                    )
-                    if not success:
-                        client_connected = False
-                        break
-
-            except GeneratorExit:
-                client_connected = False
-
-            except Exception as e:
-                _logger.exception(
-                    f"Error in llm_thread_generate for thread {thread_id}: {e}"
-                )
-                # Lock will be automatically released by context manager
-
-                if client_connected:
-                    success = yield from cls._safe_yield(
-                        f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n".encode()
-                    )
-                    if not success:
-                        client_connected = False
-
-            finally:
-                if client_connected:
+        with api.Environment.manage():
+            with registry(dbname).cursor() as cr:
+                env = api.Environment(cr, uid, context)
+                llm_thread = env["llm.thread"].browse(int(thread_id))
+                if not llm_thread.exists():
                     yield from cls._safe_yield(
-                        f"data: {json.dumps({'type': 'done'})}\n\n".encode()
+                        f"data: {json.dumps({'type': 'error', 'error': 'LLM Thread not found.'})}\n\n".encode()
                     )
+                    return
+
+                client_connected = True
+                try:
+                    for response in llm_thread.generate(user_message_body, **kwargs):
+                        json_data = json.dumps(response, default=str)
+                        success = yield from cls._safe_yield(
+                            f"data: {json_data}\n\n".encode()
+                        )
+                        if not success:
+                            client_connected = False
+                            break
+
+                except GeneratorExit:
+                    client_connected = False
+
+                except Exception as e:
+                    _logger.exception(
+                        "Error in llm_thread_generate for thread %s: %s",
+                        thread_id, e,
+                    )
+                    if client_connected:
+                        success = yield from cls._safe_yield(
+                            f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n".encode()
+                        )
+                        if not success:
+                            client_connected = False
+
+                finally:
+                    if client_connected:
+                        yield from cls._safe_yield(
+                            f"data: {json.dumps({'type': 'done'})}\n\n".encode()
+                        )
 
     @http.route(
         "/llm/thread/generate",
@@ -120,7 +120,8 @@ class LLMThreadController(http.Controller):
         return Response(
             self._llm_thread_generate(
                 request.cr.dbname,
-                request.env,
+                request.env.uid,
+                dict(request.env.context),
                 thread_id,
                 user_message_body,
                 **extra_kwargs,

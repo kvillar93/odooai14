@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="assets_backend" inherit_id="web.assets_backend" name="llm_assistant assets">
+        <xpath expr="." position="inside">
+            <!-- Modelos: cada archivo debe tener su <script> para entrar al bundle -->
+            <script type="text/javascript" src="/llm_assistant/static/src/models/llm_prompt.js"/>
+            <script type="text/javascript" src="/llm_assistant/static/src/models/llm_assistant_record.js"/>
+            <script type="text/javascript" src="/llm_assistant/static/src/models/thread.js"/>
+            <script type="text/javascript" src="/llm_assistant/static/src/models/llm_chat.js"/>
+            <script type="text/javascript" src="/llm_assistant/static/src/models/llm_chat_thread_header_view.js"/>
+            <script type="text/javascript" src="/llm_assistant/static/src/models/main.js"/>
+            <!-- Componentes -->
+            <script type="text/javascript" src="/llm_assistant/static/src/components/llm_chat_thread_header/llm_chat_thread_header.js"/>
+        </xpath>
+    </template>
+</odoo>

@@ -19,7 +19,7 @@
                     <field
             name="replicate_version"
             placeholder="e.g. 02efc93b999..... (leave empty for latest)"
-            class="me-2"
+            class="mr-2"
             nolabel="1"
           />
                     <a

@@ -1,131 +1,114 @@
-/** @odoo-module **/
+odoo.define('llm_thread/static/src/models/messaging_notification_handler.js', function (require) {
+    'use strict';
 
-import { clear } from "@mail/model/model_field_command";
-import { registerPatch } from "@mail/model/model_core";
+    const { clear } = require('mail/static/src/model/model_field_command.js');
+    const { registerInstancePatchModel } = require('mail/static/src/model/model_core.js');
+    const llmEnvUtils = require('llm_thread/static/src/js/llm_env_utils.js');
 
-registerPatch({
-  name: "MessagingNotificationHandler",
-  recordMethods: {
-    /**
-     * @override
-     * @private
-     * @param {Object} message
-     */
-    _handleNotification(message) {
-      if (message.type === "llm.thread/delete") {
-        return this._handleLLMThreadsDelete(message);
-      }
-      if (message.type === "llm.thread/open_in_chatter") {
-        return this._handleLLMThreadOpenInChatter(message);
-      }
-      return this._super(...arguments);
-    },
-
-    _handleLLMThreadsDelete(message) {
-      const ids = message.payload.ids;
-      for (const id of ids) {
-        this._handleLLMThreadDelete(id);
-      }
-    },
-
-    /**
-     * @private
-     * @param {Number} id
-     */
-    _handleLLMThreadDelete(id) {
-      const thread = this.messaging.models.Thread.findFromIdentifyingData({
-        id,
-        model: "llm.thread",
-      });
-      if (thread) {
-        const llmChat = thread.llmChat;
-        if (llmChat) {
-          const isActiveThread =
-            llmChat.activeThread && llmChat.activeThread.id === thread.id;
-          if (isActiveThread) {
-            const composer = llmChat.llmChatView?.composer;
-            if (composer && composer.isStreaming) {
-              composer._closeEventSource();
+    registerInstancePatchModel('mail.messaging_notification_handler', 'llm_thread/static/src/models/messaging_notification_handler.js', {
+        /**
+         * @override
+         */
+        async _handleNotificationPartner(data) {
+            const type = data.type;
+            if (type === 'llm.thread/delete') {
+                return this._handleLLMThreadsDelete(data);
             }
-          }
-          const updatedData = {
-            threads: llmChat.threads.filter((t) => t.id !== thread.id),
-          };
-          if (isActiveThread) {
-            updatedData.activeThread = clear();
-          }
-          llmChat.update(updatedData);
-        }
-        thread.delete();
-      }
-    },
+            if (type === 'llm.thread/open_in_chatter') {
+                return this._handleLLMThreadOpenInChatter(data);
+            }
+            return this._super.apply(this, arguments);
+        },
 
-    /**
-     * Handle opening an LLM thread in the chatter
-     * Triggered when backend action_open_llm_assistant sends notification
-     * @private
-     * @param {Object} message
-     * @param {Number} message.payload.thread_id - ID of llm.thread to open
-     * @param {String} message.payload.model - Model name of related document
-     * @param {Number} message.payload.res_id - ID of related document
-     */
-    async _handleLLMThreadOpenInChatter(message) {
-      const { thread_id, model, res_id } = message.payload;
+        _handleLLMThreadsDelete(data) {
+            const ids = data.ids || [];
+            for (let i = 0; i < ids.length; i++) {
+                this._handleLLMThreadDelete(ids[i]);
+            }
+        },
 
-      // Validate payload
-      if (!thread_id) {
-        return;
-      }
+        _handleLLMThreadDelete(id) {
+            const thread = this.env.models['mail.thread'].findFromIdentifyingData({
+                id: id,
+                model: 'llm.thread',
+            });
+            if (thread) {
+                const llmChat = thread.llmChat;
+                if (llmChat) {
+                    const isActiveThread =
+                        llmChat.activeThread && llmChat.activeThread.id === thread.id;
+                    if (isActiveThread) {
+                        const composer = llmChat.llmChatView && llmChat.llmChatView.composer;
+                        if (composer && composer.isStreaming) {
+                            composer._closeEventSource();
+                        }
+                    }
+                    var filteredThreads = llmChat.threads.filter(function (t) {
+                        return t.id !== thread.id;
+                    });
+                    const updatedData = {
+                        threads: [['replace', filteredThreads]],
+                    };
+                    if (isActiveThread) {
+                        updatedData.activeThread = clear();
+                    }
+                    llmChat.update(updatedData);
+                }
+                thread.delete();
+            }
+        },
 
-      try {
-        // Ensure llmChat exists
-        if (!this.messaging.llmChat) {
-          this.messaging.update({ llmChat: { isInitThreadHandled: false } });
-        }
+        async _handleLLMThreadOpenInChatter(data) {
+            const thread_id = data.thread_id;
+            const model = data.model;
+            const res_id = data.res_id;
 
-        // Find the thread (might already be in memory)
-        let thread = this.messaging.models.Thread.findFromIdentifyingData({
-          id: thread_id,
-          model: "llm.thread",
-        });
+            if (!thread_id) {
+                return;
+            }
 
-        if (!thread) {
-          // Thread doesn't exist in frontend yet, reload threads
-          // If we have record context, filter by it
-          const domain = [];
-          if (model && res_id) {
-            domain.push(["model", "=", model]);
-            domain.push(["res_id", "=", res_id]);
-          }
-          await this.messaging.llmChat.loadThreads([], domain);
+            try {
+                if (!this.env.messaging.llmChat) {
+                    this.env.messaging.update({ llmChat: [['create', { isInitThreadHandled: false }]] });
+                }
 
-          // Now find the thread (should exist after loading)
-          thread = this.messaging.models.Thread.findFromIdentifyingData({
-            id: thread_id,
-            model: "llm.thread",
-          });
-        }
+                let thread = this.env.models['mail.thread'].findFromIdentifyingData({
+                    id: thread_id,
+                    model: 'llm.thread',
+                });
 
-        if (!thread) {
-          throw new Error("Could not load the conversation thread. Please try again.");
-        }
+                if (!thread) {
+                    const domain = [];
+                    if (model && res_id) {
+                        domain.push(['model', '=', model]);
+                        domain.push(['res_id', '=', res_id]);
+                    }
+                    await this.env.messaging.llmChat.loadThreads([], domain);
 
-        // Use the unified Odoo pattern to open the thread
-        await thread.openLLMThread({ focus: true });
+                    thread = this.env.models['mail.thread'].findFromIdentifyingData({
+                        id: thread_id,
+                        model: 'llm.thread',
+                    });
+                }
 
-        // Auto-trigger generation (if needed)
-        const llmChat = this.messaging.llmChat;
-        if (llmChat?.llmChatView?.composer) {
-          await llmChat.llmChatView.composer.startGeneration();
-        }
-      } catch (error) {
-        console.error("Error opening LLM thread in chatter:", error);
-        this.messaging.notify({
-          title: "Error Opening AI Chat",
-          message: error.message || "An unexpected error occurred",
-          type: "danger",
-        });
-      }
-    },
-  },
+                if (!thread) {
+                    throw new Error('No se pudo cargar el hilo de conversación. Inténtelo de nuevo.');
+                }
+
+                await thread.openLLMThread({ focus: true });
+
+                const llmChat = this.env.messaging.llmChat;
+                if (llmChat && llmChat.llmChatView && llmChat.llmChatView.composer) {
+                    await llmChat.llmChatView.composer.startGeneration();
+                }
+            } catch (error) {
+                console.error('Error al abrir el hilo LLM en el chatter:', error);
+                llmEnvUtils.llmNotify(this.env, {
+                    title: 'Error al abrir el chat de IA',
+                    message: error.message || 'Ha ocurrido un error inesperado',
+                    type: 'danger',
+                });
+            }
+        },
+    });
 });

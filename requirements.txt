@@ -1,5 +1,5 @@
-# Dependencias Python (módulos en odooai16).
-# Instalar con: pip install -r requirements.txt
+setuptools==80.9.0
+wheel
 
 PyMuPDF
 anthropic

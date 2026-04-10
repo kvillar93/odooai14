@@ -2,7 +2,7 @@
 {
     "name": "LLM Conocimiento de módulos",
     "summary": "Snapshot mensual de módulos instalados para contexto de IA",
-    "version": "16.0.1.0.0",
+    "version": "14.0.1.0.0",
     "depends": ["base", "llm_assistant"],
     "data": [
         "security/ir.model.access.csv",

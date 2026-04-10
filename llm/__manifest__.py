@@ -12,7 +12,7 @@
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
     "category": "Technical",
-    "version": "16.0.1.4.2",
+    "version": "14.0.1.4.2",
     "depends": ["mail", "web"],
     "external_dependencies": {
         "python": ["openpyxl"],

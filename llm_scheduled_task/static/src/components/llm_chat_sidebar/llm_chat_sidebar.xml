@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
-    <t t-inherit="llm_thread.LLMChatSidebar" t-inherit-mode="extension">
-        <!-- Escritorio: anclaje estable (antes: t-if !isSmall; ahora useDesktopSidebar) -->
+    <t t-inherit="llm_thread.LLMChatSidebar" t-inherit-mode="extension" owl="1">
         <xpath
             expr="//div[hasclass('o_LLMChatSidebar_newChatWrap--desktop')]"
             position="before"
@@ -15,12 +14,11 @@
                     class="btn btn-outline-secondary btn-sm rounded w-100"
                     t-on-click="_onClickViewScheduledTasks"
                 >
-                    <i class="fa fa-tasks me-2" />
+                    <i class="fa fa-tasks mr-2"/>
                     <span>Ver tareas creadas</span>
                 </button>
             </div>
         </xpath>
-        <!-- Móvil / popup flotante: overlay -->
         <xpath
             expr="//div[hasclass('o_LLMChatSidebar_newChatWrap--overlay')]"
             position="before"
@@ -34,7 +32,7 @@
                     class="btn btn-outline-secondary btn-sm rounded w-100"
                     t-on-click="_onClickViewScheduledTasks"
                 >
-                    <i class="fa fa-tasks me-2" />
+                    <i class="fa fa-tasks mr-2"/>
                     <span>Ver tareas creadas</span>
                 </button>
             </div>

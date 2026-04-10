@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="assets_backend" inherit_id="web.assets_backend" name="llm_experience assets">
+        <xpath expr="." position="inside">
+            <!-- Parches de modelo: deben estar en el bundle -->
+            <script type="text/javascript" src="/llm_experience/static/src/js/llm_chat_cost_patch.js"/>
+            <script type="text/javascript" src="/llm_experience/static/src/models/main.js"/>
+            <!-- Componentes -->
+            <script type="text/javascript" src="/llm_experience/static/src/components/llm_context_meter/llm_context_meter.js"/>
+            <script type="text/javascript" src="/llm_experience/static/src/components/llm_chat_composer_experience/llm_chat_composer_experience.js"/>
+            <!-- Estilos -->
+            <link rel="stylesheet" type="text/scss" href="/llm_experience/static/src/components/llm_context_meter/llm_context_meter.scss"/>
+        </xpath>
+    </template>
+</odoo>

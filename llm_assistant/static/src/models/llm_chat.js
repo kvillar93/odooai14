@@ -1,290 +1,280 @@
-/** @odoo-module **/
+odoo.define('llm_assistant/static/src/models/llm_chat.js', function (require) {
+    'use strict';
 
-import { many } from "@mail/model/model_field";
-import { clear } from "@mail/model/model_field_command";
-import { registerPatch } from "@mail/model/model_core";
+    // Registrar mail.llm_chat (llm_thread) antes de parches.
+    require('llm_thread/static/src/models/llm_chat.js');
 
-// Define assistant-related fields to fetch from server
-const ASSISTANT_THREAD_FIELDS = ["assistant_id"];
+    const { registerFieldPatchModel, registerInstancePatchModel } = require('mail/static/src/model/model_core.js');
+    const ModelField = require('mail/static/src/model/model_field.js');
+    const { clear } = require('mail/static/src/model/model_field_command.js');
 
-/**
- * Patch the LLMChat model to add assistants
- */
-registerPatch({
-  name: "LLMChat",
-  fields: {
-    // Use attr instead of many for direct array access
-    llmAssistants: many("LLMAssistant"),
-  },
-  onChanges: [
-    {
-      dependencies: ["activeId"],
-      methodName: "onActiveIdChanged",
-    },
-  ],
-  recordMethods: {
-    /**
-     * Load assistants from the server
-     */
-    async loadAssistants() {
-      // Load assistants with their basic data and prompt_id (only actual model fields)
-      const assistantResult = await this.messaging.rpc({
-        model: "llm.assistant",
-        method: "search_read",
-        kwargs: {
-          domain: [["active", "=", true]],
-          fields: ["name", "default_values", "prompt_id", "is_default"],
+    const one2many = ModelField.one2many;
+
+    const ASSISTANT_THREAD_FIELDS = ['assistant_id', 'prompt_id'];
+
+    registerFieldPatchModel('mail.llm_chat', 'llm_assistant/static/src/models/llm_chat.js', {
+        llmAssistants: one2many('mail.llm_assistant', {
+            inverse: 'llmChat',
+        }),
+    });
+
+    registerInstancePatchModel('mail.llm_chat', 'llm_assistant/static/src/models/llm_chat.js', {
+        _updateBefore: function () {
+            const previous = this._super();
+            return Object.assign({}, previous, {
+                _assistantActiveThreadId: this.activeThread && this.activeThread.id,
+            });
         },
-      });
 
-      // Extract all prompt IDs to fetch their details
-      const promptIds = assistantResult
-        .map((assistant) => assistant.prompt_id && assistant.prompt_id[0])
-        .filter((id) => id); // Filter out falsy values
+        _updateAfter: function (previous) {
+            this._super(previous);
+            const curId = this.activeThread && this.activeThread.id;
+            if (previous._assistantActiveThreadId !== curId) {
+                this._onAssistantActiveThreadChanged();
+            }
+        },
 
-      // If we have prompt IDs, fetch their details
-      let promptsById = {};
-      if (promptIds.length > 0) {
-        const promptResult = await this.messaging.rpc({
-          model: "llm.prompt",
-          method: "search_read",
-          kwargs: {
-            domain: [["id", "in", promptIds]],
-            fields: ["name", "input_schema_json"],
-          },
-        });
-
-        // Create a map of prompts by ID for easy lookup
-        promptsById = promptResult.reduce((acc, prompt) => {
-          acc[prompt.id] = {
-            id: prompt.id,
-            name: prompt.name,
-            inputSchemaJson: prompt.input_schema_json,
-          };
-          return acc;
-        }, {});
-      }
-
-      // Map assistant data and include prompt details if available
-      const assistantData = assistantResult.map((assistant) => {
-        const data = {
-          id: assistant.id,
-          name: assistant.name,
-          isDefault: Boolean(assistant.is_default),
-          defaultValues: assistant.default_values,
-          // Don't set evaluatedDefaultValues here - it will be fetched dynamically when needed
-        };
-
-        // If this assistant has a prompt, include its ID and create the relationship
-        if (assistant.prompt_id && assistant.prompt_id[0]) {
-          const promptId = assistant.prompt_id[0];
-          data.promptId = promptId;
-
-          // If we have the prompt details, include them
-          if (promptsById[promptId]) {
-            data.llmPrompt = promptsById[promptId];
-          }
-        }
-
-        return data;
-      });
-
-      this.update({ llmAssistants: assistantData });
-    },
-
-    /**
-     * Override ensureDataLoaded to load assistants as well
-     * @override
-     */
-    async ensureDataLoaded() {
-      await this._super(); // Load models and tools
-      // Load assistants if not already loaded
-      if (!this.llmAssistants || this.llmAssistants.length === 0) {
-        await this.loadAssistants();
-      }
-    },
-
-    /**
-     * Override initializeLLMChat to include assistant loading
-     * @override
-     */
-    async initializeLLMChat(
-      action,
-      initActiveId,
-      postInitializationPromises = []
-    ) {
-      // Pass our loadAssistants promise to the original method
-      return this._super(action, initActiveId, [
-        ...postInitializationPromises,
-        this.loadAssistants(),
-      ]);
-    },
-
-    /**
-     * Override loadThreads to include assistant_id field
-     * @override
-     */
-    async loadThreads(additionalFields = [], domain = []) {
-      // Call the super method with our additional fields and domain
-      return this._super([...additionalFields, ...ASSISTANT_THREAD_FIELDS], domain);
-    },
-
-    /**
-     * Override refreshThread to include assistant_id field
-     * @override
-     */
-    async refreshThread(threadId, additionalFields = []) {
-      // Call the super method with our additional fields
-      return this._super(threadId, [
-        ...additionalFields,
-        ...ASSISTANT_THREAD_FIELDS,
-      ]);
-    },
-
-    /**
-     * Override _mapThreadDataFromServer to add assistant information
-     * @override
-     */
-    _mapThreadDataFromServer(threadData) {
-      // Get the base mapped data from super
-      const mappedData = this._super(threadData);
-
-      // Add assistant information if present
-      if (threadData.assistant_id) {
-        const assistantId = threadData.assistant_id[0];
-        mappedData.llmAssistant = {
-          id: assistantId,
-          name: threadData.assistant_id[1],
-        };
-      } else {
-        // IMPORTANT: Clear the llmAssistant field when assistant_id is not present
-        mappedData.llmAssistant = clear();
-      }
-
-      return mappedData;
-    },
-
-    /**
-     * Tras elegir hilo, cargar valores evaluados del asistente (antes fallaba si activeId aún no coincidía).
-     * @override
-     */
-    async selectThread(threadId) {
-      await this._super(threadId);
-      const thread = this.messaging.models.Thread.findFromIdentifyingData({
-        id: threadId,
-        model: "llm.thread",
-      });
-      if (thread?.llmAssistant?.id) {
-        await this._fetchAssistantValuesForThread(thread.id, thread.llmAssistant.id);
-      }
-    },
-
-    /**
-     * Handle active thread changes
-     */
-    onActiveIdChanged() {
-      if (!this.activeId) {
-        return;
-      }
-      const [model, id] =
-        typeof this.activeId === "number"
-          ? ["llm.thread", this.activeId]
-          : this.activeId.split("_");
-      // Get the active thread
-      const activeThread = this.messaging.models.Thread.findFromIdentifyingData(
-        { id: Number(id), model }
-      );
-      if (!activeThread || !activeThread.llmAssistant) {
-        return;
-      }
-
-      // Fetch thread-specific evaluated default values for the active thread's assistant
-      this._fetchAssistantValuesForThread(
-        activeThread.id,
-        activeThread.llmAssistant.id
-      );
-    },
-
-    /**
-     * Fetch thread-specific evaluated default values for an assistant
-     * @param {Number} threadId - ID of the thread
-     * @param {Number} assistantId - ID of the assistant
-     * @private
-     */
-    async _fetchAssistantValuesForThread(threadId, assistantId) {
-      try {
-        const result = await this.messaging.rpc({
-          route: "/llm/thread/get_assistant_values",
-          params: {
-            thread_id: threadId,
-            assistant_id: assistantId,
-          },
-        });
-
-        if (result.success) {
-          // Find the thread and update its assistant with the evaluated values
-          const thread = this.messaging.models.Thread.findFromIdentifyingData({
-            id: threadId,
-            model: "llm.thread",
-          });
-          if (thread) {
-            // Find the assistant in our registry
-            const assistant = this.llmAssistants.find(
-              (a) => a.id === assistantId
+        _onAssistantActiveThreadChanged: function () {
+            if (!this.activeId) {
+                return;
+            }
+            let model;
+            let id;
+            if (typeof this.activeId === 'number') {
+                model = 'llm.thread';
+                id = this.activeId;
+            } else {
+                const parts = String(this.activeId).split('_');
+                model = parts[0];
+                id = Number(parts[1]);
+            }
+            const Thread = this.env.models['mail.thread'];
+            const activeThread = Thread.findFromIdentifyingData({
+                id: id,
+                model: model,
+            });
+            if (!activeThread || !activeThread.llmAssistant) {
+                return;
+            }
+            this._fetchAssistantValuesForThread(
+                activeThread.id,
+                activeThread.llmAssistant.id
             );
-            if (assistant) {
-              // Update the assistant with thread-specific evaluated values
-              if (result.evaluated_default_values) {
-                assistant.update({
-                  defaultValues: result.default_values,
-                  evaluatedDefaultValues: result.evaluated_default_values,
-                });
-              } else {
-                console.log("cleaning default values");
-                // Clean up default values when there are no evaluated default values
-                assistant.update({
-                  defaultValues: clear(),
-                  evaluatedDefaultValues: clear(),
-                });
-              }
+        },
 
-              // If we have prompt data, update or create the prompt relationship
-              if (result.prompt) {
-                const promptData = result.prompt;
-                const prompt =
-                  this.messaging.models.LLMPrompt.findFromIdentifyingData({
-                    id: promptData.id,
-                  });
+        async loadAssistants() {
+            const assistantResult = await this.async(function () {
+                return this.env.services.rpc({
+                    model: 'llm.assistant',
+                    method: 'search_read',
+                    kwargs: {
+                        domain: [['active', '=', true]],
+                        fields: ['name', 'default_values', 'prompt_id', 'is_default'],
+                    },
+                });
+            }.bind(this));
 
-                if (prompt) {
-                  // Update existing prompt
-                  prompt.update({
-                    name: promptData.name,
-                    inputSchemaJson: promptData.input_schema_json,
-                  });
-                } else {
-                  // Create new prompt record
-                  this.messaging.models.LLMPrompt.insert({
-                    id: promptData.id,
-                    name: promptData.name,
-                    inputSchemaJson: promptData.input_schema_json,
-                  });
+            const promptIds = assistantResult
+                .map(function (assistant) {
+                    return assistant.prompt_id && assistant.prompt_id[0];
+                })
+                .filter(function (id) { return id; });
+
+            let promptsById = {};
+            if (promptIds.length > 0) {
+                const promptResult = await this.async(function () {
+                    return this.env.services.rpc({
+                        model: 'llm.prompt',
+                        method: 'search_read',
+                        kwargs: {
+                            domain: [['id', 'in', promptIds]],
+                            fields: ['name', 'input_schema_json'],
+                        },
+                    });
+                }.bind(this));
+
+                promptsById = promptResult.reduce(function (acc, prompt) {
+                    acc[prompt.id] = {
+                        id: prompt.id,
+                        name: prompt.name,
+                        inputSchemaJson: prompt.input_schema_json,
+                    };
+                    return acc;
+                }, {});
+            }
+
+            const LLMAssistant = this.env.models['mail.llm_assistant'];
+            const LLMPrompt = this.env.models['mail.llm_prompt'];
+            const records = [];
+
+            for (let i = 0; i < assistantResult.length; i++) {
+                const assistant = assistantResult[i];
+                const data = {
+                    id: assistant.id,
+                    name: assistant.name,
+                    isDefault: Boolean(assistant.is_default),
+                    defaultValues: assistant.default_values,
+                    llmChat: [['link', this]],
+                };
+
+                if (assistant.prompt_id && assistant.prompt_id[0]) {
+                    const promptId = assistant.prompt_id[0];
+                    data.promptId = promptId;
+                    if (promptsById[promptId]) {
+                        const p = promptsById[promptId];
+                        let pr = LLMPrompt.findFromIdentifyingData({ id: p.id });
+                        if (!pr) {
+                            pr = LLMPrompt.insert({
+                                id: p.id,
+                                name: p.name,
+                                inputSchemaJson: p.inputSchemaJson,
+                            });
+                        } else {
+                            pr.update({
+                                name: p.name,
+                                inputSchemaJson: p.inputSchemaJson,
+                            });
+                        }
+                        data.llmPrompt = [['link', pr]];
+                    }
                 }
 
-                // Update assistant with prompt relationship
-                assistant.update({
-                  promptId: promptData.id,
-                  llmPrompt: { id: promptData.id },
-                });
-              }
+                let rec = LLMAssistant.findFromIdentifyingData({ id: data.id });
+                if (rec) {
+                    rec.update(data);
+                } else {
+                    rec = LLMAssistant.insert(data);
+                }
+                records.push(rec);
             }
-          }
-        } else {
-          console.error("Error fetching assistant values:", result.error);
-        }
-      } catch (error) {
-        console.error("Error in _fetchAssistantValuesForThread:", error);
-      }
-    },
-  },
+
+            this.update({ llmAssistants: [['replace', records]] });
+        },
+
+        async ensureDataLoaded() {
+            await this._super();
+            if (!this.llmAssistants || this.llmAssistants.length === 0) {
+                await this.loadAssistants();
+            }
+        },
+
+        async initializeLLMChat(action, initActiveId, postInitializationPromises) {
+            postInitializationPromises = postInitializationPromises || [];
+            const promises = postInitializationPromises.slice();
+            promises.push(this.loadAssistants());
+            return this._super(action, initActiveId, promises);
+        },
+
+        async loadThreads(additionalFields, domain) {
+            additionalFields = additionalFields || [];
+            return this._super(
+                additionalFields.concat(ASSISTANT_THREAD_FIELDS),
+                domain
+            );
+        },
+
+        async refreshThread(threadId, additionalFields) {
+            additionalFields = additionalFields || [];
+            return this._super(threadId, additionalFields.concat(ASSISTANT_THREAD_FIELDS));
+        },
+
+        _mapThreadDataFromServer: function (threadData) {
+            const mappedData = this._super(threadData);
+            if (threadData.assistant_id) {
+                mappedData.llmAssistant = [['insert', {
+                    id: threadData.assistant_id[0],
+                    name: threadData.assistant_id[1],
+                }]];
+            } else {
+                mappedData.llmAssistant = clear();
+            }
+            return mappedData;
+        },
+
+        async selectThread(threadId) {
+            await this._super(threadId);
+            const Thread = this.env.models['mail.thread'];
+            const thread = Thread.findFromIdentifyingData({
+                id: threadId,
+                model: 'llm.thread',
+            });
+            if (thread && thread.llmAssistant && thread.llmAssistant.id) {
+                await this._fetchAssistantValuesForThread(thread.id, thread.llmAssistant.id);
+            }
+        },
+
+        async _fetchAssistantValuesForThread(threadId, assistantId) {
+            try {
+                const result = await this.async(function () {
+                    return this.env.services.rpc({
+                        route: '/llm/thread/get_assistant_values',
+                        params: {
+                            thread_id: threadId,
+                            assistant_id: assistantId,
+                        },
+                    });
+                }.bind(this));
+
+                if (result.success) {
+                    const Thread = this.env.models['mail.thread'];
+                    const LLMPrompt = this.env.models['mail.llm_prompt'];
+                    const thread = Thread.findFromIdentifyingData({
+                        id: threadId,
+                        model: 'llm.thread',
+                    });
+                    if (thread) {
+                        const assistants = this.llmAssistants || [];
+                        let assistant = null;
+                        for (let i = 0; i < assistants.length; i++) {
+                            if (assistants[i] && assistants[i].id === assistantId) {
+                                assistant = assistants[i];
+                                break;
+                            }
+                        }
+                        if (assistant) {
+                            if (result.evaluated_default_values) {
+                                assistant.update({
+                                    defaultValues: result.default_values,
+                                    evaluatedDefaultValues: result.evaluated_default_values,
+                                });
+                            } else {
+                                assistant.update({
+                                    defaultValues: clear(),
+                                    evaluatedDefaultValues: clear(),
+                                });
+                            }
+
+                            if (result.prompt) {
+                                const promptData = result.prompt;
+                                let prompt = LLMPrompt.findFromIdentifyingData({
+                                    id: promptData.id,
+                                });
+                                if (prompt) {
+                                    prompt.update({
+                                        name: promptData.name,
+                                        inputSchemaJson: promptData.input_schema_json,
+                                    });
+                                } else {
+                                    LLMPrompt.insert({
+                                        id: promptData.id,
+                                        name: promptData.name,
+                                        inputSchemaJson: promptData.input_schema_json,
+                                    });
+                                }
+                                var promptRec = LLMPrompt.findFromIdentifyingData({ id: promptData.id });
+                                assistant.update({
+                                    promptId: promptData.id,
+                                    llmPrompt: promptRec ? [['link', promptRec]] : [['insert', { id: promptData.id }]],
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    console.error('Error al obtener valores del asistente:', result.error);
+                }
+            } catch (error) {
+                console.error('Error en _fetchAssistantValuesForThread:', error);
+            }
+        },
+    });
 });

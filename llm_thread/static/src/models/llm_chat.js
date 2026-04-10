@@ -1,657 +1,672 @@
-/** @odoo-module **/
+odoo.define('llm_thread/static/src/models/llm_chat.js', function (require) {
+    'use strict';
 
-import { attr, many, one } from "@mail/model/model_field";
-import { clear } from "@mail/model/model_field_command";
-import { registerModel } from "@mail/model/model_core";
+    const { registerNewModel, registerFieldPatchModel } = require('mail/static/src/model/model_core.js');
+    const ModelField = require('mail/static/src/model/model_field.js');
+    const { clear } = require('mail/static/src/model/model_field_command.js');
+    const llmEnvUtils = require('llm_thread/static/src/js/llm_env_utils.js');
 
-// Constants for thread fields
-const THREAD_SEARCH_FIELDS = [
-  "name",
-  "message_ids",
-  "create_uid",
-  "create_date",
-  "write_date",
-  "model_id",
-  "provider_id",
-  "model",
-  "res_id",
-  "tool_ids",
-  "prompt_id",
-  "chat_window_id",
-  "hide_thread_settings",
-];
+    const attr = ModelField.attr;
+    const many2many = ModelField.many2many;
+    const many2one = ModelField.many2one;
+    const one2many = ModelField.one2many;
+    const one2one = ModelField.one2one;
 
-registerModel({
-  name: "LLMChat",
-  recordMethods: {
-    /**
-     * Closes the LLM chat and resets its view state.
-     */
-    close() {
-      this.update({ llmChatView: clear() });
-    },
+    const THREAD_SEARCH_FIELDS = [
+        'name',
+        'message_ids',
+        'create_uid',
+        'create_date',
+        'write_date',
+        'model_id',
+        'provider_id',
+        'model',
+        'res_id',
+        'tool_ids',
+        'chat_window_id',
+        'hide_thread_settings',
+    ];
 
-    /**
-     * Opens the initial thread based on initActiveId or defaults to the first thread.
-     * Si el hilo solicitado no está en la lista cargada (p. ej. paginación implícita),
-     * lo obtiene del servidor para no sustituir un chat existente por el primero de la lista.
-     */
-    async openInitThread() {
-      if (!this.initActiveId) {
-        if (this.threads.length > 0) {
-          await this.selectThread(this.threads[0].id);
+    function factory(dependencies) {
+
+        class LLMChat extends dependencies['mail.model'] {
+
+            close() {
+                this.update({ llmChatView: clear() });
+            }
+
+            async openInitThread() {
+                const Thread = this.env.models['mail.thread'];
+                if (!this.initActiveId) {
+                    if (this.threads.length > 0) {
+                        await this.selectThread(this.threads[0].id);
+                    }
+                    return;
+                }
+
+                const parts = typeof this.initActiveId === 'number'
+                    ? ['llm.thread', this.initActiveId]
+                    : this.initActiveId.split('_');
+                const model = parts[0];
+                const threadId = Number(parts[1]);
+                let thread = Thread.findFromIdentifyingData({
+                    id: threadId,
+                    model: model,
+                });
+                if (!thread) {
+                    try {
+                        const result = await this.async(() => this.env.services.rpc({
+                            model: 'llm.thread',
+                            method: 'search_read',
+                            kwargs: {
+                                domain: [['id', '=', threadId]],
+                                fields: THREAD_SEARCH_FIELDS,
+                            },
+                        }));
+                        if (result && result.length) {
+                            const mapped = this._mapThreadDataFromServer(result[0]);
+                            thread = Thread.insert(Object.assign({}, mapped, { llmChat: [['link', this]] }));
+                        }
+                    } catch (e) {
+                        console.error('openInitThread', e);
+                    }
+                }
+                if (!thread && this.threads.length > 0) {
+                    await this.selectThread(this.threads[0].id);
+                } else if (thread) {
+                    await this.selectThread(thread.id);
+                }
+            }
+
+            async openThread(thread) {
+                this.update({ activeThread: [['link', thread]] });
+                if (!this.llmChatView) {
+                    this.env.bus.trigger('do-action', {
+                        action: 'llm_thread.action_llm_chat',
+                        options: {
+                            name: this.env._t('Chat'),
+                            active_id: this.threadToActiveId(thread),
+                            clearBreadcrumbs: false,
+                        },
+                    });
+                }
+            }
+
+            threadToActiveId(thread) {
+                return thread.model + '_' + thread.id;
+            }
+
+            async loadThreads(additionalFields, domain) {
+                additionalFields = additionalFields || [];
+                domain = domain || [];
+                const uid = this.env.session.uid;
+                const defaultDomain = [['create_uid', '=', uid]];
+                const scopeDomain = [];
+                if (this.scopedChatWindowId) {
+                    scopeDomain.push(['chat_window_id', '=', this.scopedChatWindowId]);
+                }
+                const finalDomain = defaultDomain.concat(scopeDomain).concat(domain);
+
+                const result = await this.async(() => this.env.services.rpc({
+                    model: 'llm.thread',
+                    method: 'search_read',
+                    orderBy: [{name: 'write_date', asc: false}],
+                    kwargs: {
+                        domain: finalDomain,
+                        fields: THREAD_SEARCH_FIELDS.concat(additionalFields),
+                    },
+                }));
+
+                const Thread = this.env.models['mail.thread'];
+                const threads = [];
+                for (let i = 0; i < result.length; i++) {
+                    const mapped = this._mapThreadDataFromServer(result[i]);
+                    let thread = Thread.findFromIdentifyingData({
+                        id: mapped.id,
+                        model: mapped.model,
+                    });
+                    if (thread) {
+                        thread.update(mapped);
+                    } else {
+                        thread = Thread.insert(Object.assign({}, mapped, { llmChat: [['link', this]] }));
+                    }
+                    threads.push(thread);
+                }
+                this.update({ threads: [['replace', threads]] });
+            }
+
+            _mapThreadDataFromServer(threadData) {
+                const rawName = threadData.name;
+                const safeName =
+                    rawName !== undefined &&
+                    rawName !== null &&
+                    String(rawName).trim() !== ''
+                        ? String(rawName).trim()
+                        : 'New Chat #' + threadData.id;
+                const mappedData = {
+                    id: threadData.id,
+                    model: 'llm.thread',
+                    name: safeName,
+                    message_needaction_counter: 0,
+                    creator: threadData.create_uid
+                        ? [['insert', { id: threadData.create_uid }]]
+                        : undefined,
+                    isServerPinned: true,
+                    updatedAt: threadData.write_date,
+                    relatedThreadModel: threadData.model,
+                    relatedThreadId: threadData.res_id,
+                    selectedToolIds: threadData.tool_ids || [],
+                    promptId: threadData.prompt_id || null,
+                    chatWindowId: (function () {
+                        const cw = threadData.chat_window_id;
+                        if (cw === undefined || cw === false || cw === null) {
+                            return null;
+                        }
+                        if (Array.isArray(cw)) {
+                            return cw[0];
+                        }
+                        return cw;
+                    })(),
+                    hideThreadSettings: Boolean(threadData.hide_thread_settings),
+                };
+
+                if (threadData.model_id && threadData.provider_id) {
+                    mappedData.llmModel = [['insert', {
+                        id: threadData.model_id[0],
+                        name: threadData.model_id[1],
+                        llmProvider: [['insert', {
+                            id: threadData.provider_id[0],
+                            name: threadData.provider_id[1],
+                        }]],
+                    }]];
+                }
+
+                return mappedData;
+            }
+
+            async refreshThread(threadId, additionalFields) {
+                additionalFields = additionalFields || [];
+                try {
+                    const result = await this.async(() => this.env.services.rpc({
+                        model: 'llm.thread',
+                        method: 'search_read',
+                        kwargs: {
+                            domain: [['id', '=', threadId]],
+                            fields: THREAD_SEARCH_FIELDS.concat(additionalFields),
+                        },
+                    }));
+
+                    if (!result || !result.length) {
+                        return;
+                    }
+
+                    const mappedThreadData = this._mapThreadDataFromServer(result[0]);
+                    const Thread = this.env.models['mail.thread'];
+                    const threadRecord = Thread.findFromIdentifyingData({
+                        id: threadId,
+                        model: 'llm.thread',
+                    });
+                    if (threadRecord) {
+                        threadRecord.update(mappedThreadData);
+                    }
+                } catch (error) {
+                    console.error('Error refreshing thread:', error);
+                }
+            }
+
+            async selectThread(threadId) {
+                const Thread = this.env.models['mail.thread'];
+                const thread = Thread.findFromIdentifyingData({
+                    id: threadId,
+                    model: 'llm.thread',
+                });
+                if (thread) {
+                    await this.refreshThread(threadId);
+                    this.update({ activeThread: [['link', thread]] });
+                }
+            }
+
+            open() {
+                this.update({ llmChatView: [['create', {}]] });
+            }
+
+            async loadLLMModels() {
+                const result = await this.async(() => this.env.services.rpc({
+                    model: 'llm.model',
+                    method: 'search_read',
+                    kwargs: {
+                        domain: [],
+                        fields: ['name', 'id', 'provider_id', 'default'],
+                    },
+                }));
+
+                const LLMModel = this.env.models['mail.llm_model'];
+                const records = [];
+                for (let i = 0; i < result.length; i++) {
+                    const model = result[i];
+                    const data = {
+                        id: model.id,
+                        name: model.name,
+                        llmProvider: model.provider_id
+                            ? [['insert', { id: model.provider_id[0], name: model.provider_id[1] }]]
+                            : clear(),
+                        default: model.default,
+                        llmChat: [['link', this]],
+                    };
+                    let rec = LLMModel.findFromIdentifyingData({ id: model.id });
+                    if (rec) {
+                        rec.update(data);
+                    } else {
+                        rec = LLMModel.insert(data);
+                    }
+                    records.push(rec);
+                }
+                this.update({ llmModels: [['replace', records]] });
+            }
+
+            async createThread(params) {
+                const name = params.name;
+                const relatedThreadModel = params.relatedThreadModel;
+                const relatedThreadId = params.relatedThreadId;
+                const defaultModel = this.defaultLLMModel;
+                if (!defaultModel) {
+                    llmEnvUtils.llmNotify(this.env, {
+                        title: 'No hay modelo LLM',
+                        message: 'Añada un modelo LLM para usar esta función',
+                        type: 'warning',
+                    });
+                    throw new Error('No LLM model available');
+                }
+
+                const threadData = {
+                    model_id: defaultModel.id,
+                    provider_id: defaultModel.llmProvider.id,
+                };
+                if (
+                    name !== undefined &&
+                    name !== null &&
+                    String(name).trim() !== ''
+                ) {
+                    threadData.name = name;
+                }
+                if (this.scopedChatWindowId) {
+                    threadData.chat_window_id = this.scopedChatWindowId;
+                }
+                if (relatedThreadModel && relatedThreadId) {
+                    threadData.model = relatedThreadModel;
+                    threadData.res_id = relatedThreadId;
+                }
+
+                const threadId = await this.async(() => this.env.services.rpc({
+                    model: 'llm.thread',
+                    method: 'create',
+                    args: [threadData],
+                }));
+
+                const threadDetails = await this.async(() => this.env.services.rpc({
+                    model: 'llm.thread',
+                    method: 'read',
+                    args: [[threadId], ['name', 'model_id', 'provider_id', 'write_date']],
+                }));
+
+                if (!threadDetails || !threadDetails[0]) {
+                    llmEnvUtils.llmNotify(this.env, {
+                        title: 'Error',
+                        message: 'No se pudo crear el hilo',
+                        type: 'danger',
+                    });
+                    return null;
+                }
+
+                const Thread = this.env.models['mail.thread'];
+                const insertData = {
+                    id: threadId,
+                    model: 'llm.thread',
+                    name: threadDetails[0].name,
+                    message_needaction_counter: 0,
+                    isServerPinned: true,
+                    llmModel: defaultModel ? [['link', defaultModel]] : clear(),
+                    llmChat: [['link', this]],
+                    updatedAt: threadDetails[0].write_date,
+                };
+                if (this.scopedChatWindowId) {
+                    insertData.chatWindowId = this.scopedChatWindowId;
+                }
+                if (relatedThreadModel) {
+                    insertData.relatedThreadModel = relatedThreadModel;
+                }
+                if (relatedThreadId) {
+                    insertData.relatedThreadId = relatedThreadId;
+                }
+                return Thread.insert(insertData);
+            }
+
+            async ensureDataLoaded() {
+                if (this.llmModels.length === 0) {
+                    await this.loadLLMModels();
+                }
+                if (!this.tools || this.tools.length === 0) {
+                    await this.loadTools();
+                }
+            }
+
+            async ensureThread(options) {
+                options = options || {};
+                const relatedThreadModel = options.relatedThreadModel;
+                const relatedThreadId = options.relatedThreadId;
+                const forceReload = options.forceReload === true;
+
+                await this.ensureDataLoaded();
+
+                const domain = [];
+                if (relatedThreadModel && relatedThreadId) {
+                    domain.push(['model', '=', relatedThreadModel]);
+                    domain.push(['res_id', '=', relatedThreadId]);
+                }
+
+                const contextChanged = relatedThreadModel &&
+                    (this.relatedThreadModel !== relatedThreadModel ||
+                        this.relatedThreadId !== relatedThreadId);
+
+                if (relatedThreadModel !== undefined || relatedThreadId !== undefined) {
+                    this.update({
+                        relatedThreadModel: relatedThreadModel || this.relatedThreadModel,
+                        relatedThreadId: relatedThreadId !== undefined ? relatedThreadId : this.relatedThreadId,
+                    });
+                }
+
+                if (this.threads.length === 0 || forceReload || contextChanged) {
+                    await this.loadThreads([], domain);
+                }
+
+                if (relatedThreadModel && relatedThreadId) {
+                    const existingThread = this.threads.find(
+                        function (thread) {
+                            return thread.relatedThreadModel === relatedThreadModel &&
+                                thread.relatedThreadId === relatedThreadId;
+                        }
+                    );
+                    if (existingThread) {
+                        return existingThread;
+                    }
+
+                    try {
+                        return await this.createThread({
+                            relatedThreadModel: relatedThreadModel,
+                            relatedThreadId: relatedThreadId,
+                        });
+                    } catch (error) {
+                        console.error('Failed to create thread for related model:', error);
+                    }
+                }
+
+                if (this.threads.length > 0) {
+                    return this.threads[0];
+                }
+
+                try {
+                    return await this.createThread({});
+                } catch (error) {
+                    console.error('Failed to create default thread:', error);
+                    return null;
+                }
+            }
+
+            async createNewThread() {
+                try {
+                    const thread = await this.createThread({});
+                    if (thread) {
+                        this.selectThread(thread.id);
+                    }
+                } catch (error) {
+                    console.error('Failed to create new thread:', error);
+                }
+            }
+
+            async initializeLLMChat(action, initActiveId, postInitializationPromises) {
+                postInitializationPromises = postInitializationPromises || [];
+                const winId =
+                    (action.context && action.context.default_chat_window_id) ||
+                    (action.params && action.params.default_chat_window_id) ||
+                    null;
+                const scopeKey = action.id + '|' + (winId != null ? String(winId) : '');
+                const scopeChanged = this.chatInitScopeKey !== scopeKey;
+
+                this.update({
+                    relatedThreadModel: clear(),
+                    relatedThreadId: clear(),
+                    scopedChatWindowId: winId || clear(),
+                    llmChatView: [['create', {
+                        actionId: action.id,
+                    }]],
+                    initActiveId: initActiveId,
+                });
+                if (scopeChanged) {
+                    this.update({ isInitThreadHandled: false, chatInitScopeKey: scopeKey });
+                }
+
+                await this.async(() => llmEnvUtils.waitMessagingReady(this.env));
+                await this.loadLLMModels();
+                await this.loadThreads();
+                await this.loadTools();
+
+                if (postInitializationPromises.length > 0) {
+                    await Promise.all(postInitializationPromises);
+                }
+
+                if (!this.isInitThreadHandled) {
+                    this.update({ isInitThreadHandled: true });
+                    if (winId) {
+                        await this.createThreadFromChatWindow(winId);
+                    } else if (!this.activeThread) {
+                        await this.openInitThread();
+                    }
+                }
+                if (this.activeThread && this.activeThread.id) {
+                    await this.refreshThread(this.activeThread.id);
+                }
+            }
+
+            async createThreadFromChatWindow(windowId) {
+                try {
+                    await this.loadThreads([], []);
+                    if (this.orderedThreads && this.orderedThreads.length > 0) {
+                        await this.selectThread(this.orderedThreads[0].id);
+                        return;
+                    }
+                    const threadId = await this.async(() => this.env.services.rpc({
+                        model: 'llm.thread',
+                        method: 'create',
+                        args: [{ chat_window_id: windowId }],
+                    }));
+                    await this.loadThreads([], []);
+                    await this.selectThread(threadId);
+                } catch (e) {
+                    console.error('createThreadFromChatWindow', e);
+                    llmEnvUtils.llmNotify(this.env, {
+                        message: this.env._t('No se pudo crear el chat desde la ventana.'),
+                        type: 'danger',
+                    });
+                    await this.openInitThread();
+                }
+            }
+
+            async loadTools() {
+                try {
+                    const result = await this.async(() => this.env.services.rpc({
+                        model: 'llm.tool',
+                        method: 'search_read',
+                        kwargs: {
+                            domain: [['active', '=', true]],
+                            fields: ['name', 'id', 'default'],
+                        },
+                    }));
+
+                    const LLMTool = this.env.models['mail.llm_tool'];
+                    const records = [];
+                    for (let i = 0; i < result.length; i++) {
+                        const tool = result[i];
+                        const data = {
+                            id: tool.id,
+                            name: tool.name,
+                            default: Boolean(tool.default),
+                            llmChat: [['link', this]],
+                        };
+                        let rec = LLMTool.findFromIdentifyingData({ id: tool.id });
+                        if (rec) {
+                            rec.update(data);
+                        } else {
+                            rec = LLMTool.insert(data);
+                        }
+                        records.push(rec);
+                    }
+                    this.update({ tools: [['replace', records]] });
+                } catch (error) {
+                    console.error('Error loading tools:', error);
+                    return [];
+                }
+            }
+
+            _computeOrderedThreads() {
+                if (!this.threads || !this.threads.length) {
+                    return clear();
+                }
+                const sorted = this.threads.slice().sort(function (a, b) {
+                    const dateA = a.updatedAt
+                        ? new Date(a.updatedAt.replace(' ', 'T'))
+                        : new Date(0);
+                    const dateB = b.updatedAt
+                        ? new Date(b.updatedAt.replace(' ', 'T'))
+                        : new Date(0);
+                    return dateB - dateA;
+                });
+                return [['replace', sorted]];
+            }
+
+            _computeThreadCache() {
+                if (!this.activeThread) {
+                    return clear();
+                }
+                return [['link', this.activeThread.cache('[]')]];
+            }
         }
-        return;
-      }
 
-      const [model, id] =
-        typeof this.initActiveId === "number"
-          ? ["llm.thread", this.initActiveId]
-          : this.initActiveId.split("_");
-      const threadId = Number(id);
-      let thread = this.messaging.models.Thread.findFromIdentifyingData({
-        id: threadId,
-        model,
-      });
-      if (!thread) {
-        try {
-          const result = await this.messaging.rpc({
-            model: "llm.thread",
-            method: "search_read",
-            kwargs: {
-              domain: [["id", "=", threadId]],
-              fields: THREAD_SEARCH_FIELDS,
-            },
-          });
-          if (result && result.length) {
-            const mapped = this._mapThreadDataFromServer(result[0]);
-            thread = this.messaging.models.Thread.insert({
-              ...mapped,
-              llmChat: this,
-            });
-          }
-        } catch (e) {
-          console.error("openInitThread", e);
-        }
-      }
-      if (!thread && this.threads.length > 0) {
-        await this.selectThread(this.threads[0].id);
-      } else if (thread) {
-        await this.selectThread(thread.id);
-      }
-    },
+        LLMChat.modelName = 'mail.llm_chat';
 
-    /**
-     * Opens a specific thread in the LLM chat UI.
-     * @param {Thread} thread
-     */
-    async openThread(thread) {
-      this.update({ thread });
-      if (!this.llmChatView) {
-        this.env.services.action.doAction("llm_thread.action_llm_chat", {
-          name: this.env._t("Chat"),
-          active_id: this.threadToActiveId(thread),
-          clearBreadcrumbs: false,
-        });
-      }
-    },
-
-    /**
-     * Formats a thread into an active ID string.
-     * @param {Thread} thread
-     * @returns {String}
-     */
-    threadToActiveId(thread) {
-      return `${thread.model}_${thread.id}`;
-    },
-
-    /**
-     * Load threads from the server for the current user.
-     * @param {Array} [additionalFields=[]] - Additional fields to fetch
-     * @param {Array} [domain=[]] - Additional domain criteria for filtering
-     */
-    async loadThreads(additionalFields = [], domain = []) {
-      const defaultDomain = [["create_uid", "=", this.env.services.user.userId]];
-      const scopeDomain = [];
-      if (this.scopedChatWindowId) {
-        scopeDomain.push(["chat_window_id", "=", this.scopedChatWindowId]);
-      }
-      const finalDomain = [...defaultDomain, ...scopeDomain, ...domain];
-
-      const result = await this.messaging.rpc({
-        model: "llm.thread",
-        method: "search_read",
-        kwargs: {
-          domain: finalDomain,
-          fields: [...THREAD_SEARCH_FIELDS, ...additionalFields],
-          order: "write_date desc",
-        },
-      });
-
-      const threadData = result.map((thread) =>
-        this._mapThreadDataFromServer(thread)
-      );
-      this.update({ threads: threadData });
-    },
-
-    /**
-     * Maps server thread data to the format expected by the Thread model
-     * @param {Object} threadData - Raw thread data from server
-     * @returns {Object} - Formatted thread data
-     * @private
-     */
-    _mapThreadDataFromServer(threadData) {
-      const rawName = threadData.name;
-      const safeName =
-        rawName !== undefined &&
-        rawName !== null &&
-        String(rawName).trim() !== ""
-          ? String(rawName).trim()
-          : `New Chat #${threadData.id}`;
-      const mappedData = {
-        id: threadData.id,
-        model: "llm.thread",
-        name: safeName,
-        message_needaction_counter: 0,
-        creator: threadData.create_uid
-          ? { id: threadData.create_uid }
-          : undefined,
-        isServerPinned: true,
-        updatedAt: threadData.write_date,
-        relatedThreadModel: threadData.model,
-        relatedThreadId: threadData.res_id,
-        selectedToolIds: threadData.tool_ids || [],
-        promptId: threadData.prompt_id || null,
-        chatWindowId: (() => {
-          const cw = threadData.chat_window_id;
-          if (cw === undefined || cw === false || cw === null) {
-            return null;
-          }
-          if (Array.isArray(cw)) {
-            return cw[0];
-          }
-          return cw;
-        })(),
-        hideThreadSettings: Boolean(threadData.hide_thread_settings),
-      };
-
-      // Handle the llmModel field separately to avoid undefined errors
-      if (threadData.model_id && threadData.provider_id) {
-        mappedData.llmModel = {
-          id: threadData.model_id[0],
-          name: threadData.model_id[1],
-          llmProvider: {
-            id: threadData.provider_id[0],
-            name: threadData.provider_id[1],
-          },
+        LLMChat.fields = {
+            activeId: attr({
+                compute: '_computeActiveId',
+                dependencies: ['activeThread'],
+            }),
+            llmChatView: one2one('mail.llm_chat_view', {
+                inverse: 'llmChat',
+                isCausal: true,
+            }),
+            isInitThreadHandled: attr({ default: false }),
+            initActiveId: attr({ default: null }),
+            activeThread: many2one('mail.thread', {
+                inverse: 'activeLLMChat',
+            }),
+            threads: one2many('mail.thread', {
+                inverse: 'llmChat',
+            }),
+            orderedThreads: many2many('mail.thread', {
+                compute: '_computeOrderedThreads',
+                dependencies: ['threads'],
+                inverse: 'llmChatOrderedThreads',
+            }),
+            threadCache: many2one('mail.thread_cache', {
+                compute: '_computeThreadCache',
+                dependencies: ['activeThread'],
+            }),
+            llmModels: one2many('mail.llm_model', {
+                inverse: 'llmChat',
+            }),
+            llmProviders: many2many('mail.llm_provider', {
+                compute: '_computeLlmProviders',
+                dependencies: ['llmModels'],
+                inverse: 'llmChats',
+            }),
+            defaultLLMModel: many2one('mail.llm_model', {
+                compute: '_computeDefaultLLMModel',
+                dependencies: ['llmModels', 'activeThread'],
+            }),
+            tools: one2many('mail.llm_tool', {
+                inverse: 'llmChat',
+            }),
+            llmAnalyzingToolName: attr({ default: null }),
+            scopedChatWindowId: attr({ default: null }),
+            chatInitScopeKey: attr({ default: '' }),
+            isSystrayFloatingMode: attr({ default: false }),
+            relatedThreadModel: attr(),
+            relatedThreadId: attr(),
+            isChatterMode: attr({
+                compute: '_computeIsChatterMode',
+                dependencies: ['relatedThreadModel', 'relatedThreadId'],
+            }),
+            messaging: one2one('mail.messaging', {
+                inverse: 'llmChat',
+            }),
         };
-      }
 
-      return mappedData;
-    },
+        LLMChat.prototype._computeActiveId = function () {
+            return this.activeThread
+                ? this.threadToActiveId(this.activeThread)
+                : clear();
+        };
 
-    /**
-     * Refreshes a specific thread in the threads collection.
-     * @param {Number} threadId - ID of the thread to refresh
-     * @param {Array} [additionalFields=[]] - Additional fields to fetch
-     * @returns {Promise<void>}
-     */
-    async refreshThread(threadId, additionalFields = []) {
-      try {
-        const result = await this.messaging.rpc({
-          model: "llm.thread",
-          method: "search_read",
-          kwargs: {
-            domain: [["id", "=", threadId]],
-            fields: [...THREAD_SEARCH_FIELDS, ...additionalFields],
-          },
-        });
+        LLMChat.prototype._computeIsChatterMode = function () {
+            return Boolean(this.relatedThreadModel && this.relatedThreadId);
+        };
 
-        if (!result || !result.length) {
-          return;
-        }
+        LLMChat.prototype._computeLlmProviders = function () {
+            if (!this.llmModels || !this.llmModels.length) {
+                return [['replace', []]];
+            }
+            const providers = this.llmModels
+                .map(function (m) { return m && m.llmProvider ? m.llmProvider : null; })
+                .filter(function (p) { return p && p.id; });
+            const uniq = [];
+            const seen = {};
+            providers.forEach(function (p) {
+                if (!seen[p.id]) {
+                    seen[p.id] = true;
+                    uniq.push(p);
+                }
+            });
+            return [['replace', uniq]];
+        };
 
-        const mappedThreadData = this._mapThreadDataFromServer(result[0]);
+        LLMChat.prototype._computeDefaultLLMModel = function () {
+            if (!this.llmModels || !this.llmModels.length) {
+                return clear();
+            }
+            const activeModel = this.activeThread && this.activeThread.llmModel;
+            if (activeModel) {
+                const found = this.llmModels.find(function (m) { return m && m.id === activeModel.id; });
+                return found ? [['link', found]] : clear();
+            }
+            const markedDefault = this.llmModels.find(function (m) { return m && m.default; });
+            if (markedDefault) {
+                return [['link', markedDefault]];
+            }
+            return this.llmModels[0] ? [['link', this.llmModels[0]]] : clear();
+        };
 
-        // Actualizar el registro Thread aunque aún no esté en this.threads (p. ej. recién creado)
-        const threadRecord =
-          this.messaging.models.Thread.findFromIdentifyingData({
-            id: threadId,
-            model: "llm.thread",
-          });
-        if (threadRecord) {
-          threadRecord.update(mappedThreadData);
-        }
-      } catch (error) {
-        console.error("Error refreshing thread:", error);
-      }
-    },
+        return LLMChat;
+    }
 
-    /**
-     * Selects a thread by ID as the active thread.
-     * @param {Number} threadId
-     */
-    async selectThread(threadId) {
-      const thread = this.messaging.models.Thread.findFromIdentifyingData({
-        id: threadId,
-        model: "llm.thread",
-      });
-      if (thread) {
-        // Sincroniza nombre y campos con el servidor para evitar títulos obsoletos o "New Chat" fantasma
-        await this.refreshThread(threadId);
-        this.update({ activeThread: thread });
-      }
-    },
+    registerNewModel('mail.llm_chat', factory);
 
-    /**
-     * Opens the LLM chat view.
-     */
-    open() {
-      this.update({ llmChatView: {} });
-    },
-
-    /**
-     * Loads LLM models from the server.
-     */
-    async loadLLMModels() {
-      const result = await this.messaging.rpc({
-        model: "llm.model",
-        method: "search_read",
-        kwargs: {
-          domain: [],
-          fields: ["name", "id", "provider_id", "default"],
-        },
-      });
-
-      const llmModelData = result.map((model) => ({
-        id: model.id,
-        name: model.name,
-        llmProvider: model.provider_id
-          ? { id: model.provider_id[0], name: model.provider_id[1] }
-          : undefined,
-        default: model.default,
-      }));
-
-      this.update({ llmModels: llmModelData });
-    },
-
-    /**
-     * Creates a new thread with optional related thread info.
-     * @param {Object} params - Thread creation parameters
-     * @param {String} params.name - Thread name
-     * @param {String} [params.relatedThreadModel] - Related thread model
-     * @param {Number} [params.relatedThreadId] - Related thread ID
-     * @returns {Promise<Object|null>} The created thread or null if failed
-     * @throws {Error} If no LLM model is available
-     */
-    async createThread({ name, relatedThreadModel, relatedThreadId }) {
-      const defaultModel = this.defaultLLMModel;
-      if (!defaultModel) {
-        this.messaging.notify({
-          title: "No LLMModel available",
-          message: "Please add a new LLMModel to use this feature",
-          type: "warning",
-        });
-        // Throw an error instead of returning null to make the failure more explicit
-        throw new Error("No LLM model available");
-      }
-
-      const threadData = {
-        model_id: defaultModel.id,
-        provider_id: defaultModel.llmProvider.id,
-      };
-      if (
-        name !== undefined &&
-        name !== null &&
-        String(name).trim() !== ""
-      ) {
-        threadData.name = name;
-      }
-      if (this.scopedChatWindowId) {
-        threadData.chat_window_id = this.scopedChatWindowId;
-      }
-      if (relatedThreadModel && relatedThreadId) {
-        threadData.model = relatedThreadModel;
-        threadData.res_id = relatedThreadId;
-      }
-
-      const threadId = await this.messaging.rpc({
-        model: "llm.thread",
-        method: "create",
-        args: [[threadData]],
-      });
-
-      const threadDetails = await this.messaging.rpc({
-        model: "llm.thread",
-        method: "read",
-        args: [[threadId], ["name", "model_id", "provider_id", "write_date"]],
-      });
-
-      if (!threadDetails || !threadDetails[0]) {
-        this.messaging.notify({
-          title: "Error",
-          message: "Failed to create thread",
-          type: "danger",
-        });
-        return null;
-      }
-
-      const thread = this.messaging.models.Thread.insert({
-        id: threadId,
-        model: "llm.thread",
-        name: threadDetails[0].name,
-        message_needaction_counter: 0,
-        isServerPinned: true,
-        llmModel: defaultModel,
-        llmChat: this,
-        updatedAt: threadDetails[0].write_date,
-        ...(this.scopedChatWindowId && {
-          chatWindowId: this.scopedChatWindowId,
+    // Parche de mail.messaging en el mismo módulo que registra mail.llm_chat (orden seguro).
+    registerFieldPatchModel('mail.messaging', 'llm_thread/static/src/models/llm_chat.js', {
+        llmChat: one2one('mail.llm_chat', {
+            default: [['create']],
+            inverse: 'messaging',
+            isCausal: true,
         }),
-        ...(relatedThreadModel && { relatedThreadModel }),
-        ...(relatedThreadId && { relatedThreadId }),
-      });
-
-      return thread;
-    },
-
-    /**
-     * Ensure basic LLM data (models, tools) is loaded.
-     * This is a reusable helper to avoid duplicating data loading logic.
-     * @returns {Promise<void>}
-     */
-    async ensureDataLoaded() {
-      if (this.llmModels.length === 0) {
-        await this.loadLLMModels();
-      }
-      if (!this.tools || this.tools.length === 0) {
-        await this.loadTools();
-      }
-    },
-
-    /**
-     * Ensures LLM models and threads are loaded, creating a thread if needed.
-     * @param {Object} [options] - Optional parameters
-     * @param {String} [options.relatedThreadModel] - Related thread model
-     * @param {Number} [options.relatedThreadId] - Related thread ID
-     * @param {Boolean} [options.forceReload] - Force reload threads (for context switches)
-     * @returns {Promise<Object|null>} The active or created thread
-     */
-    async ensureThread({ relatedThreadModel, relatedThreadId, forceReload = false } = {}) {
-      await this.ensureDataLoaded();
-
-      // Build domain for filtering (if in chatter mode)
-      const domain = [];
-      if (relatedThreadModel && relatedThreadId) {
-        domain.push(["model", "=", relatedThreadModel]);
-        domain.push(["res_id", "=", relatedThreadId]);
-      }
-
-      // Check if context changed BEFORE updating
-      const contextChanged = relatedThreadModel &&
-        (this.relatedThreadModel !== relatedThreadModel ||
-         this.relatedThreadId !== relatedThreadId);
-
-      // Update context if provided
-      if (relatedThreadModel !== undefined || relatedThreadId !== undefined) {
-        this.update({
-          relatedThreadModel: relatedThreadModel || this.relatedThreadModel,
-          relatedThreadId: relatedThreadId !== undefined ? relatedThreadId : this.relatedThreadId,
-        });
-      }
-
-      // Load threads if needed
-      if (this.threads.length === 0 || forceReload || contextChanged) {
-        await this.loadThreads([], domain);
-      }
-
-      if (relatedThreadModel && relatedThreadId) {
-        const existingThread = this.threads.find(
-          (thread) =>
-            thread.relatedThreadModel === relatedThreadModel &&
-            thread.relatedThreadId === relatedThreadId
-        );
-        if (existingThread) {
-          return existingThread;
-        }
-
-        try {
-          // Don't pass name - let backend generate it from record display_name
-          return await this.createThread({
-            relatedThreadModel,
-            relatedThreadId,
-          });
-        } catch (error) {
-          console.error("Failed to create thread for related model:", error);
-          // Fall through to use existing threads or create a generic thread
-        }
-      }
-
-      if (this.threads.length > 0) {
-        return this.threads[0];
-      }
-
-      try {
-        // Don't pass name - let backend generate default "New Chat"
-        return await this.createThread({});
-      } catch (error) {
-        console.error("Failed to create default thread:", error);
-        return null;
-      }
-    },
-
-    async createNewThread() {
-      try {
-        // Don't pass name - let backend generate default "New Chat"
-        const thread = await this.createThread({});
-        if (thread) {
-          this.selectThread(thread.id);
-        }
-      } catch (error) {
-        console.error("Failed to create new thread:", error);
-        // Error notification is already shown in createThread
-      }
-    },
-
-    /**
-     * Initialize the LLM chat with the given action.
-     * @param {Object} action - The action that triggered the initialization
-     * @param {Number} initActiveId - The ID of the thread to initialize with
-     * @param {Array} [postInitializationPromises=[]] - Additional promises to execute after loading basic resources
-     */
-    async initializeLLMChat(
-      action,
-      initActiveId,
-      postInitializationPromises = []
-    ) {
-      const winId =
-        action.context?.default_chat_window_id ||
-        action.params?.default_chat_window_id ||
-        null;
-      const scopeKey = `${action.id}|${winId != null ? String(winId) : ""}`;
-      const scopeChanged = this.chatInitScopeKey !== scopeKey;
-
-      // Clear chatter context when opening standalone LLM chat
-      // This ensures we don't carry over chatter state from background forms
-      this.update({
-        relatedThreadModel: clear(),
-        relatedThreadId: clear(),
-        scopedChatWindowId: winId || clear(),
-        llmChatView: {
-          actionId: action.id,
-        },
-        initActiveId,
-        ...(scopeChanged
-          ? { isInitThreadHandled: false, chatInitScopeKey: scopeKey }
-          : {}),
-      });
-
-      // Wait for messaging to be initialized
-      await this.messaging.initializedPromise;
-      await this.loadLLMModels();
-      // Load threads first (filtrados por ventana si aplica)
-      await this.loadThreads();
-      await this.loadTools();
-
-      // Execute any additional initialization promises
-      if (postInitializationPromises.length > 0) {
-        await Promise.all(postInitializationPromises);
-      }
-
-      // Then handle initial thread
-      if (!this.isInitThreadHandled) {
-        this.update({ isInitThreadHandled: true });
-        if (winId) {
-          await this.createThreadFromChatWindow(winId);
-        } else if (!this.activeThread) {
-          await this.openInitThread();
-        }
-      }
-      // Refresco final: al abrir por menú / F5 el título y M2O quedan alineados con el servidor
-      if (this.activeThread?.id) {
-        await this.refreshThread(this.activeThread.id);
-      }
-    },
-
-    /**
-     * Crea un hilo ligado a llm.chat.window (ventana preconfigurada).
-     */
-    async createThreadFromChatWindow(windowId) {
-      try {
-        await this.loadThreads([], []);
-        if (this.orderedThreads && this.orderedThreads.length > 0) {
-          await this.selectThread(this.orderedThreads[0].id);
-          return;
-        }
-        const threadId = await this.messaging.rpc({
-          model: "llm.thread",
-          method: "create",
-          args: [
-            [
-              {
-                chat_window_id: windowId,
-              },
-            ],
-          ],
-        });
-        await this.loadThreads([], []);
-        await this.selectThread(threadId);
-      } catch (e) {
-        console.error("createThreadFromChatWindow", e);
-        this.messaging.notify({
-          message: this.env._t("No se pudo crear el chat desde la ventana."),
-          type: "danger",
-        });
-        await this.openInitThread();
-      }
-    },
-
-    /**
-     * Load tools from the server
-     */
-    async loadTools() {
-      try {
-        const result = await this.messaging.rpc({
-          model: "llm.tool",
-          method: "search_read",
-          kwargs: {
-            domain: [["active", "=", true]],
-            fields: ["name", "id", "default"],
-          },
-        });
-
-        const toolData = result.map((tool) => ({
-          id: tool.id,
-          name: tool.name,
-          default: Boolean(tool.default),
-        }));
-
-        this.update({ tools: toolData });
-      } catch (error) {
-        console.error("Error loading tools:", error);
-        return [];
-      }
-    },
-  },
-  fields: {
-    activeId: attr({
-      compute() {
-        return this.activeThread
-          ? this.threadToActiveId(this.activeThread)
-          : clear();
-      },
-    }),
-    llmChatView: one("LLMChatView", { inverse: "llmChat", isCausal: true }),
-    isInitThreadHandled: attr({ default: false }),
-    initActiveId: attr({ default: null }),
-    activeThread: one("Thread", { inverse: "activeLLMChat" }),
-    threads: many("Thread", { inverse: "llmChat" }),
-    orderedThreads: many("Thread", {
-      compute() {
-        if (!this.threads) return clear();
-        return this.threads.slice().sort((a, b) => {
-          const dateA = a.updatedAt
-            ? new Date(a.updatedAt.replace(" ", "T"))
-            : new Date(0);
-          const dateB = b.updatedAt
-            ? new Date(b.updatedAt.replace(" ", "T"))
-            : new Date(0);
-          return dateB - dateA;
-        });
-      },
-    }),
-    threadCache: one("ThreadCache", {
-      compute() {
-        return this.activeThread ? { thread: this.activeThread } : clear();
-      },
-    }),
-    llmModels: many("LLMModel"),
-    llmProviders: many("LLMProvider", {
-      compute() {
-        if (!this.llmModels || !Array.isArray(this.llmModels)) {
-          return [];
-        }
-        const providers = this.llmModels
-          .map((m) => (m && m.llmProvider ? m.llmProvider : null))
-          .filter((p) => p && p.id);
-        return [...new Map(providers.map((p) => [p.id, p])).values()];
-      },
-    }),
-    defaultLLMModel: one("LLMModel", {
-      compute() {
-        if (!this.llmModels || !Array.isArray(this.llmModels)) {
-          return clear();
-        }
-        const activeModel = this.activeThread?.llmModel;
-        if (activeModel) {
-          const found = this.llmModels.find((m) => m && m.id === activeModel.id);
-          return found ? found : clear();
-        }
-        const markedDefault = this.llmModels.find((m) => m && m.default);
-        if (markedDefault) {
-          return markedDefault;
-        }
-        return this.llmModels.length > 0 && this.llmModels[0]
-          ? this.llmModels[0]
-          : clear();
-      },
-    }),
-    tools: many("LLMTool"),
-    /** Nombre de tool en ejecución (mostrar “Analizando…”) */
-    llmAnalyzingToolName: attr({ default: null }),
-    /** Si se abre desde un menú de llm.chat.window, solo se listan hilos de esa ventana. */
-    scopedChatWindowId: attr({ default: null }),
-    /** Evita mezclar hilos al cambiar de acción cliente / ventana. */
-    chatInitScopeKey: attr({ default: "" }),
-    /** Panel compacto desde el icono de la barra superior (systray). */
-    isSystrayFloatingMode: attr({ default: false }),
-    // Context tracking for chatter mode
-    relatedThreadModel: attr(),
-    relatedThreadId: attr(),
-    isChatterMode: attr({
-      compute() {
-        return Boolean(this.relatedThreadModel && this.relatedThreadId);
-      },
-    }),
-  },
+        llmChatActiveThread: many2one('mail.thread', {
+            related: 'llmChat.activeThread',
+        }),
+    });
 });

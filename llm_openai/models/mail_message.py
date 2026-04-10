@@ -139,11 +139,21 @@ class MailMessage(models.Model):
             else:
                 content = ""
 
+            tool_name = tool_data.get("tool_name", "unknown")
             formatted_message = {
                 "role": "tool",
                 "tool_call_id": tool_call_id,
                 "content": content,
+                "name": tool_name,
             }
+
+            _logger.info(
+                "OpenAI Format: tool msg id=%s, tool_name=%s, tool_call_id=%s, "
+                "content_len=%d, content_snippet=%.200s",
+                self.id, tool_name, tool_call_id,
+                len(content), content[:200],
+            )
+
             return formatted_message
         else:
             return None

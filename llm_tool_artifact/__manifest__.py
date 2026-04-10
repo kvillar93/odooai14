@@ -2,7 +2,7 @@
 {
     "name": "LLM Tool Artefactos",
     "summary": "Gráficos, Excel, PDF y Word desde tools de IA",
-    "version": "16.0.1.0.0",
+    "version": "14.0.1.0.0",
     "depends": ["llm_tool", "web"],
     "external_dependencies": {
         "python": ["xlsxwriter", "matplotlib"],

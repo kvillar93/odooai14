@@ -1,64 +1,76 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
+    <!-- Widget template: <li> con icono siempre visible (patrón web_progress) -->
+    <t t-name="llm_thread.LLMFloatingSystrayWidget">
+        <li class="o_llm_floating_systray_item">
+            <a class="dropdown-toggle o-no-caret" data-toggle="dropdown" data-display="static"
+               aria-expanded="false" title="Chat IA flotante" href="#" role="button">
+                <i class="fa fa-lg fa-magic"/>
+            </a>
+        </li>
+    </t>
+
+    <!-- Sub-componente OWL: listado de hilos en el dropdown -->
     <t t-name="llm_thread.LLMFloatingSystrayMenuBody" owl="1">
+        <div class="o_llm_floating_systray_body d-flex flex-column h-100">
         <div class="o_llm_floating_systray_head border-bottom p-2">
             <input
                 type="search"
                 class="form-control form-control-sm"
                 t-att-placeholder="env._t('Buscar por título…')"
-                t-att-value="props.systray.state.search"
-                t-on-input="props.systray.onSearchInput"
+                t-att-value="systray.state.search"
+                t-on-input="_onSearchInput"
             />
             <button
                 type="button"
-                class="btn btn-sm btn-link w-100 mt-1 text-start"
+                class="btn btn-sm btn-link w-100 mt-1 text-left"
                 t-on-click="onClickNewChat"
             >
-                <i class="fa fa-plus me-1"/> <t t-esc="env._t('Nuevo chat')"/>
+                <i class="fa fa-plus mr-1"/> <t t-esc="env._t('Nuevo chat')"/>
             </button>
         </div>
         <div class="o_llm_floating_systray_list overflow-auto flex-grow-1 min-h-0">
-            <t t-if="props.systray.state.loadingThreads">
+            <t t-if="systray.state.loadingThreads">
                 <div class="p-3 text-muted text-center">
-                    <i class="fa fa-circle-o-notch fa-spin me-1"/>
+                    <i class="fa fa-circle-o-notch fa-spin mr-1"/>
                     <t t-esc="env._t('Cargando…')"/>
                 </div>
             </t>
-            <t t-elif="props.systray.state.searchingRemote">
+            <t t-elif="systray.state.searchingRemote">
                 <div class="p-3 text-muted text-center small">
-                    <i class="fa fa-circle-o-notch fa-spin me-1"/>
+                    <i class="fa fa-circle-o-notch fa-spin mr-1"/>
                     <t t-esc="env._t('Buscando…')"/>
                 </div>
             </t>
-            <t t-elif="!props.systray.displayedThreads.length">
+            <t t-elif="!systray.displayedThreads.length">
                 <div class="p-3 text-muted small text-center">
                     <t t-esc="env._t('No hay conversaciones.')"/>
                 </div>
             </t>
             <t t-else="">
-                <t t-foreach="props.systray.displayedThreads" t-as="th" t-key="th.id">
+                <t t-foreach="systray.displayedThreads" t-as="th" t-key="th.id">
                     <div
                         class="dropdown-item o_llm_floating_systray_thread px-3 py-2 cursor-pointer"
                         role="menuitem"
                         t-att-data-thread-id="th.id"
                         t-on-click="onClickThreadRow"
                     >
-                        <div class="text-truncate fw-bold" t-esc="th.name"/>
+                        <div class="text-truncate font-weight-bold" t-esc="th.name"/>
                         <div class="small text-muted" t-if="th.write_date">
                             <t t-esc="th.write_date"/>
                         </div>
                     </div>
                 </t>
-                <t t-if="props.systray.state.hasMoreBrowse and !props.systray.state.searchMode">
+                <t t-if="systray.state.hasMoreBrowse and !systray.state.searchMode">
                     <div class="border-top p-2">
                         <button
                             type="button"
                             class="btn btn-sm btn-outline-primary w-100"
-                            t-att-disabled="props.systray.state.loadingMore"
+                            t-att-disabled="systray.state.loadingMore"
                             t-on-click="onClickLoadMore"
                         >
-                            <t t-if="props.systray.state.loadingMore">
-                                <i class="fa fa-circle-o-notch fa-spin me-1"/>
+                            <t t-if="systray.state.loadingMore">
+                                <i class="fa fa-circle-o-notch fa-spin mr-1"/>
                             </t>
                             <t t-esc="env._t('Cargar más')"/>
                         </button>
@@ -66,23 +78,14 @@
                 </t>
             </t>
         </div>
+        </div>
     </t>
 
+    <!-- OWL principal: dropdown-menu + panel flotante, se monta dentro del <li> del Widget -->
     <t t-name="llm_thread.LLMFloatingSystray" owl="1">
-        <t t-if="state.showSystray">
-            <div class="o_llm_floating_systray_wrap">
-            <div class="o_llm_floating_systray_inner d-flex align-items-center">
-                <Dropdown t-props="dropdownSystrayProps">
-                    <t t-set-slot="toggler">
-                        <i
-                            class="fa fa-lg fa-magic"
-                            role="img"
-                            t-att-aria-label="env._t('Chat IA flotante')"
-                            t-att-title="env._t('Chat IA flotante')"
-                        />
-                    </t>
-                    <LLMFloatingSystrayMenuBody t-props="menuBodyProps"/>
-                </Dropdown>
+        <div class="o_llm_floating_systray_owl_root">
+            <div class="dropdown-menu dropdown-menu-right p-0 o_llm_floating_systray_menu">
+                <LLMFloatingSystrayMenuBody systray="systray"/>
             </div>
 
             <t t-if="canShowFloatingPanel">
@@ -95,7 +98,7 @@
                         t-on-click="onClickFloatingHeaderBar"
                     >
                         <span
-                            class="text-truncate flex-grow-1 fw-bold small"
+                            class="text-truncate flex-grow-1 font-weight-bold small"
                             t-esc="floatingPanelTitle"
                             t-att-title="floatingPanelTitle"
                         />
@@ -158,7 +161,6 @@
                     </div>
                 </div>
             </t>
-            </div>
-        </t>
+        </div>
     </t>
 </templates>

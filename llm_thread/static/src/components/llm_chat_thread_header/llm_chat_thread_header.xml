@@ -8,7 +8,7 @@
             <!-- Lista de hilos: hamburguesa en móvil y siempre en popup flotante -->
             <button
         t-if="showThreadListHamburger"
-        class="o_ThreadViewTopbar_button btn px-2 border-none rounded shadow-none me-2 flex-shrink-0"
+        class="o_ThreadViewTopbar_button btn px-2 border-none rounded shadow-none mr-2 flex-shrink-0"
         t-on-click="_onToggleThreadList"
         t-att-title="env._t('Mostrar u ocultar conversaciones')"
         type="button"
@@ -23,11 +23,11 @@
             <!-- Nombre del hilo (oculto en popup flotante: ya se muestra en la cabecera morada) -->
             <div
         t-if="!useCompactHeaderIcons"
-        class="o_ThreadViewTopbar_title d-flex flex-grow-1 align-items-center min-w-0 me-2"
+        class="o_ThreadViewTopbar_title d-flex flex-grow-1 align-items-center min-w-0 mr-2"
       >
                 <t t-if="!llmChatThreadHeaderView.isEditingName || isSmall">
                     <div
-            class="o_ThreadViewTopbar_threadName o_ThreadViewTopbar_editableItem lead flex-shrink-1 px-1 border text-truncate fw-bold"
+            class="o_ThreadViewTopbar_threadName o_ThreadViewTopbar_editableItem lead flex-shrink-1 px-1 border text-truncate font-weight-bold"
             t-att-title="displayThreadName"
             t-on-click="llmChatThreadHeaderView.onClickTopbarThreadName"
             t-attf-class="{{ isSmall ? 'border-0' : 'border-light' }}"
@@ -38,7 +38,7 @@
                 </t>
                 <t t-if="llmChatThreadHeaderView.isEditingName and !isSmall">
                     <input
-            class="o_ThreadViewTopbar_threadNameInput form-control lead fw-bold o_input_tooltip flex-shrink-1"
+            class="o_ThreadViewTopbar_threadNameInput form-control lead font-weight-bold o_input_tooltip flex-shrink-1"
             type="text"
             autofocus="autofocus"
             t-att-value="llmChatThreadHeaderView.pendingName"
@@ -46,18 +46,18 @@
             t-on-keydown="onKeyDownThreadNameInput"
             t-ref="threadNameInput"
             title="Press Enter to save, Esc to cancel"
-            data-bs-toggle="tooltip"
-            data-bs-placement="bottom"
+            data-toggle="tooltip"
+            data-placement="bottom"
           />
                     <button
-            class="btn btn-sm btn-primary ms-1"
+            class="btn btn-sm btn-primary ml-1"
             t-on-click="llmChatThreadHeaderView.saveThreadName"
             title="Save"
           >
                         <i class="fa fa-check" />
                     </button>
                     <button
-            class="btn btn-sm btn-secondary ms-1"
+            class="btn btn-sm btn-secondary ml-1"
             t-on-click="llmChatThreadHeaderView.discardThreadNameEdition"
             title="Cancel"
           >
@@ -67,27 +67,27 @@
             </div>
 
             <!-- Enlace a registro (+ Enlace): oculto en popup flotante -->
-            <div t-if="!useCompactHeaderIcons" class="me-2 flex-shrink-0">
+            <div t-if="!useCompactHeaderIcons" class="mr-2 flex-shrink-0">
                 <LLMChatThreadRelatedRecord thread="thread" />
             </div>
 
             <!-- Dropdowns (Desktop) -->
             <div
         t-if="thread and !isSmall and !thread.hideThreadSettings and llmChat and useCompactHeaderIcons"
-        class="o_ThreadDropdowns o_LLMChatThread_header_dropdowns--compact d-flex align-items-center flex-shrink-0 gap-1 ms-auto"
+        class="o_ThreadDropdowns o_LLMChatThread_header_dropdowns--compact d-flex align-items-center flex-shrink-0 o_llm_flex_gap_sm ml-auto"
       >
                 <div class="dropdown">
                     <button
             class="btn btn-sm btn-outline-secondary dropdown-toggle o-no-caret o_LLMChat_headerIconBtn d-flex align-items-center justify-content-center"
             type="button"
-            data-bs-toggle="dropdown"
+            data-toggle="dropdown"
             aria-expanded="false"
             t-att-title="compactProviderTitle"
             t-att-aria-label="compactProviderTitle"
           >
                         <i class="fa fa-cloud text-body"/>
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
+                    <ul class="dropdown-menu dropdown-menu-right">
                         <t
               t-foreach="llmProviders"
               t-as="provider"
@@ -111,7 +111,7 @@
                     <button
             class="btn btn-sm btn-outline-secondary dropdown-toggle o-no-caret o_LLMChat_headerIconBtn d-flex align-items-center justify-content-center"
             type="button"
-            data-bs-toggle="dropdown"
+            data-toggle="dropdown"
             aria-expanded="false"
             t-att-disabled="!llmChatThreadHeaderView.selectedProviderId"
             t-att-title="compactModelTitle"
@@ -120,8 +120,8 @@
                         <i class="fa fa-android text-body" aria-hidden="true"/>
                     </button>
                     <div
-            class="dropdown-menu dropdown-menu-end p-0"
-            data-bs-auto-close="outside"
+            class="dropdown-menu dropdown-menu-right p-0"
+           
             style="min-width: 250px; max-height: 300px; overflow-y: auto;"
           >
                         <div class="p-2 border-bottom">
@@ -170,7 +170,7 @@
                     <button
             class="btn btn-sm btn-outline-secondary dropdown-toggle o-no-caret o_LLMChat_headerIconBtn o_LLMChat_headerIconBtn--withNotify d-flex align-items-center justify-content-center position-relative"
             type="button"
-            data-bs-toggle="dropdown"
+            data-toggle="dropdown"
             aria-expanded="false"
             t-att-title="compactToolsTitle"
             t-att-aria-label="compactToolsTitle"
@@ -183,8 +183,8 @@
                         </t>
                     </button>
                     <div
-            class="dropdown-menu dropdown-menu-end p-2"
-            data-bs-auto-close="outside"
+            class="dropdown-menu dropdown-menu-right p-2"
+           
             style="min-width: 200px;"
           >
                         <h6
@@ -236,9 +236,9 @@
                 <!-- LLM Provider Dropdown -->
                 <div class="dropdown">
                     <button
-            class="btn btn-light dropdown-toggle d-flex align-items-center gap-1"
+            class="btn btn-light dropdown-toggle d-flex align-items-center o_llm_flex_gap_sm"
             type="button"
-            data-bs-toggle="dropdown"
+            data-toggle="dropdown"
             aria-expanded="false"
             style="max-width: 180px;"
           >
@@ -275,11 +275,11 @@
                 </div>
 
                 <!-- LLM Model Searchable Dropdown -->
-                <div class="dropdown ms-2" t-ref="modelDropdown">
+                <div class="dropdown ml-2" t-ref="modelDropdown">
                     <button
-            class="btn btn-light dropdown-toggle d-flex align-items-center gap-1"
+            class="btn btn-light dropdown-toggle d-flex align-items-center o_llm_flex_gap_sm"
             type="button"
-            data-bs-toggle="dropdown"
+            data-toggle="dropdown"
             aria-expanded="false"
             style="max-width: 180px;"
             t-att-disabled="!llmChatThreadHeaderView.selectedProviderId"
@@ -296,10 +296,10 @@
                             </t>
                         </span>
                     </button>
-                    <!-- Add data-bs-auto-close="outside" to keep dropdown open -->
+                    <!-- Add to keep dropdown open -->
                     <div
             class="dropdown-menu p-0"
-            data-bs-auto-close="outside"
+           
             style="min-width: 250px; max-height: 300px; overflow-y: auto;"
           >
                          <!-- Search Input -->
@@ -348,11 +348,11 @@
                 </div>
 
                 <!-- Tools Dropdown -->
-                <div class="dropdown ms-2">
+                <div class="dropdown ml-2">
                     <button
-            class="btn btn-light dropdown-toggle d-flex align-items-center gap-1"
+            class="btn btn-light dropdown-toggle d-flex align-items-center o_llm_flex_gap_sm"
             type="button"
-            data-bs-toggle="dropdown"
+            data-toggle="dropdown"
             aria-expanded="false"
             style="max-width: 120px;"
             title="Select Tools"
@@ -361,15 +361,15 @@
                         <t
               t-if="thread.selectedToolIds and thread.selectedToolIds.length > 0"
             >
-                            <span class="badge bg-secondary ms-1">
+                            <span class="badge bg-secondary ml-1">
                                 <t t-esc="thread.selectedToolIds.length" />
                             </span>
                         </t>
                     </button>
-                    <!-- Add data-bs-auto-close="outside" to keep dropdown open -->
+                    <!-- Add to keep dropdown open -->
                     <div
             class="dropdown-menu p-2"
-            data-bs-auto-close="outside"
+           
             style="min-width: 200px;"
           >
                         <h6
@@ -416,7 +416,7 @@
 
             <!-- Settings Button (Mobile) -->
             <button
-        class="o_ThreadViewTopbar_button btn px-2 border-none rounded shadow-none ms-auto flex-shrink-0"
+        class="o_ThreadViewTopbar_button btn px-2 border-none rounded shadow-none ml-auto flex-shrink-0"
         t-if="isSmall"
         t-on-click="llmChatThreadHeaderView.openThreadSettings"
         title="Settings"

@@ -1,17 +1,21 @@
-/** @odoo-module **/
+odoo.define('llm_thread/static/src/models/main.js', function (require) {
+    'use strict';
 
-// Import all models to ensure they are registered
-import "@llm_thread/models/llm_chat";
-import "@llm_thread/models/llm_chat_view";
-import "@llm_thread/models/messaging";
-import "@llm_thread/models/thread";
-import "@llm_thread/models/composer";
-import "@llm_thread/models/composer_view";
-import "@llm_thread/models/llm_model";
-import "@llm_thread/models/llm_provider";
-import "@llm_thread/models/thread_view";
-import "@llm_thread/models/llm_chat_thread_header_view";
-import "@llm_thread/models/chatter";
-import "@llm_thread/models/message_action";
-import "@llm_thread/models/message_action_list";
-import "@llm_thread/models/message_action_view";
+    require('llm_thread/static/src/js/llm_env_utils.js');
+    require('llm_thread/static/src/models/llm_provider.js');
+    require('llm_thread/static/src/models/llm_model.js');
+    require('llm_thread/static/src/models/llm_tool.js');
+    require('llm_thread/static/src/models/llm_chat.js');
+    require('llm_thread/static/src/models/thread.js');
+    require('llm_thread/static/src/models/thread_viewer_llm.js');
+    require('llm_thread/static/src/models/llm_chat_view.js');
+    require('llm_thread/static/src/models/llm_chat_thread_header_view.js');
+    require('llm_thread/static/src/models/composer.js');
+    require('llm_thread/static/src/models/thread_view.js');
+    require('llm_thread/static/src/models/chatter.js');
+    require('llm_thread/static/src/models/message.js');
+    require('llm_thread/static/src/models/message_action.js');
+    require('llm_thread/static/src/models/message_action_list.js');
+    require('llm_thread/static/src/models/message_action_view.js');
+    require('llm_thread/static/src/models/messaging_notification_handler.js');
+});

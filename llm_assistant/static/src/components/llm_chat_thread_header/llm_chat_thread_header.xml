@@ -1,52 +1,44 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
-    <t
-    t-name="llm_assistant.LLMChatThreadHeader"
-    t-inherit="llm_thread.LLMChatThreadHeader"
-    t-inherit-mode="extension"
-  >
-        <!-- Modo compacto (chat flotante systray): solo icono, mismo estilo que proveedor/modelo/herramientas -->
+    <t t-inherit="llm_thread.LLMChatThreadHeader" t-inherit-mode="extension" owl="1">
         <xpath
-      expr="//div[hasclass('o_LLMChatThread_header_dropdowns--compact')]/div[hasclass('dropdown')][1]"
-      position="before"
-    >
-            <div class="dropdown me-2">
-                <button
-          class="btn btn-sm btn-outline-secondary dropdown-toggle o-no-caret o_LLMChat_headerIconBtn d-flex align-items-center justify-content-center"
-          type="button"
-          data-bs-toggle="dropdown"
-          aria-expanded="false"
-          t-att-title="compactAssistantTitle"
-          t-att-aria-label="compactAssistantTitle"
+            expr="//div[hasclass('o_LLMChatThread_header_dropdowns--compact')]/div[hasclass('dropdown')][1]"
+            position="before"
         >
+            <div class="dropdown mr-2">
+                <button
+                    class="btn btn-sm btn-outline-secondary dropdown-toggle o-no-caret o_LLMChat_headerIconBtn d-flex align-items-center justify-content-center"
+                    type="button"
+                    data-toggle="dropdown"
+                    aria-expanded="false"
+                    t-att-title="compactAssistantTitle"
+                    t-att-aria-label="compactAssistantTitle"
+                >
                     <i class="fa fa-id-badge text-body" aria-hidden="true"/>
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end">
+                <ul class="dropdown-menu dropdown-menu-right">
                     <li>
                         <a
-              class="dropdown-item text-truncate"
-              href="#"
-              t-on-click="onClearAssistant"
-              t-attf-class="{{ !llmChatThreadHeaderView.selectedAssistant ? 'active' : '' }}"
-            >
-                            <i class="fa fa-times me-1" aria-hidden="true"/>
+                            class="dropdown-item text-truncate"
+                            href="#"
+                            t-on-click.prevent="onClearAssistant"
+                            t-attf-class="{{ !llmChatThreadHeaderView.selectedAssistant ? 'active' : '' }}"
+                        >
+                            <i class="fa fa-times mr-1" aria-hidden="true"/>
                             <t t-esc="env._t('Sin asistente predefinido')"/>
                         </a>
                     </li>
                     <li><hr class="dropdown-divider"/></li>
-                    <t
-            t-foreach="llmAssistants"
-            t-as="assistant"
-            t-key="assistant.id"
-          >
+                    <t t-foreach="llmAssistants" t-as="assistant" t-key="assistant.id">
                         <li>
                             <a
-                class="dropdown-item text-truncate"
-                href="#"
-                t-on-click="() => this.onSelectAssistant(assistant)"
-                t-att-title="assistant.name"
-                t-attf-class="{{ llmChatThreadHeaderView.selectedAssistant and llmChatThreadHeaderView.selectedAssistant.id === assistant.id ? 'active' : '' }}"
-              >
+                                class="dropdown-item text-truncate"
+                                href="#"
+                                t-att-data-assistant-id="assistant.id"
+                                t-on-click.prevent="onSelectAssistantFromEvent"
+                                t-att-title="assistant.name"
+                                t-attf-class="{{ llmChatThreadHeaderView.selectedAssistant and llmChatThreadHeaderView.selectedAssistant.id === assistant.id ? 'active' : '' }}"
+                            >
                                 <t t-esc="assistant.name"/>
                             </a>
                         </li>
@@ -54,24 +46,21 @@
                 </ul>
             </div>
         </xpath>
-        <!-- Modo expandido (ventana completa): texto visible -->
         <xpath
-      expr="//div[hasclass('o_ThreadDropdowns--expanded')]/div[hasclass('dropdown')][1]"
-      position="before"
-    >
-            <div class="dropdown me-2">
-                <button
-          class="btn btn-light dropdown-toggle d-flex align-items-center gap-2"
-          type="button"
-          data-bs-toggle="dropdown"
-          aria-expanded="false"
-          style="max-width: 200px;"
+            expr="//div[hasclass('o_ThreadDropdowns--expanded')]/div[hasclass('dropdown')][1]"
+            position="before"
         >
+            <div class="dropdown mr-2">
+                <button
+                    class="btn btn-light dropdown-toggle d-flex align-items-center o_llm_flex_gap_sm"
+                    type="button"
+                    data-toggle="dropdown"
+                    aria-expanded="false"
+                    style="max-width: 200px;"
+                >
                     <div class="text-truncate">
                         <t t-if="llmChatThreadHeaderView.selectedAssistant">
-                            <t
-                t-esc="llmChatThreadHeaderView.selectedAssistant.name"
-              />
+                            <t t-esc="llmChatThreadHeaderView.selectedAssistant.name"/>
                         </t>
                         <t t-else="">
                             <t t-esc="env._t('Seleccionar asistente')"/>
@@ -81,29 +70,26 @@
                 <ul class="dropdown-menu">
                     <li>
                         <a
-              class="dropdown-item text-truncate"
-              href="#"
-              t-on-click="onClearAssistant"
-              t-attf-class="{{ !llmChatThreadHeaderView.selectedAssistant ? 'active' : '' }}"
-            >
-                            <i class="fa fa-times me-1" aria-hidden="true"/>
+                            class="dropdown-item text-truncate"
+                            href="#"
+                            t-on-click.prevent="onClearAssistant"
+                            t-attf-class="{{ !llmChatThreadHeaderView.selectedAssistant ? 'active' : '' }}"
+                        >
+                            <i class="fa fa-times mr-1" aria-hidden="true"/>
                             <t t-esc="env._t('Sin asistente predefinido')"/>
                         </a>
                     </li>
                     <li><hr class="dropdown-divider"/></li>
-                    <t
-            t-foreach="llmAssistants"
-            t-as="assistant"
-            t-key="assistant.id"
-          >
+                    <t t-foreach="llmAssistants" t-as="assistant" t-key="assistant.id">
                         <li>
                             <a
-                class="dropdown-item text-truncate"
-                href="#"
-                t-on-click="() => this.onSelectAssistant(assistant)"
-                t-att-title="assistant.name"
-                t-attf-class="{{ llmChatThreadHeaderView.selectedAssistant and llmChatThreadHeaderView.selectedAssistant.id === assistant.id ? 'active' : '' }}"
-              >
+                                class="dropdown-item text-truncate"
+                                href="#"
+                                t-att-data-assistant-id="assistant.id"
+                                t-on-click.prevent="onSelectAssistantFromEvent"
+                                t-att-title="assistant.name"
+                                t-attf-class="{{ llmChatThreadHeaderView.selectedAssistant and llmChatThreadHeaderView.selectedAssistant.id === assistant.id ? 'active' : '' }}"
+                            >
                                 <t t-esc="assistant.name"/>
                             </a>
                         </li>

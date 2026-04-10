@@ -1,53 +1,49 @@
-/** @odoo-module **/
+odoo.define('llm_generate/static/src/models/llm_model.js', function (require) {
+    'use strict';
 
-import { attr } from "@mail/model/model_field";
-import { registerPatch } from "@mail/model/model_core";
+    const { registerFieldPatchModel, registerInstancePatchModel } = require('mail/static/src/model/model_core.js');
+    const ModelField = require('mail/static/src/model/model_field.js');
 
-registerPatch({
-  name: "LLMModel",
-  fields: {
-    /**
-     * Model usage type (chat, embedding, image_generation, etc.)
-     */
-    modelUse: attr(),
+    const attr = ModelField.attr;
 
-    /**
-     * Model details JSON field
-     */
-    details: attr(),
+    registerFieldPatchModel('mail.llm_model', 'llm_generate/static/src/models/llm_model.js', {
+        modelUse: attr(),
+        details: attr(),
+        isMediaGenerationModel: attr({
+            compute: '_computeIsMediaGenerationModel',
+            dependencies: ['modelUse'],
+        }),
+        inputSchema: attr({
+            compute: '_computeInputSchema',
+            dependencies: ['details'],
+        }),
+        outputSchema: attr({
+            compute: '_computeOutputSchema',
+            dependencies: ['details'],
+        }),
+    });
 
-    /**
-     * Check if this model is configured for media generation
-     * Based purely on model_use field containing "generation"
-     */
-    isMediaGenerationModel: attr({
-      compute() {
-        if (!this.modelUse) {
-          return false;
-        }
+    registerInstancePatchModel('mail.llm_model', 'llm_generate/static/src/models/llm_model.js', {
+        _computeIsMediaGenerationModel: function () {
+            if (!this.modelUse) {
+                return false;
+            }
+            const generationTypes = ['image_generation', 'generation'];
+            return generationTypes.indexOf(this.modelUse) >= 0;
+        },
 
-        // Check if model_use contains "generation"
-        const generationTypes = ["image_generation", "generation"];
-        return generationTypes.includes(this.modelUse);
-      },
-    }),
+        _computeInputSchema: function () {
+            if (!this.details || !this.details.input_schema) {
+                return {};
+            }
+            return this.details.input_schema;
+        },
 
-    /**
-     * Get the input schema from details field
-     */
-    inputSchema: attr({
-      compute() {
-        return this.details?.input_schema || {};
-      },
-    }),
-
-    /**
-     * Get the output schema from details field
-     */
-    outputSchema: attr({
-      compute() {
-        return this.details?.output_schema || {};
-      },
-    }),
-  },
+        _computeOutputSchema: function () {
+            if (!this.details || !this.details.output_schema) {
+                return {};
+            }
+            return this.details.output_schema;
+        },
+    });
 });

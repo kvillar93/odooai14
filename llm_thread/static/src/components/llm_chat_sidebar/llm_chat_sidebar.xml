@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
     <t t-name="llm_thread.LLMChatSidebar" owl="1">
+        <div class="o_LLMChatSidebar_wrap d-flex h-100">
         <!-- Backdrop: móvil o popup flotante (mismo comportamiento que smartphone) -->
         <t t-if="useMobileOverlaySidebar">
             <div
@@ -12,7 +13,7 @@
 
         <!-- Sidebar -->
         <div
-            class="o_LLMChatSidebar o_LLMChatSidebar--modern o_DiscussSidebar d-flex flex-column flex-shrink-0 h-100 border-end"
+            class="o_LLMChatSidebar o_LLMChatSidebar--modern o_DiscussSidebar d-flex flex-column flex-shrink-0 h-100 border-right"
             t-att-class="{
                 'o-mobile': useMobileOverlaySidebar,
                 'o-visible': !useMobileOverlaySidebar || llmChatView.isThreadListVisible,
@@ -59,7 +60,7 @@
                         class="btn btn-primary rounded w-100"
                         t-on-click="_onClickNewChat"
                     >
-                        <i class="fa fa-plus me-2" />
+                        <i class="fa fa-plus mr-2" />
                         <span>New Chat</span>
                     </button>
                 </div>
@@ -82,7 +83,7 @@
                         class="btn btn-primary rounded w-100"
                         t-on-click="_onClickNewChat"
                     >
-                        <i class="fa fa-plus me-2" />
+                        <i class="fa fa-plus mr-2" />
                         <span>New Chat</span>
                     </button>
                 </div>
@@ -92,6 +93,7 @@
                     <LLMChatThreadList record="llmChatView" />
                 </div>
             </t>
+        </div>
         </div>
     </t>
 </templates>

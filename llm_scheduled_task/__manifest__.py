@@ -1,6 +1,7 @@
+# -*- coding: utf-8 -*-
 {
     "name": "LLM Tareas Programadas",
-    "version": "16.0.1.0.0",
+    "version": "14.0.1.0.0",
     "category": "Productivity",
     "summary": "Automatiza tareas LLM mediante prompts y cron jobs",
     "description": """
@@ -29,15 +30,13 @@ Características:
         "views/llm_scheduled_task_views.xml",
         "views/llm_thread_inherit_views.xml",
         "views/menu.xml",
+        "views/assets.xml",
+    ],
+    "qweb": [
+        "static/src/components/llm_chat_sidebar/llm_chat_sidebar.xml",
     ],
     "installable": True,
     "application": False,
     "auto_install": False,
     "license": "LGPL-3",
-    "assets": {
-        "web.assets_backend": [
-            "llm_scheduled_task/static/src/components/llm_chat_sidebar/llm_chat_sidebar.js",
-            "llm_scheduled_task/static/src/components/llm_chat_sidebar/llm_chat_sidebar.xml",
-        ],
-    },
 }

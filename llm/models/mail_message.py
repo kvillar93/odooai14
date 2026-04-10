@@ -50,7 +50,7 @@ class MailMessage(models.Model):
         role_to_id = {}
 
         for xmlid in self.LLM_XMLIDS:
-            subtype_id = self.env["ir.model.data"]._xmlid_to_res_id(
+            subtype_id = self.env["ir.model.data"].xmlid_to_res_id(
                 xmlid, raise_if_not_found=False
             )
             if subtype_id:

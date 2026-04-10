@@ -1,7 +1,12 @@
-/** @odoo-module **/
+odoo.define('llm_assistant/static/src/models/main.js', function (require) {
+    'use strict';
 
-// Import all models to ensure they are registered
-import "@llm_assistant/models/llm_chat";
-import "@llm_assistant/models/llm_assistant";
-import "@llm_assistant/models/thread";
-import "@llm_assistant/models/llm_chat_thread_header_view";
+    // Antes que cualquier modelo que referencie mail.llm_chat (p. ej. llm_assistant_record).
+    require('llm_thread/static/src/models/llm_chat.js');
+
+    require('llm_assistant/static/src/models/llm_prompt.js');
+    require('llm_assistant/static/src/models/llm_assistant_record.js');
+    require('llm_assistant/static/src/models/thread.js');
+    require('llm_assistant/static/src/models/llm_chat.js');
+    require('llm_assistant/static/src/models/llm_chat_thread_header_view.js');
+});

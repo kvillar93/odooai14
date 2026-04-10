@@ -1,95 +1,82 @@
-/** @odoo-module **/
+odoo.define('llm_thread/static/src/components/llm_chatter/llm_chatter.js', function (require) {
+    'use strict';
 
-import { Chatter } from "@mail/components/chatter/chatter";
-import { consumePendingOpenInChatter } from "@llm_thread/client_actions/open_chatter_action";
-import { onMounted } from "@odoo/owl";
-import { patch } from "@web/core/utils/patch";
+    const Chatter = require('mail/static/src/components/chatter/chatter.js');
+    const LLMChat = require('llm_thread/static/src/components/llm_chat/llm_chat.js');
+    const openChatterAction = require('llm_thread/static/src/client_actions/open_chatter_action.js');
 
-patch(Chatter.prototype, "llm_thread.Chatter", {
-  /**
-   * @override
-   */
-  setup() {
-    this._super(...arguments);
+    Chatter.components = Object.assign({}, Chatter.components, { LLMChat: LLMChat });
 
-    onMounted(() => {
-      this._checkPendingAIChatOpen();
-    });
-  },
-
-  /**
-   * Check for pending AI chat open request from client action.
-   * Uses sessionStorage to persist state across page navigation.
-   */
-  async _checkPendingAIChatOpen() {
-    const chatter = this.chatter;
-    if (!chatter || !chatter.thread) {
-      return;
-    }
-
-    const pending = consumePendingOpenInChatter(
-      chatter.thread.model,
-      chatter.thread.id
-    );
-
-    if (!pending) {
-      return;
-    }
-
-    console.log("[LLM] Found pending AI chat open request:", pending);
-
-    try {
-      const messaging = chatter.messaging;
-
-      // Ensure llmChat exists
-      if (!messaging.llmChat) {
-        messaging.update({ llmChat: { isInitThreadHandled: false } });
-      }
-
-      // Find the thread (should exist since backend created it)
-      let thread = messaging.models.Thread.findFromIdentifyingData({
-        id: pending.threadId,
-        model: "llm.thread",
-      });
-
-      if (!thread) {
-        // Thread doesn't exist in frontend yet, reload threads for this record
-        const domain = [
-          ["model", "=", pending.model],
-          ["res_id", "=", pending.resId],
-        ];
-        await messaging.llmChat.loadThreads([], domain);
-
-        // Try to find it again
-        thread = messaging.models.Thread.findFromIdentifyingData({
-          id: pending.threadId,
-          model: "llm.thread",
-        });
-      }
-
-      if (!thread) {
-        throw new Error(
-          "Could not load the conversation thread. Please try again."
-        );
-      }
-
-      // Open the thread using the unified pattern
-      await thread.openLLMThread({ focus: true });
-
-      // Auto-trigger generation if requested
-      if (pending.autoGenerate) {
-        const llmChat = messaging.llmChat;
-        if (llmChat?.llmChatView?.composer) {
-          await llmChat.llmChatView.composer.startGeneration();
+    const originalUpdate = Chatter.prototype._update;
+    Chatter.prototype._update = function () {
+        originalUpdate.apply(this, arguments);
+        if (!this._llmPendingOpenChecked && this.chatter && this.chatter.thread) {
+            this._llmPendingOpenChecked = true;
+            this._llmCheckPendingOpen();
         }
-      }
-    } catch (error) {
-      console.error("[LLM] Error opening AI chat from pending state:", error);
-      chatter.messaging.notify({
-        title: "Error Opening AI Chat",
-        message: error.message || "An unexpected error occurred",
-        type: "danger",
-      });
-    }
-  },
+    };
+
+    Chatter.prototype._llmCheckPendingOpen = async function () {
+        const chatter = this.chatter;
+        if (!chatter || !chatter.thread) {
+            return;
+        }
+
+        const pending = openChatterAction.consumePendingOpenInChatter(
+            chatter.thread.model,
+            chatter.thread.id
+        );
+
+        if (!pending) {
+            return;
+        }
+
+        try {
+            const messaging = chatter.messaging;
+
+            if (!messaging.llmChat) {
+                messaging.update({ llmChat: [['create', { isInitThreadHandled: false }]] });
+            }
+
+            const Thread = messaging.models['mail.thread'];
+            let thread = Thread.findFromIdentifyingData({
+                id: pending.threadId,
+                model: 'llm.thread',
+            });
+
+            if (!thread) {
+                const domain = [
+                    ['model', '=', pending.model],
+                    ['res_id', '=', pending.resId],
+                ];
+                await messaging.llmChat.loadThreads([], domain);
+
+                thread = Thread.findFromIdentifyingData({
+                    id: pending.threadId,
+                    model: 'llm.thread',
+                });
+            }
+
+            if (!thread) {
+                throw new Error('No se pudo cargar la conversación. Inténtelo de nuevo.');
+            }
+
+            await thread.openLLMThread({ focus: true });
+
+            if (pending.autoGenerate) {
+                const llmChat = messaging.llmChat;
+                const composer = llmChat && llmChat.llmChatView && llmChat.llmChatView.composer;
+                if (composer) {
+                    await composer.startGeneration();
+                }
+            }
+        } catch (error) {
+            console.error('[LLM] Error al abrir el chat desde la acción pendiente:', error);
+            chatter.messaging.env.services.notification.notify({
+                title: 'Error al abrir el chat IA',
+                message: error.message || 'Ha ocurrido un error inesperado',
+                type: 'danger',
+            });
+        }
+    };
 });

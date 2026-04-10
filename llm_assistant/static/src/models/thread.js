@@ -1,48 +1,32 @@
-/** @odoo-module **/
+odoo.define('llm_assistant/static/src/models/thread.js', function (require) {
+    'use strict';
 
-import { attr, one } from "@mail/model/model_field";
-import { registerPatch } from "@mail/model/model_core";
+    const { registerFieldPatchModel, registerInstancePatchModel } = require('mail/static/src/model/model_core.js');
+    const ModelField = require('mail/static/src/model/model_field.js');
 
-/**
- * Patch the Thread model to add llmAssistant field
- */
-registerPatch({
-  name: "Thread",
-  fields: {
-    /**
-     * The LLM assistant associated with this thread
-     */
-    llmAssistant: one("LLMAssistant", {
-      inverse: "threads",
-    }),
-    /**
-     * The prompt ID associated with this thread (legacy support)
-     */
-    promptId: attr(),
-  },
-  recordMethods: {
-    /**
-     * Override updateLLMChatThreadSettings to handle assistant
-     * @override
-     * @param {Object} settings - Settings object
-     * @param {Number|false} [settings.assistantId] - Assistant ID to set, or false to clear
-     */
-    async updateLLMChatThreadSettings(settings = {}) {
-      const { assistantId, ...otherSettings } = settings;
+    const attr = ModelField.attr;
+    const many2one = ModelField.many2one;
 
-      // Prepare additional values for the assistant_id field
-      const additionalValues = {};
+    registerFieldPatchModel('mail.thread', 'llm_assistant/static/src/models/thread.js', {
+        llmAssistant: many2one('mail.llm_assistant', {
+            inverse: 'threads',
+        }),
+        promptId: attr(),
+    });
 
-      // Handle assistant_id if provided
-      if (assistantId !== undefined) {
-        additionalValues.assistant_id = assistantId || false;
-      }
-
-      // Call super with our additional values
-      return this._super({
-        ...otherSettings,
-        additionalValues,
-      });
-    },
-  },
+    registerInstancePatchModel('mail.thread', 'llm_assistant/static/src/models/thread.js', {
+        async updateLLMChatThreadSettings(settings) {
+            settings = settings || {};
+            const assistantId = settings.assistantId;
+            const merged = Object.assign({}, settings);
+            delete merged.assistantId;
+            const baseAdditional = settings.additionalValues || {};
+            const additionalValues = Object.assign({}, baseAdditional);
+            if (assistantId !== undefined) {
+                additionalValues.assistant_id = assistantId || false;
+            }
+            merged.additionalValues = additionalValues;
+            return this._super(merged);
+        },
+    });
 });

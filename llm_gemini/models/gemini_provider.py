@@ -362,10 +362,18 @@ class LLMProvider(models.Model):
                 if not parts:
                     parts.append(genai_types.Part(text=""))
 
+                tc_list = msg.get("tool_calls") or []
+                if tc_list:
+                    _logger.info(
+                        "Gemini: assistant FunctionCall(s) en historial: %s",
+                        [(tc.get("id"), (tc.get("function") or {}).get("name")) for tc in tc_list],
+                    )
+
                 contents.append(genai_types.Content(role="model", parts=parts))
 
             elif role == "tool":
                 name = msg.get("name") or "unknown_tool"
+                call_id = msg.get("tool_call_id") or ""
                 raw = msg.get("content")
                 if isinstance(raw, str):
                     try:
@@ -377,14 +385,24 @@ class LLMProvider(models.Model):
                 if not isinstance(resp_obj, dict):
                     resp_obj = {"result": resp_obj}
 
+                _logger.info(
+                    "Gemini: FunctionResponse name=%s, id=%s, response_keys=%s, response_snippet=%.300s",
+                    name, call_id,
+                    list(resp_obj.keys()) if isinstance(resp_obj, dict) else type(resp_obj).__name__,
+                    json.dumps(resp_obj, ensure_ascii=False, default=str)[:300],
+                )
+
+                fr_kwargs = {"name": name, "response": resp_obj}
+                if call_id:
+                    fr_kwargs["id"] = call_id
+
                 contents.append(
                     genai_types.Content(
                         role="user",
                         parts=[
                             genai_types.Part(
                                 function_response=genai_types.FunctionResponse(
-                                    name=name,
-                                    response=resp_obj,
+                                    **fr_kwargs,
                                 )
                             )
                         ],
@@ -410,6 +428,33 @@ class LLMProvider(models.Model):
             contents = [
                 genai_types.Content(role="user", parts=[genai_types.Part(text="")])
             ]
+
+        summary = []
+        for c in contents:
+            rn = self._gemini_role_name(c)
+            part_types = []
+            for p in (c.parts or []):
+                if getattr(p, "function_call", None):
+                    fc = p.function_call
+                    part_types.append("FC(%s,id=%s)" % (getattr(fc, "name", "?"), getattr(fc, "id", "?")))
+                elif getattr(p, "function_response", None):
+                    fr = p.function_response
+                    resp = getattr(fr, "response", None) or {}
+                    part_types.append("FR(%s,id=%s,keys=%s)" % (
+                        getattr(fr, "name", "?"),
+                        getattr(fr, "id", "?"),
+                        list(resp.keys()) if isinstance(resp, dict) else "?",
+                    ))
+                elif getattr(p, "text", None):
+                    part_types.append("text(%d)" % len(p.text))
+                else:
+                    part_types.append("other")
+            summary.append("%s:[%s]" % (rn, ",".join(part_types)))
+        _logger.info(
+            "Gemini: resumen de contents (%d turnos): %s",
+            len(contents), " | ".join(summary),
+        )
+
         return contents, system_instruction
 
     def _gemini_role_name(self, content):

@@ -6,12 +6,12 @@
     >
             <div class="o_LLMChatThreadList_search px-2 pb-2 flex-shrink-0">
                 <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-view border-end-0 py-1">
+                    <span class="input-group-text bg-view border-right-0 py-1">
                         <i class="fa fa-search text-muted" aria-hidden="true" />
                     </span>
                     <input
             type="search"
-            class="form-control border-start-0 ps-0"
+            class="form-control border-left-0 pl-0"
             placeholder="Buscar conversaciones…"
             autocomplete="off"
             t-att-value="state.searchQuery"
@@ -24,7 +24,7 @@
           class="d-flex flex-column align-items-center justify-content-center flex-grow-1 text-muted p-3"
         >
                     <i class="fa fa-comments fa-3x mb-3 text-300" />
-                    <span class="fs-6">No chats yet</span>
+                    <span class="small">Aún no hay conversaciones</span>
                 </div>
             </t>
             <t t-else="">
@@ -45,12 +45,12 @@
             >
                             <button
                 type="button"
-                class="o_DiscussSidebarCategoryItem o_LLMChatThreadList_select btn d-flex align-items-center flex-grow-1 min-w-0 px-0 py-2 border-0 rounded-0 fw-normal text-reset bg-100 text-start"
-                t-att-class="{'o-active bg-200': thread.id === activeThread?.id}"
+                class="o_DiscussSidebarCategoryItem o_LLMChatThreadList_select btn d-flex align-items-center flex-grow-1 min-w-0 px-0 py-2 border-0 rounded-0 text-left"
+                t-att-class="{'o-active': activeThread and thread.id === activeThread.id}"
                 t-on-click="() => this._onThreadClick(thread)"
               >
                                 <span
-                  class="o_DiscussSidebarCategoryItem_name ms-3 me-2 text-truncate flex-grow-1 min-w-0"
+                  class="o_DiscussSidebarCategoryItem_name ml-3 mr-2 text-truncate flex-grow-1 min-w-0"
                   t-esc="thread.name"
                   t-att-title="thread.name"
                 />

@@ -2,7 +2,7 @@
 {
     "name": "Ventanas de chat LLM",
     "summary": "Menús con chat preconfigurado (modelo, tools, asistente) y cabecera bloqueada",
-    "version": "16.0.1.1.0",
+    "version": "14.0.1.1.0",
     "category": "Productivity",
     "depends": ["llm_assistant", "llm_thread"],
     "data": [

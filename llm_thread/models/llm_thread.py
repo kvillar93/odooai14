@@ -11,6 +11,7 @@ import markdown2
 _ECHARTS_BLOCK_RE = re.compile(r"```echarts\n(.*?)\n```", re.DOTALL)
 
 from odoo import _, api, fields, models
+from odoo.addons.base.models.ir_model import MODULE_UNINSTALL_FLAG
 from odoo.exceptions import UserError
 from psycopg2 import OperationalError
 
@@ -555,9 +556,12 @@ class LLMThread(models.Model):
     # ODOO HOOKS AND CLEANUP
     # ============================================================================
 
-    @api.ondelete(at_uninstall=False)
-    def _unlink_llm_thread(self):
-        unlink_ids = [record.id for record in self]
-        self.env["bus.bus"]._sendone(
-            self.env.user.partner_id, "llm.thread/delete", {"ids": unlink_ids}
-        )
+    def unlink(self):
+        # Equivalente a @api.ondelete(at_uninstall=False) en Odoo 16+: no notificar bus al desinstalar módulo.
+        if not self.env.context.get(MODULE_UNINSTALL_FLAG):
+            unlink_ids = [record.id for record in self]
+            self.env["bus.bus"].sendone(
+                (self._cr.dbname, "res.partner", self.env.user.partner_id.id),
+                {"type": "llm.thread/delete", "ids": unlink_ids},
+            )
+        return super().unlink()

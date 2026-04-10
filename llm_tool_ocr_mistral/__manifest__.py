@@ -14,7 +14,7 @@
         Minimal dependencies - no knowledge base required.
     """,
     "category": "Technical/AI",
-    "version": "16.0.1.0.1",
+    "version": "14.0.1.0.1",
     "depends": [
         "llm_mistral",  # Mistral AI provider
         "llm_tool",  # Tool registration framework

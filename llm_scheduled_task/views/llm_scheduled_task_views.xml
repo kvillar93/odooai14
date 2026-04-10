@@ -70,7 +70,7 @@
                         role="alert"
                         attrs="{'invisible': [('last_state', '!=', 'success')]}"
                     >
-                        <i class="fa fa-check-circle me-1"/> Última ejecución exitosa —
+                        <i class="fa fa-check-circle mr-1"/> Última ejecución exitosa —
                         <field name="last_run" widget="datetime" readonly="1"/>
                     </div>
                     <div
@@ -78,7 +78,7 @@
                         role="alert"
                         attrs="{'invisible': [('last_state', '!=', 'error')]}"
                     >
-                        <i class="fa fa-exclamation-triangle me-1"/> Última ejecución con error —
+                        <i class="fa fa-exclamation-triangle mr-1"/> Última ejecución con error —
                         <field name="last_run" widget="datetime" readonly="1"/>
                     </div>
                     <div
@@ -86,7 +86,7 @@
                         role="alert"
                         attrs="{'invisible': [('last_state', '!=', 'running')]}"
                     >
-                        <i class="fa fa-spinner fa-spin me-1"/> Ejecutando actualmente…
+                        <i class="fa fa-spinner fa-spin mr-1"/> Ejecutando actualmente…
                     </div>
 
                     <div class="oe_title">

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="assets_backend" inherit_id="web.assets_backend" name="llm_thread assets">
+        <xpath expr="." position="inside">
+            <!-- Utilidades -->
+            <script type="text/javascript" src="/llm_thread/static/src/js/llm_env_utils.js"/>
+
+            <!-- Modelos: cada archivo DEBE tener su <script> para entrar al bundle -->
+            <script type="text/javascript" src="/llm_thread/static/src/models/llm_provider.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/llm_model.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/llm_tool.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/llm_chat.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/thread.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/thread_viewer_llm.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/llm_chat_view.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/llm_chat_thread_header_view.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/composer.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/thread_view.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/chatter.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/message.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/message_action.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/message_action_list.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/message_action_view.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/messaging_notification_handler.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/models/main.js"/>
+
+            <!-- Client actions -->
+            <script type="text/javascript" src="/llm_thread/static/src/client_actions/open_chatter_action.js"/>
+
+            <!-- Componentes -->
+            <script type="text/javascript" src="/llm_thread/static/src/components/llm_chat_thread_related_record/llm_chat_thread_related_record.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/components/llm_chat_thread_header/llm_chat_thread_header.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/components/llm_chat_thread_list/llm_chat_thread_list.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/components/llm_streaming_indicator/llm_streaming_indicator.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/components/llm_chat_composer_text_input/llm_chat_composer_text_input.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/components/llm_chat_composer/llm_chat_composer.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/components/llm_chat_thread/llm_chat_thread.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/components/llm_chat_sidebar/llm_chat_sidebar.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/components/llm_chat/llm_chat.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/components/llm_chat_container/llm_chat_container.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/components/llm_chatter_topbar/llm_chatter_topbar_patch.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/components/llm_chatter/llm_chatter.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/components/message/message_ux_patch.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/llm_chat_client_action.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/systray/llm_floating_systray.js"/>
+
+            <!-- Estilos -->
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chat_thread/llm_chat_thread.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chat_container/llm_chat_container.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chat_sidebar/llm_chat_sidebar.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chat_composer/llm_chat_composer.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chat_composer_text_input/llm_chat_composer_text_input.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chat_thread_header/llm_chat_thread_header.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chatter_topbar/llm_chat_topbar.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/message/message.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chat_thread_list/llm_chat_thread_list.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chat_thread_related_record/llm_chat_thread_related_record.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/systray/llm_floating_systray.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chat/llm_chat.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/scss/llm_chat_chatgpt.scss"/>
+        </xpath>
+    </template>
+</odoo>

@@ -1,6 +1,6 @@
 {
     "name": "LLM Qdrant Integration",
-    "version": "16.0.1.0.0",
+    "version": "14.0.1.0.0",
     "category": "Technical",
     "summary": "Integrates Qdrant vector store with the Odoo LLM framework.",
     "description": """

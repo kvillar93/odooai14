@@ -1,58 +1,78 @@
-/** @odoo-module **/
+odoo.define('llm_generate/static/src/components/llm_media_form/llm_media_form.js', function (require) {
+    'use strict';
 
-import { registerMessagingComponent } from "@mail/utils/messaging_component";
-import { JsonEditorComponent } from "@web_json_editor/components/json_editor/json_editor";
-import { LLMFormFieldsView } from "./llm_form_fields_view";
-const { Component, useState, onWillStart, useEffect, useRef } = owl;
+    const JsonEditorComponent = require('web_json_editor/static/src/components/json_editor/json_editor.js');
+    const LLMFormFieldsView = require('llm_generate/static/src/components/llm_media_form/llm_form_fields_view.js');
 
-export class LLMMediaForm extends Component {
-  setup() {
-    this.attachmentInputRef = useRef("attachmentInput");
-    
-    this.state = useState({
-      formValues: {},
-      isLoading: false,
-      error: null,
-      showAdvancedSettings: false,
-      inputMode: "form",
-      isJsonValid: true,
-      jsonEditorError: null,
-      hasSchemaValidationErrors: false,
-      showTemplatePreview: false,
-      templatePreviewContent: null,
-      isLoadingPreview: false,
-      assistantDefaults: {},
-      threadConfig: {
-        input_schema: {},
-        form_defaults: {},
-      },
-      attachments: [],
-      uploadingFiles: false,
-    });
+    const { Component } = owl;
+    const { useState, onWillStart, onPatched, useRef } = owl.hooks;
 
-    onWillStart(async () => {
-      this.state.isLoading = true;
-      try {
-        await this._loadThreadConfiguration();
-        this._initializeFormValues();
-      } finally {
-        this.state.isLoading = false;
-      }
-    });
+    class LLMMediaForm extends Component {
+        constructor() {
+            super(...arguments);
+            this.attachmentInputRef = useRef('attachmentInput');
 
-    // Watch for changes in the model/thread context
-    useEffect(
-      () => {
-        this._handleContextChange();
-      },
-      () => [
-        this.thread?.id,
-        this.llmAssistant?.id,
-        this.thread?.prompt_id?.id,
-        this.llmModel?.id,
-      ]
-    );
-  }
+            this.state = useState({
+                formValues: {},
+                isLoading: false,
+                error: null,
+                showAdvancedSettings: false,
+                inputMode: 'form',
+                isJsonValid: true,
+                jsonEditorError: null,
+                hasSchemaValidationErrors: false,
+                showTemplatePreview: false,
+                templatePreviewContent: null,
+                isLoadingPreview: false,
+                assistantDefaults: {},
+                threadConfig: {
+                    input_schema: {},
+                    form_defaults: {},
+                },
+                attachments: [],
+                uploadingFiles: false,
+            });
+
+            this._mediaFormCtxKey = '';
+            this._mediaFormReady = false;
+
+            const self = this;
+            onWillStart(async function () {
+                self.state.isLoading = true;
+                try {
+                    await self._loadThreadConfiguration();
+                    self._initializeFormValues();
+                    self._mediaFormCtxKey = self._computeContextKey();
+                    self._mediaFormReady = true;
+                } finally {
+                    self.state.isLoading = false;
+                }
+            });
+
+            onPatched(function () {
+                if (!self._mediaFormReady) {
+                    return;
+                }
+                const k = self._computeContextKey();
+                if (k === self._mediaFormCtxKey) {
+                    return;
+                }
+                self._mediaFormCtxKey = k;
+                self._handleContextChange();
+            });
+        }
+
+        _computeContextKey() {
+            const t = this.thread;
+            const a = this.llmAssistant;
+            const m = this.llmModel;
+            return [
+                t && t.id,
+                a && a.id,
+                t && t.promptId,
+                m && m.id,
+            ].join('|');
+        }
 
   get thread() {
     return this.props.model;
@@ -67,7 +87,20 @@ export class LLMMediaForm extends Component {
   }
 
   get llmChat() {
-    return this.thread?.llmChat;
+    return this.thread && this.thread.llmChat;
+  }
+
+  get hasAssistantDefaults() {
+    const d = this.state.assistantDefaults;
+    return Boolean(d && Object.keys(d).length > 0);
+  }
+
+  get assistantDefaultsKeysList() {
+    const d = this.state.assistantDefaults;
+    if (!d) {
+      return '';
+    }
+    return Object.keys(d).join(', ');
   }
 
   /**
@@ -267,26 +300,28 @@ export class LLMMediaForm extends Component {
    */
   get schemaSource() {
     if (this.state.isLoading) {
-      return { type: 'loading', name: 'Loading...' };
+      return { type: 'loading', name: this.env._t('Cargando…') };
     }
 
-    if (this.state.threadConfig.input_schema && 
+    if (this.state.threadConfig.input_schema &&
         Object.keys(this.state.threadConfig.input_schema).length > 0) {
+      const promptName = (this.llmAssistant && this.llmAssistant.llmPrompt && this.llmAssistant.llmPrompt.name) ||
+        this.env._t('Prompt seleccionado');
       return {
         type: 'prompt',
-        name: this.thread?.prompt_id?.name || this.llmAssistant?.prompt_id?.name || 'Selected Prompt'
+        name: promptName,
       };
     }
-    
-    if (this.llmModel?.inputSchema && 
+
+    if (this.llmModel && this.llmModel.inputSchema &&
         Object.keys(this.llmModel.inputSchema).length > 0) {
       return {
         type: 'model',
-        name: this.llmModel?.name || 'Model Default'
+        name: (this.llmModel && this.llmModel.name) || this.env._t('Predeterminado del modelo'),
       };
     }
 
-    return { type: 'none', name: 'No Schema Available' };
+    return { type: 'none', name: this.env._t('Sin esquema disponible') };
   }
 
   /**
@@ -348,10 +383,9 @@ export class LLMMediaForm extends Component {
         ...this.state.formValues,
       };
 
-      // Call backend method to prepare generation inputs (which handles template rendering)
-      const result = await this.thread.messaging.rpc({
-        model: "llm.thread",
-        method: "prepare_generation_inputs",
+      const result = await this.env.services.rpc({
+        model: 'llm.thread',
+        method: 'prepare_generation_inputs',
         args: [this.thread.id, mergedInputs],
       });
 
@@ -587,11 +621,20 @@ export class LLMMediaForm extends Component {
     }
   }
 
-  /**
-   * Check if streaming is active
-   */
-  isStreaming() {
-    return this.thread?.composer?.isStreaming || false;
+  get isStreaming() {
+    return Boolean(this.thread && this.thread.composer && this.thread.composer.isStreaming);
+  }
+
+  onRemoveAttachmentClick(ev) {
+    const idx = ev.currentTarget && ev.currentTarget.getAttribute('data-attachment-index');
+    if (idx === null || idx === undefined) {
+      return;
+    }
+    const i = parseInt(idx, 10);
+    const att = this.state.attachments[i];
+    if (att) {
+      this.removeAttachment(att);
+    }
   }
 
   /**
@@ -609,17 +652,16 @@ export class LLMMediaForm extends Component {
         const fileDataUrl = await this._readFileAsDataURL(file);
         const base64Data = fileDataUrl.split(',')[1]; // Remove data:mime/type;base64, prefix
         
-        const attachment = await this.env.services.rpc("/web/dataset/call_kw", {
+        const attachment = await this.env.services.rpc({
           model: 'ir.attachment',
           method: 'create',
           args: [{
             name: file.name,
             datas: base64Data,
             res_model: 'mail.compose.message',
-            res_id: 0, // Temporary attachment
+            res_id: 0,
             mimetype: file.type,
           }],
-          kwargs: {}
         });
         
         if (attachment) {
@@ -677,11 +719,14 @@ export class LLMMediaForm extends Component {
   }
 }
 
-LLMMediaForm.props = {
-  model: { type: Object, optional: false },
-};
+    LLMMediaForm.template = 'llm_generate.LLMMediaForm';
+    LLMMediaForm.components = {
+        JsonEditorComponent: JsonEditorComponent,
+        LLMFormFieldsView: LLMFormFieldsView,
+    };
+    LLMMediaForm.props = {
+        model: { type: Object, optional: false },
+    };
 
-LLMMediaForm.template = "llm_thread.LLMMediaForm";
-LLMMediaForm.components = { JsonEditorComponent, LLMFormFieldsView };
-
-registerMessagingComponent(LLMMediaForm);
+    return LLMMediaForm;
+});

@@ -177,12 +177,11 @@
     }
   }
 
-  .form-label.fw-bold {
+  label.font-weight-bold {
     color: $dark;
     font-size: 0.95rem;
   }
 
-  .form-select,
   .form-control {
     border: 1.5px solid $border-color;
 

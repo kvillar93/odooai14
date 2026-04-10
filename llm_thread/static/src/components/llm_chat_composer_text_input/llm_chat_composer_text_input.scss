@@ -1,62 +1,37 @@
-.o_LLMChatComposerTextInput {
-  flex: 1 1 auto;
-  min-width: 0;
-
-  &--pill {
-    .o_LLMChatComposerTextInput_textarea--pill,
-    .o_LLMChatComposerTextInput_mirrored.o_ComposerTextInput_textareaStyle {
-      width: 100%;
-      resize: none;
-      line-height: 1.5;
-      border: none !important;
-      background: transparent !important;
-      box-shadow: none !important;
-      border-radius: 0;
-      padding: 0.5rem 0.45rem !important;
-      min-height: 2.75rem;
-      max-height: 200px;
-      color: $o-main-text-color;
-
-      &::placeholder {
-        color: rgba($o-main-color-muted, 0.9);
-      }
-
-      &:focus {
-        outline: none;
-        box-shadow: none !important;
-      }
-    }
-
-    .o_LLMChatComposerTextInput_mirrored.o_ComposerTextInput_textareaStyle {
-      // Misma métrica que el textarea visible para el auto-alto de mail
-      &.o-composer-is-compact {
-        max-height: 100px;
-      }
-
-      &:not(.o-composer-is-compact) {
-        max-height: 400px;
-      }
-    }
+// Estilos del textarea dentro del compositor LLM (usa template base mail.ComposerTextInput)
+.o_LLMChatComposer .o_LLMChatComposer_textCell {
+  .o_ComposerTextInput {
+    min-width: 0;
   }
 
-  // Estilo clásico (no usado en modo píldora actual)
-  &_textarea:not(.o_LLMChatComposerTextInput_textarea--pill) {
+  .o_ComposerTextInput_textarea {
+    width: 100%;
     resize: none;
-    min-height: 112px !important;
-    max-height: 200px;
     line-height: 1.5;
-    border-width: 1.5px;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0;
+    padding: 0.4rem 0.45rem !important;
+    min-height: 2rem;
+    max-height: 200px;
+    overflow-y: hidden;
+    color: $o-main-text-color;
 
     &::placeholder {
-      color: rgba($gray-600, 0.8);
-    }
-
-    &:hover {
-      border-color: rgba($primary, 0.3);
+      color: rgba($o-main-color-muted, 0.9);
     }
 
     &:focus {
-      border-color: $primary;
+      outline: none;
+      box-shadow: none !important;
     }
+  }
+
+  .o_ComposerTextInput_mirroredTextarea {
+    min-height: 2rem;
+    max-height: 200px;
+    border: none !important;
+    padding: 0.4rem 0.45rem !important;
   }
 }

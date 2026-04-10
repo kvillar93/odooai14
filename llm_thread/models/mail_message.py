@@ -22,20 +22,12 @@ class MailMessage(models.Model):
         fields_list.extend(["user_vote", "llm_role", "body_json"])
         return fields_list
 
-    def message_format(self, format_reply=True, **kwargs):
-        """Override to include custom fields and set proper styling."""
-        result = super().message_format(format_reply=format_reply, **kwargs)
-        llm_fields_to_add = self._get_message_format_fields()
-
+    def message_format(self):
+        """Override to set is_note for LLM messages (bubble style)."""
+        result = super().message_format()
         for message_data, message in zip(result, self):
-            # Manually add the fields as requested to ensure they are in the payload
-            for field in llm_fields_to_add:
-                if hasattr(message, field):
-                    message_data[field] = getattr(message, field)
-            # Set is_note=True for LLM messages to get the right bubble style
             if message.llm_role:
                 message_data["is_note"] = True
-
         return result
 
     def set_user_vote(self, vote_value):

@@ -1,29 +1,36 @@
-/** @odoo-module **/
+odoo.define('llm_experience/static/src/components/llm_chat_composer_experience/llm_chat_composer_experience.js', function (require) {
+    'use strict';
 
-import "../llm_context_meter/llm_context_meter";
-import { registerPatch } from "@mail/model/model_core";
+    const { registerInstancePatchModel } = require('mail/static/src/model/model_core.js');
 
-function _refreshMeter() {
-  window.dispatchEvent(new CustomEvent("llm-experience-refresh-meter"));
-}
+    const LLMChatComposer = require('llm_thread/static/src/components/llm_chat_composer/llm_chat_composer.js');
+    const LLMContextMeter = require('llm_experience/static/src/components/llm_context_meter/llm_context_meter.js');
 
-registerPatch({
-  name: "Composer",
-  recordMethods: {
-    async postUserMessageForLLM() {
-      await this._super(...arguments);
-      if (this.thread?.model === "llm.thread") {
-        _refreshMeter();
-      }
-    },
-    _dispatchStreamEvent(data) {
-      this._super(...arguments);
-      if (
-        this.thread?.model === "llm.thread" &&
-        (data.type === "done" || data.type === "error")
-      ) {
-        _refreshMeter();
-      }
-    },
-  },
+    LLMChatComposer.components = Object.assign({}, LLMChatComposer.components || {}, {
+        LLMContextMeter: LLMContextMeter,
+    });
+
+    function _refreshMeter() {
+        window.dispatchEvent(new CustomEvent('llm-experience-refresh-meter'));
+    }
+
+    registerInstancePatchModel('mail.composer', 'llm_experience/static/src/components/llm_chat_composer_experience/llm_chat_composer_experience.js', {
+        async postUserMessageForLLM() {
+            await this._super.apply(this, arguments);
+            if (this.thread && this.thread.model === 'llm.thread') {
+                _refreshMeter();
+            }
+        },
+
+        _dispatchStreamEvent: function (data) {
+            this._super.apply(this, arguments);
+            if (
+                this.thread &&
+                this.thread.model === 'llm.thread' &&
+                (data.type === 'done' || data.type === 'error')
+            ) {
+                _refreshMeter();
+            }
+        },
+    });
 });

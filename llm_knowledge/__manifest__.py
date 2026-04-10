@@ -18,7 +18,7 @@
         - PDF processing and text extraction
     """,
     "category": "Technical",
-    "version": "16.0.1.1.0",
+    "version": "14.0.1.1.0",
     "depends": ["llm", "llm_store"],
     "external_dependencies": {
         "python": ["requests", "markdownify", "PyMuPDF", "numpy"],

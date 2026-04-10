@@ -34,7 +34,7 @@
                       class="btn btn-sm btn-light dropdown-toggle"
                       name="kanban_dropdown_toggle"
                       type="button"
-                      data-bs-toggle="dropdown"
+                      data-toggle="dropdown"
                       aria-expanded="false"
                     >
                                             <i
@@ -44,7 +44,7 @@
                       />
                                         </button>
                                         <div
-                      class="dropdown-menu dropdown-menu-end"
+                      class="dropdown-menu dropdown-menu-right"
                       role="menu"
                     >
                                             <t t-if="widget.editable"><a

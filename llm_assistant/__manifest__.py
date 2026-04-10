@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 {
     "name": "LLM Assistant",
     "summary": """
@@ -26,7 +27,7 @@ Key Features:
 Use cases include creating specialized assistants for customer support, data analysis, training assistance, and more.
     """,
     "category": "Productivity, Discuss",
-    "version": "16.0.1.5.5",
+    "version": "14.0.1.5.5",
     "depends": [
         "base",
         "mail",
@@ -55,24 +56,14 @@ Use cases include creating specialized assistants for customer support, data ana
         "views/llm_thread_views.xml",
         "views/llm_menu_views.xml",
         "wizards/llm_prompt_test_views.xml",
+        "views/assets.xml",
+    ],
+    "qweb": [
+        "static/src/components/llm_chat_thread_header/llm_chat_thread_header.xml",
     ],
     "images": [
         "static/description/banner.jpeg",
     ],
-    "assets": {
-        "web.assets_backend": [
-            "llm_assistant/static/src/models/main.js",
-            # Models
-            "llm_assistant/static/src/models/llm_assistant.js",
-            "llm_assistant/static/src/models/llm_prompt.js",
-            "llm_assistant/static/src/models/llm_chat.js",
-            "llm_assistant/static/src/models/thread.js",
-            "llm_assistant/static/src/models/llm_chat_thread_header_view.js",
-            # Components
-            "llm_assistant/static/src/components/llm_chat_thread_header/llm_chat_thread_header.js",
-            "llm_assistant/static/src/components/llm_chat_thread_header/llm_chat_thread_header.xml",
-        ],
-    },
     "license": "LGPL-3",
     "post_init_hook": "post_init_hook",
     "installable": True,

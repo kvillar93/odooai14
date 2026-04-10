@@ -3,7 +3,7 @@
     <!-- Extension of the main Message template to handle generation messages -->
     <t
     t-name="llm_generate.Message"
-    t-inherit="mail.Message"
+    t-inherit="llm_thread.Message"
     t-inherit-mode="extension"
     owl="1"
   >
@@ -15,7 +15,7 @@
                 <div class="o_llm_generation_params mt-2 small border-top pt-2">
                     <details>
                         <summary class="text-muted" style="cursor: pointer;">
-                            <strong>Generation Input</strong>
+                            <strong>Entrada de generación</strong>
                         </summary>
                         <pre class="bg-light p-1 rounded small mt-1"><code
                 t-esc="messageView.message.generationDataFormatted"

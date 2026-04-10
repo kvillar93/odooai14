@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="assets_backend" inherit_id="web.assets_backend" name="llm_generate assets">
+        <xpath expr="." position="inside">
+            <!-- Modelos: cada archivo debe tener su <script> para entrar al bundle -->
+            <script type="text/javascript" src="/llm_generate/static/src/models/llm_model.js"/>
+            <script type="text/javascript" src="/llm_generate/static/src/models/llm_chat.js"/>
+            <script type="text/javascript" src="/llm_generate/static/src/models/composer.js"/>
+            <script type="text/javascript" src="/llm_generate/static/src/models/message.js"/>
+            <script type="text/javascript" src="/llm_generate/static/src/models/main.js"/>
+            <!-- Componentes -->
+            <script type="text/javascript" src="/llm_generate/static/src/components/llm_media_form/llm_form_fields_view.js"/>
+            <script type="text/javascript" src="/llm_generate/static/src/components/llm_media_form/llm_media_form.js"/>
+            <script type="text/javascript" src="/llm_generate/static/src/components/llm_chat_composer/llm_chat_composer.js"/>
+            <!-- Estilos -->
+            <link rel="stylesheet" type="text/scss" href="/llm_generate/static/src/components/llm_media_form/llm_media_form.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_generate/static/src/components/message/message.scss"/>
+        </xpath>
+    </template>
+</odoo>

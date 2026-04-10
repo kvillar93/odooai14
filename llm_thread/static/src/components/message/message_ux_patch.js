@@ -1,8 +1,8 @@
-/** @odoo-module **/
+odoo.define('llm_thread/static/src/components/message/message_ux_patch.js', function (require) {
+'use strict';
 
-import { Message } from "@mail/components/message/message";
-import { patch } from "@web/core/utils/patch";
-import { useService } from "@web/core/utils/hooks";
+const Message = require('mail/static/src/components/message/message.js');
+const llmEnvUtils = require('llm_thread/static/src/js/llm_env_utils.js');
 
 // ---------------------------------------------------------------------------
 // CDN URLs para librerías de gráficos y PDF
@@ -160,7 +160,7 @@ function loadJsPDF() {
     if (!_jsPdfPromise) {
         _jsPdfPromise = _loadScript(
             JSPDF_CDN,
-            () => window.jspdf,
+            () => window.jspdf && window.jspdf.jsPDF,
             () => window.jspdf
         ).catch((e) => {
             _jsPdfPromise = null;
@@ -173,29 +173,25 @@ function loadJsPDF() {
 // ---------------------------------------------------------------------------
 // Patch del componente Message
 // ---------------------------------------------------------------------------
-patch(Message.prototype, "llm_thread.MessageUX", {
-    setup() {
-        this._super();
-        this.notification = useService("notification");
-        this.actionService = useService("action");
-    },
-
+const _llmMessageUxPatch = {
     /** @param {string} text */
     async copyLlmTextToClipboard(text) {
         const t = text || "";
         try {
             await navigator.clipboard.writeText(t);
-            this.notification.add("Copiado al portapapeles", { type: "success" });
+            this.env.services.notification.notify({ message: "Copiado al portapapeles", type: "success" });
         } catch (e) {
-            this.notification.add("No se pudo copiar", { type: "danger" });
+            this.env.services.notification.notify({ message: "No se pudo copiar", type: "danger" });
         }
     },
 
-    _update() {
-        this._super(...arguments);
-        if (this._contentRef?.el) {
-            this._llmEnhanceAssistantDom(this._contentRef.el);
+    _onClickCopyLlmToolResult(ev) {
+        if (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
         }
+        const msg = this.message;
+        this.copyLlmTextToClipboard(msg && msg.toolCallResultFormatted);
     },
 
     /**
@@ -221,20 +217,16 @@ patch(Message.prototype, "llm_thread.MessageUX", {
                 btn.type = "button";
                 btn.className = "btn btn-sm btn-outline-secondary";
                 btn.innerHTML =
-                    '<i class="fa fa-copy me-1" aria-hidden="true"></i>Copiar tabla';
+                    '<i class="fa fa-copy mr-1" aria-hidden="true"></i>Copiar tabla';
                 btn.addEventListener("click", (ev) => {
                     ev.preventDefault();
                     ev.stopPropagation();
                     const text = this._llmTableToTsv(table);
                     navigator.clipboard.writeText(text).then(
                         () =>
-                            this.notification.add("Tabla copiada", {
-                                type: "success",
-                            }),
+                            this.env.services.notification.notify({ message: "Tabla copiada", type: "success" }),
                         () =>
-                            this.notification.add("No se pudo copiar", {
-                                type: "danger",
-                            })
+                            this.env.services.notification.notify({ message: "No se pudo copiar", type: "danger" })
                     );
                 });
                 bar.appendChild(btn);
@@ -302,10 +294,9 @@ patch(Message.prototype, "llm_thread.MessageUX", {
      * Crea el DOM del contenedor del gráfico con la barra de acciones.
      */
     _llmBuildChartWrapper(option, odooLinks) {
-        const title =
-            (option.title?.text || option.title?.[0]?.text || "Gráfico")
-                .toString()
-                .slice(0, 80);
+        const title0 = option.title && option.title.text;
+        const title1 = option.title && option.title[0] && option.title[0].text;
+        const title = (title0 || title1 || "Gráfico").toString().slice(0, 80);
 
         const wrapper = document.createElement("div");
         wrapper.className = "o_llm_echarts_wrapper";
@@ -314,22 +305,22 @@ patch(Message.prototype, "llm_thread.MessageUX", {
         const actions = document.createElement("div");
         actions.className = "o_llm_echarts_actions";
         actions.innerHTML = `
-            <span class="o_llm_echarts_title me-auto"
+            <span class="o_llm_echarts_title mr-auto"
                   style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">
-                <i class="fa fa-bar-chart me-1" aria-hidden="true"></i>${_escape(title)}
+                <i class="fa fa-bar-chart mr-1" aria-hidden="true"></i>${_escape(title)}
             </span>
             ${
                 odooLinks
                     ? `<button class="btn btn-sm btn-outline-primary o_llm_chart_odoo_btn" title="${_escape(odooLinks.label || "Ver en Odoo")}">
-                    <i class="fa fa-external-link me-1"></i>${_escape(odooLinks.label || "Ver en Odoo")}
+                    <i class="fa fa-external-link mr-1"></i>${_escape(odooLinks.label || "Ver en Odoo")}
                 </button>`
                     : ""
             }
             <button class="btn btn-sm btn-outline-secondary o_llm_chart_pdf_btn" title="Descargar PDF">
-                <i class="fa fa-file-pdf-o me-1"></i>PDF
+                <i class="fa fa-file-pdf-o mr-1"></i>PDF
             </button>
             <button class="btn btn-sm btn-outline-secondary o_llm_chart_png_btn" title="Descargar imagen">
-                <i class="fa fa-download me-1"></i>PNG
+                <i class="fa fa-download mr-1"></i>PNG
             </button>
         `;
 
@@ -338,7 +329,7 @@ patch(Message.prototype, "llm_thread.MessageUX", {
         canvas.className = "o_llm_echarts_canvas";
         canvas.innerHTML = `
             <div class="o_llm_echarts_loading">
-                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                <div class="spinner-border spinner-border-sm mr-2" role="status"></div>
                 <span>Cargando gráfico…</span>
             </div>
         `;
@@ -384,7 +375,9 @@ patch(Message.prototype, "llm_thread.MessageUX", {
                     });
                     const link = document.createElement("a");
                     const chartTitle =
-                        option.title?.text || option.title?.[0]?.text || "grafico";
+                        (option.title && option.title.text) ||
+                        (option.title && option.title[0] && option.title[0].text) ||
+                        "grafico";
                     link.download = `${_sanitizeFilename(chartTitle)}.png`;
                     link.href = dataUrl;
                     link.click();
@@ -418,7 +411,7 @@ patch(Message.prototype, "llm_thread.MessageUX", {
             console.error("[LLM Charts] Error al inicializar ECharts:", e);
             canvas.innerHTML = `
                 <div class="o_llm_echarts_error text-danger p-3">
-                    <i class="fa fa-exclamation-circle me-1"></i>
+                    <i class="fa fa-exclamation-circle mr-1"></i>
                     No se pudo cargar el gráfico. Verifica la conexión a internet
                     (se necesita CDN para ECharts).
                 </div>
@@ -436,11 +429,13 @@ patch(Message.prototype, "llm_thread.MessageUX", {
     async _llmDownloadChartPdf(chart, option, wrapper) {
         try {
             const jsPdfLib = await loadJsPDF();
-            if (!jsPdfLib?.jsPDF) throw new Error("jsPDF no disponible");
+            if (!jsPdfLib || !jsPdfLib.jsPDF) throw new Error("jsPDF no disponible");
             const { jsPDF } = jsPdfLib;
 
             const chartTitle =
-                option.title?.text || option.title?.[0]?.text || "Gráfico";
+                (option.title && option.title.text) ||
+                (option.title && option.title[0] && option.title[0].text) ||
+                "Gráfico";
 
             // Capturar imagen del gráfico (alta resolución)
             const imgData = chart.getDataURL({
@@ -519,10 +514,10 @@ patch(Message.prototype, "llm_thread.MessageUX", {
             doc.save(`${_sanitizeFilename(chartTitle)}.pdf`);
         } catch (e) {
             console.error("[LLM Charts] Error al generar PDF:", e);
-            this.notification.add(
-                "No se pudo generar el PDF. Verifica la conexión a internet.",
-                { type: "danger" }
-            );
+            this.env.services.notification.notify({
+                message: "No se pudo generar el PDF. Verifica la conexión a internet.",
+                type: "danger",
+            });
         }
     },
 
@@ -543,10 +538,10 @@ patch(Message.prototype, "llm_thread.MessageUX", {
      * Navega a la vista lista de Odoo aplicando el dominio del drill-down.
      */
     _llmOpenOdooRecords(odooLinks, context) {
-        if (!odooLinks?.model) return;
+        if (!odooLinks || !odooLinks.model) return;
 
         let domain = [];
-        if (odooLinks.domain_template && context?.name) {
+        if (odooLinks.domain_template && context && context.name) {
             try {
                 const domStr = odooLinks.domain_template.replace(
                     /\{\{name\}\}/g,
@@ -558,12 +553,13 @@ patch(Message.prototype, "llm_thread.MessageUX", {
             }
         }
 
-        const actionName = context?.name
+        const actionName = context && context.name
             ? `${odooLinks.label || odooLinks.model}: ${context.name}`
             : odooLinks.label || odooLinks.model;
 
         try {
-            this.actionService.doAction({
+            this.env.bus.trigger('do-action', {
+                action: {
                 type: "ir.actions.act_window",
                 name: actionName,
                 res_model: odooLinks.model,
@@ -573,13 +569,55 @@ patch(Message.prototype, "llm_thread.MessageUX", {
                 ],
                 domain,
                 target: "current",
+                },
             });
         } catch (e) {
             console.error("[LLM Charts] Error al abrir vista Odoo:", e);
-            this.notification.add(
-                "No se pudo abrir la vista de Odoo.",
-                { type: "warning" }
-            );
+            this.env.services.notification.notify({
+                message: "No se pudo abrir la vista de Odoo.",
+                type: "warning",
+            });
+        }
+    },
+
+
+    async _onClickLlmThumbUp(ev) {
+        if (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+        }
+        await this._llmApplyVote(1);
+    },
+
+    async _onClickLlmThumbDown(ev) {
+        if (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+        }
+        await this._llmApplyVote(-1);
+    },
+
+    async _llmApplyVote(targetVote) {
+        const message = this.message;
+        if (!message || message.llmRole !== 'assistant') {
+            return;
+        }
+        const newVote = message.user_vote === targetVote ? 0 : targetVote;
+        const previous = message.user_vote;
+        message.update({ user_vote: newVote });
+        try {
+            await llmEnvUtils.llmRpc(this.env, {
+                model: 'mail.message',
+                method: 'set_user_vote',
+                args: [[message.id], newVote],
+            });
+        } catch (error) {
+            message.update({ user_vote: previous });
+            llmEnvUtils.llmNotify(this.env, {
+                title: 'Voto',
+                message: (error && error.message) || 'No se pudo registrar el voto',
+                type: 'danger',
+            });
         }
     },
 
@@ -597,7 +635,7 @@ patch(Message.prototype, "llm_thread.MessageUX", {
             )
             .join("\n");
     },
-});
+};
 
 // ---------------------------------------------------------------------------
 // Funciones utilitarias (fuera del patch para evitar 'this' context issues)
@@ -618,3 +656,16 @@ function _sanitizeFilename(str) {
         .replace(/\s+/g, "_")
         .slice(0, 60);
 }
+
+const _origUpdate = Message.prototype._update;
+Message.prototype._update = function () {
+    _origUpdate.apply(this, arguments);
+    if (this._contentRef && this._contentRef.el) {
+        this._llmEnhanceAssistantDom(this._contentRef.el);
+    }
+};
+
+Object.assign(Message.prototype, _llmMessageUxPatch);
+
+return Message;
+});
