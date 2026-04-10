@@ -3,7 +3,10 @@
     <t t-name="llm_thread.LLMChat" owl="1">
         <div
             class="o_LLMChat o_LLMChat--modern d-flex h-100"
-            t-att-class="{'o_LLMChat--systrayFloat': llmChatView.llmChat.isSystrayFloatingMode}"
+            t-att-class="{
+                'o_LLMChat--systrayFloat': llmChatView.llmChat.isSystrayFloatingMode,
+                'o_LLMChat--chatterMode': llmChatView.llmChat.isChatterMode
+            }"
         >
             <!-- Lista de hilos (misma lógica que pantalla completa: colapsar barra lateral, etc.) -->
             <LLMChatSidebar record="llmChatView" />
