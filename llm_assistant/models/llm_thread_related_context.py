@@ -31,18 +31,39 @@ class LLMThread(models.Model):
         prepend = []
         prepend.extend(self._get_related_record_prepend_messages())
         prepend.extend(self._get_extra_prepend_messages())
-        if self.prompt_id:
+
+        # Resolución del prompt activo: el del thread si tiene, en caso
+        # contrario el del asistente asociado. Esto cubre threads creados
+        # programáticamente (p. ej. desde llm.chat.window) que tienen
+        # ``assistant_id`` pero no ``prompt_id``, evitando que el chat se
+        # comporte como genérico al perder el contexto del rol.
+        active_prompt = self.prompt_id
+        if not active_prompt and self.assistant_id and self.assistant_id.prompt_id:
+            active_prompt = self.assistant_id.prompt_id
+            # Auto-rellenar el thread para próximas llamadas y para que el
+            # frontend lo refleje al recargar.
             try:
-                prepend.extend(self.prompt_id.get_messages(self.get_context()))
+                self.sudo().write({"prompt_id": active_prompt.id})
+            except Exception as err:
+                _logger.debug(
+                    "No se pudo persistir prompt_id derivado del asistente "
+                    "en thread %s: %s",
+                    self.id,
+                    err,
+                )
+
+        if active_prompt:
+            try:
+                prepend.extend(active_prompt.get_messages(self.get_context()))
             except Exception as e:
                 _logger.error(
                     "Error getting messages from prompt '%s': %s",
-                    self.prompt_id.name,
+                    active_prompt.name,
                     str(e),
                 )
                 self.message_post(
                     body=f"Advertencia: no se pudieron cargar mensajes del prompt "
-                    f"'{self.prompt_id.name}': {str(e)}"
+                    f"'{active_prompt.name}': {str(e)}"
                 )
         return prepend
 

@@ -650,7 +650,8 @@ odoo.define('llm_thread/static/src/models/llm_chat.js', function (require) {
             if (markedDefault) {
                 return [['link', markedDefault]];
             }
-            return this.llmModels[0] ? [['link', this.llmModels[0]]] : clear();
+            const firstAvailable = this.llmModels.find(function (m) { return m && m.id; });
+            return firstAvailable ? [['link', firstAvailable]] : clear();
         };
 
         return LLMChat;

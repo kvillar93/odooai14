@@ -12,7 +12,57 @@ _logger = logging.getLogger(__name__)
 # Dummy thought_signature para tool calls reconstruidos desde la base de datos.
 # Documentado en https://ai.google.dev/gemini-api/docs/gemini-3#thought_signatures
 # Esta cadena específica activa el bypass de validación estricta al migrar historial.
-_GEMINI_DUMMY_THOUGHT_SIGNATURE = b"context_engineering_is_the_way to_go"
+# Documentación Google: debe ser exactamente esta cadena (guiones bajos, sin espacios).
+# Un typo aquí provoca 400 INVALID_ARGUMENT «Corrupted thought signature».
+_GEMINI_DUMMY_THOUGHT_SIGNATURE = b"context_engineering_is_the_way_to_go"
+
+# Keywords JSON Schema que la API Gemini (Developer) suele rechazar con 400
+# INVALID_ARGUMENT / "Unknown name …". Ver OpenAPI subset de Schema.
+# No incluir nombres de parámetros de usuario: solo se eliminan como keywords.
+_GEMINI_UNSUPPORTED_SCHEMA_KEYS = frozenset(
+    {
+        "$anchor",
+        "$comment",
+        "$defs",
+        "$dynamicAnchor",
+        "$dynamicRef",
+        "$id",
+        "$ref",
+        "$schema",
+        "$vocabulary",
+        "additionalProperties",
+        "const",
+        "contentEncoding",
+        "contentMediaType",
+        "contentSchema",
+        "definitions",
+        "dependencies",
+        "dependentRequired",
+        "dependentSchemas",
+        "else",
+        "examples",
+        "if",
+        "nullable",
+        "patternProperties",
+        "propertyNames",
+        "readOnly",
+        "then",
+        "unevaluatedItems",
+        "unevaluatedProperties",
+        "writeOnly",
+    }
+)
+
+# Mapas cuyas claves son nombres definidos por el usuario (parámetros), no keywords.
+_GEMINI_USER_NAMED_KEY_MAPS = frozenset(
+    {
+        "properties",
+        "$defs",
+        "definitions",
+        "patternProperties",
+        "dependentSchemas",
+    }
+)
 
 
 @functools.lru_cache(maxsize=1)
@@ -151,6 +201,69 @@ class LLMProvider(models.Model):
     # Formateo de herramientas (tools)
     # ------------------------------------------------------------------
 
+    def _gemini_sanitize_schema(self, schema):
+        """Limpia un JSON Schema para FunctionDeclaration de Gemini.
+
+        Pydantic/OpenAI generan ``additionalProperties``, ``anyOf`` con
+        ``{type: null}``, ``$defs``, etc. La API Gemini Developer suele
+        responder 400 INVALID_ARGUMENT (a veces solo «Request contains an
+        invalid argument») si esos keywords llegan en
+        ``parameters_json_schema``.
+
+        - Elimina keywords no soportados (p. ej. additionalProperties).
+        - Aplana Optional típico: anyOf[X, null] → X + nullable=True.
+        - No borra nombres de parámetros que coincidan con keywords
+          (solo limpia dentro de ``properties`` / mapas de usuario).
+        """
+        if isinstance(schema, list):
+            return [self._gemini_sanitize_schema(item) for item in schema]
+        if not isinstance(schema, dict):
+            return schema
+
+        # Optional[T] de Pydantic: {"anyOf": [T, {"type": "null"}], "default": null}
+        any_of = schema.get("anyOf")
+        if isinstance(any_of, list) and len(any_of) >= 2:
+            non_null = []
+            has_null = False
+            for opt in any_of:
+                if isinstance(opt, dict) and opt.get("type") == "null" and len(opt) <= 2:
+                    # {"type": "null"} o {"type": "null", "title": "..."}
+                    has_null = True
+                else:
+                    non_null.append(opt)
+            if has_null and len(non_null) == 1 and isinstance(non_null[0], dict):
+                merged = dict(non_null[0])
+                for keep in ("description", "title"):
+                    if keep in schema and keep not in merged:
+                        merged[keep] = schema[keep]
+                # No usar ``nullable``: algunos modelos/aliases lo rechazan en
+                # parameters_json_schema. El parámetro queda opcional al no
+                # estar en ``required``.
+                return self._gemini_sanitize_schema(merged)
+
+        out = {}
+        for key, value in schema.items():
+            if key in _GEMINI_USER_NAMED_KEY_MAPS and isinstance(value, dict):
+                out[key] = {
+                    child_key: self._gemini_sanitize_schema(child_val)
+                    for child_key, child_val in value.items()
+                }
+                continue
+            if key in _GEMINI_UNSUPPORTED_SCHEMA_KEYS:
+                continue
+            if key == "default" and value is None:
+                # default: null suele sobrar tras aplanar Optional
+                continue
+            out[key] = self._gemini_sanitize_schema(value)
+
+        # Si quedó type:null suelto, descartarlo (parámetro opcional sin tipo null).
+        if out.get("type") == "null" and len(out) <= 2:
+            return {"type": "string", "description": out.get("description") or ""}
+
+        # Gemini Developer a veces rechaza ``nullable`` en function params.
+        out.pop("nullable", None)
+        return out
+
     def gemini_format_tools(self, tools):
         """Formatea herramientas Odoo para el nuevo SDK (usa parameters_json_schema)."""
         from google.genai import types as genai_types
@@ -161,9 +274,25 @@ class LLMProvider(models.Model):
             if not isinstance(schema, dict):
                 schema = {"type": "object", "properties": {}}
 
-            # Con parameters_json_schema enviamos el JSON Schema COMPLETO (igual que OpenAI),
-            # sin necesidad de sanitizar anyOf, additionalProperties, etc.
-            # Esto garantiza que Gemini recibe exactamente el mismo schema que ChatGPT.
+            # Sanitizar: Gemini no acepta el JSON Schema completo de Pydantic/OpenAI
+            # (additionalProperties, anyOf+null, $defs, …) → 400 INVALID_ARGUMENT.
+            schema = self._gemini_sanitize_schema(schema)
+            if not isinstance(schema, dict) or schema.get("type") not in (
+                None,
+                "object",
+                "OBJECT",
+            ):
+                # FunctionDeclaration exige object en la raíz.
+                schema = {
+                    "type": "object",
+                    "properties": schema.get("properties", {})
+                    if isinstance(schema, dict)
+                    else {},
+                }
+            elif "type" not in schema:
+                schema = dict(schema)
+                schema["type"] = "object"
+
             decl = genai_types.FunctionDeclaration(
                 name=tool.name,
                 description=tool.description or "",
@@ -203,14 +332,25 @@ class LLMProvider(models.Model):
         return formatted
 
     def _gemini_enrich_tool_message_from_record(self, formatted, record):
-        """Añade «name» al mensaje tipo tool si el registro lo tiene."""
+        """Añade «name» y «tool_call_id» al mensaje tipo tool desde body_json.
+
+        El formato OpenAI no incluye ``name``; Gemini exige el nombre de la
+        función en ``FunctionResponse`` y el mismo ``id`` que el ``FunctionCall``.
+        """
         if not formatted or formatted.get("role") != "tool":
             return
         if not hasattr(record, "body_json"):
             return
         td = record.body_json or {}
-        if td.get("tool_name"):
-            formatted["name"] = td["tool_name"]
+        name = td.get("tool_name")
+        if not name:
+            fn = (td.get("tool_call") or {}).get("function") or {}
+            name = fn.get("name")
+        if name:
+            formatted["name"] = name
+        tcid = td.get("tool_call_id") or (td.get("tool_call") or {}).get("id")
+        if tcid:
+            formatted["tool_call_id"] = tcid
 
     def _gemini_build_openai_style_message_list(self, prepend_messages, messages):
         """Crea la lista de mensajes OpenAI-like con gemini_content_json enriquecido."""
@@ -362,18 +502,11 @@ class LLMProvider(models.Model):
                 if not parts:
                     parts.append(genai_types.Part(text=""))
 
-                tc_list = msg.get("tool_calls") or []
-                if tc_list:
-                    _logger.info(
-                        "Gemini: assistant FunctionCall(s) en historial: %s",
-                        [(tc.get("id"), (tc.get("function") or {}).get("name")) for tc in tc_list],
-                    )
-
                 contents.append(genai_types.Content(role="model", parts=parts))
 
             elif role == "tool":
                 name = msg.get("name") or "unknown_tool"
-                call_id = msg.get("tool_call_id") or ""
+                tool_call_id = (msg.get("tool_call_id") or "").strip() or None
                 raw = msg.get("content")
                 if isinstance(raw, str):
                     try:
@@ -385,16 +518,13 @@ class LLMProvider(models.Model):
                 if not isinstance(resp_obj, dict):
                     resp_obj = {"result": resp_obj}
 
-                _logger.info(
-                    "Gemini: FunctionResponse name=%s, id=%s, response_keys=%s, response_snippet=%.300s",
-                    name, call_id,
-                    list(resp_obj.keys()) if isinstance(resp_obj, dict) else type(resp_obj).__name__,
-                    json.dumps(resp_obj, ensure_ascii=False, default=str)[:300],
-                )
-
-                fr_kwargs = {"name": name, "response": resp_obj}
-                if call_id:
-                    fr_kwargs["id"] = call_id
+                fr_kwargs = {
+                    "name": name,
+                    "response": resp_obj,
+                }
+                # Gemini 3+ exige el mismo id que el function_call previo.
+                if tool_call_id:
+                    fr_kwargs["id"] = tool_call_id
 
                 contents.append(
                     genai_types.Content(
@@ -402,7 +532,7 @@ class LLMProvider(models.Model):
                         parts=[
                             genai_types.Part(
                                 function_response=genai_types.FunctionResponse(
-                                    **fr_kwargs,
+                                    **fr_kwargs
                                 )
                             )
                         ],
@@ -424,37 +554,11 @@ class LLMProvider(models.Model):
             contents = self._gemini_strip_invalid_function_calls(contents, genai_types)
             contents = self._gemini_strip_orphan_function_responses(contents)
             contents = self._gemini_fix_consecutive_model_turns(contents, genai_types)
+            contents = self._gemini_ensure_contents_end_with_user(contents, genai_types)
         if not contents:
             contents = [
                 genai_types.Content(role="user", parts=[genai_types.Part(text="")])
             ]
-
-        summary = []
-        for c in contents:
-            rn = self._gemini_role_name(c)
-            part_types = []
-            for p in (c.parts or []):
-                if getattr(p, "function_call", None):
-                    fc = p.function_call
-                    part_types.append("FC(%s,id=%s)" % (getattr(fc, "name", "?"), getattr(fc, "id", "?")))
-                elif getattr(p, "function_response", None):
-                    fr = p.function_response
-                    resp = getattr(fr, "response", None) or {}
-                    part_types.append("FR(%s,id=%s,keys=%s)" % (
-                        getattr(fr, "name", "?"),
-                        getattr(fr, "id", "?"),
-                        list(resp.keys()) if isinstance(resp, dict) else "?",
-                    ))
-                elif getattr(p, "text", None):
-                    part_types.append("text(%d)" % len(p.text))
-                else:
-                    part_types.append("other")
-            summary.append("%s:[%s]" % (rn, ",".join(part_types)))
-        _logger.info(
-            "Gemini: resumen de contents (%d turnos): %s",
-            len(contents), " | ".join(summary),
-        )
-
         return contents, system_instruction
 
     def _gemini_role_name(self, content):
@@ -509,15 +613,134 @@ class LLMProvider(models.Model):
                 return False
         return True
 
+    def _gemini_function_call_ids(self, content):
+        """IDs de cada function_call (puede haber vacíos)."""
+        ids = []
+        for p in content.parts or []:
+            fc = getattr(p, "function_call", None)
+            if fc:
+                ids.append((getattr(fc, "id", None) or "").strip())
+        return ids
+
+    def _gemini_function_response_ids(self, content):
+        """IDs de cada function_response."""
+        ids = []
+        for p in content.parts or []:
+            fr = getattr(p, "function_response", None)
+            if fr:
+                ids.append((getattr(fr, "id", None) or "").strip())
+        return ids
+
     def _gemini_followup_matches_function_calls(self, model_c, user_c):
-        """El user siguiente debe tener una function_response por cada function_call (mismos nombres)."""
+        """El user siguiente debe responder cada function_call (por id o por nombre)."""
         if self._gemini_role_name(user_c) != "user":
             return False
         fc_names = self._gemini_function_call_names(model_c)
         if not fc_names:
             return True
         fr_names = self._gemini_function_response_names(user_c)
-        return sorted(fc_names) == sorted(fr_names) and len(fc_names) == len(fr_names)
+        if len(fc_names) != len(fr_names):
+            return False
+        fc_ids = self._gemini_function_call_ids(model_c)
+        fr_ids = self._gemini_function_response_ids(user_c)
+        # Preferir match por id cuando ambos lados los traen.
+        if fc_ids and fr_ids and all(fc_ids) and all(fr_ids):
+            return sorted(fc_ids) == sorted(fr_ids)
+        return sorted(fc_names) == sorted(fr_names)
+
+    def _gemini_synthetic_function_response_parts(self, model_c, genai_types):
+        """Parts function_response de error para cerrar function_calls sin respuesta."""
+        parts = []
+        for p in model_c.parts or []:
+            fc = getattr(p, "function_call", None)
+            if not fc:
+                continue
+            name = getattr(fc, "name", None) or "unknown_tool"
+            fc_id = (getattr(fc, "id", None) or "").strip() or None
+            fr_kwargs = {
+                "name": name,
+                "response": {
+                    "error": (
+                        "Resultado de herramienta no disponible en el historial; "
+                        "se insertó una respuesta sintética para continuar."
+                    )
+                },
+            }
+            if fc_id:
+                fr_kwargs["id"] = fc_id
+            parts.append(
+                genai_types.Part(
+                    function_response=genai_types.FunctionResponse(**fr_kwargs)
+                )
+            )
+        return parts
+
+    def _gemini_ensure_contents_end_with_user(self, contents, genai_types):
+        """La API Gemini rechaza peticiones que terminan en turno ``model``.
+
+        Error típico: ``Requests ending with a model turn are not supported.``
+        Si el último turno es model con function_call sin FR, cerramos con
+        FR sintéticas. Si es solo texto (turno previo completo), no debería
+        ocurrir al generar; como red de seguridad se omite ese model final
+        vacío/placeholder o se añade un ancla user mínima.
+        """
+        if not contents:
+            return [
+                genai_types.Content(
+                    role="user", parts=[genai_types.Part(text=" ")]
+                )
+            ]
+        last = contents[-1]
+        if self._gemini_role_name(last) != "model":
+            return contents
+
+        if self._gemini_content_has_function_call(last):
+            fr_parts = self._gemini_synthetic_function_response_parts(
+                last, genai_types
+            )
+            if fr_parts:
+                _logger.warning(
+                    "Gemini: historial terminaba en model con function_call sin "
+                    "respuesta; se insertan %s function_response sintéticas.",
+                    len(fr_parts),
+                )
+                return list(contents) + [
+                    genai_types.Content(role="user", parts=fr_parts)
+                ]
+
+        # Model solo texto al final: quitar turnos model trailing vacíos;
+        # si queda model con texto real, añadir ancla user (mejor que 400).
+        out = list(contents)
+        while out and self._gemini_role_name(out[-1]) == "model":
+            parts = list(out[-1].parts or [])
+            only_empty = all(
+                (getattr(p, "text", None) or "").strip() == ""
+                and not getattr(p, "function_call", None)
+                for p in parts
+            ) if parts else True
+            if only_empty:
+                _logger.warning(
+                    "Gemini: se omite turno model vacío al final del historial."
+                )
+                out.pop()
+                continue
+            _logger.warning(
+                "Gemini: historial terminaba en turno model; se añade ancla user."
+            )
+            out.append(
+                genai_types.Content(
+                    role="user",
+                    parts=[genai_types.Part(text="Continúa con la solicitud.")],
+                )
+            )
+            break
+        if not out:
+            out = [
+                genai_types.Content(
+                    role="user", parts=[genai_types.Part(text=" ")]
+                )
+            ]
+        return out
 
     def _gemini_strip_function_calls_from_content(self, content, genai_types):
         """Quita partes function_call; si queda vacío, deja un Part con texto vacío."""
@@ -588,11 +811,11 @@ class LLMProvider(models.Model):
         return out
 
     def _gemini_strip_invalid_function_calls(self, contents, genai_types):
-        """Quita function_call del model si no sigue un user con todas las function_response.
+        """Quita o completa function_call del model según haya function_response.
 
-        Si se omiten las FC del model, también se omite el siguiente turno user que solo
-        traía esas function_response; si no, la API devuelve 400 por respuestas de
-        herramienta huérfanas (sin function_call previo en el turno model).
+        Si el model con FC está al final (aún sin FR en historial), **no** se
+        deja el turno model solo: se añaden FR sintéticas. De lo contrario la
+        API responde ``Requests ending with a model turn are not supported``.
         """
         if not contents:
             return contents
@@ -610,12 +833,18 @@ class LLMProvider(models.Model):
                 i += 1
                 continue
             if i + 1 >= n:
-                _logger.debug(
-                    "Gemini: model con function_call al final; se omiten las llamadas"
+                _logger.warning(
+                    "Gemini: model con function_call al final del historial; "
+                    "se cierran con function_response sintéticas."
                 )
-                out.append(
-                    self._gemini_strip_function_calls_from_content(c, genai_types)
+                out.append(c)
+                fr_parts = self._gemini_synthetic_function_response_parts(
+                    c, genai_types
                 )
+                if fr_parts:
+                    out.append(
+                        genai_types.Content(role="user", parts=fr_parts)
+                    )
                 i += 1
                 continue
             nxt = contents[i + 1]
@@ -623,19 +852,23 @@ class LLMProvider(models.Model):
                 out.append(c)
                 i += 1
                 continue
-            _logger.debug(
-                "Gemini: function_call sin function_response válida a continuación; "
-                "se omiten las llamadas del turno model"
+            _logger.warning(
+                "Gemini: function_call sin function_response válida a continuación "
+                "(fc=%s fr=%s); se cierran con respuestas sintéticas.",
+                self._gemini_function_call_names(c),
+                self._gemini_function_response_names(nxt)
+                if self._gemini_role_name(nxt) == "user"
+                else None,
             )
-            out.append(self._gemini_strip_function_calls_from_content(c, genai_types))
+            out.append(c)
+            fr_parts = self._gemini_synthetic_function_response_parts(c, genai_types)
+            if fr_parts:
+                out.append(genai_types.Content(role="user", parts=fr_parts))
+            # Si el siguiente era solo FR huérfanas/incorrectas, saltarlo.
             if (
                 self._gemini_role_name(nxt) == "user"
                 and self._gemini_user_is_only_function_responses(nxt)
             ):
-                _logger.debug(
-                    "Gemini: omitiendo turno user solo con function_response "
-                    "asociado a FC omitidas"
-                )
                 i += 2
             else:
                 i += 1
@@ -793,10 +1026,96 @@ class LLMProvider(models.Model):
     # Chat principal
     # ------------------------------------------------------------------
 
+    def _gemini_model_supports_tool_combination(self, model_name):
+        """Combinar Google Search + function calling (tool context circulation).
+
+        Documentación Google: preview en modelos Gemini 3+. Desde jul/2026 el
+        alias ``gemini-flash-latest`` suele apuntar a Gemini 3.x Flash, así que
+        también lo habilitamos; si la API rechaza la mezcla, el caller puede
+        reintentar sin grounding.
+        """
+        name = (model_name or "").lower().strip()
+        if not name:
+            return False
+        if "gemini-3" in name:
+            return True
+        # Aliases que rotan hacia la Flash «current» (a menudo 3.x).
+        if name in (
+            "gemini-flash-latest",
+            "gemini-pro-latest",
+            "models/gemini-flash-latest",
+            "models/gemini-pro-latest",
+        ):
+            return True
+        return False
+
+    def _gemini_model_allows_thinking_budget_zero(self, model_name):
+        """True si el modelo acepta ``thinking_budget=0`` (desactivar thinking).
+
+        - Flash 2.5 clásico: sí.
+        - Pro / varios alias ``*-latest`` / Gemini 3+: no; 0 → 400 INVALID_ARGUMENT.
+        Ante la duda devolvemos False y **omitimos** el ThinkingConfig.
+        """
+        name = (model_name or "").lower().strip()
+        if not name:
+            return False
+        if "pro" in name:
+            return False
+        # Alias inestables: gemini-flash-latest puede apuntar a 3.x Flash
+        # que ya no admite 0. Mejor no enviar budget=0.
+        if "latest" in name or "gemini-3" in name:
+            return False
+        if "flash" in name and "2.5" in name:
+            return True
+        if "flash-lite" in name or "flash_lite" in name:
+            return True
+        return False
+
+    def _gemini_clamp_thinking_budget(self, model_name, budget):
+        """Ajusta el presupuesto al rango válido del modelo (o None para omitir).
+
+        ``None`` → no enviar ThinkingConfig (dejar default del modelo).
+        Entero >= 1 → thinking activo (mín. 128 en familias Pro).
+        ``0`` → solo si el modelo lo admite; si no, se omite (None).
+        """
+        if budget is None:
+            return None
+        try:
+            budget = int(budget)
+        except (TypeError, ValueError):
+            return None
+        name = (model_name or "").lower().strip()
+        if budget <= 0:
+            if self._gemini_model_allows_thinking_budget_zero(name):
+                return 0
+            return None
+        # Pro no admite 0; el mínimo documentado es 128.
+        if "pro" in name and budget < 128:
+            return 128
+        return budget
+
+    def _gemini_build_thinking_config(
+        self, genai_types, model_name, budget, include_thoughts=False
+    ):
+        """Construye ThinkingConfig o None si debe omitirse."""
+        clamped = self._gemini_clamp_thinking_budget(model_name, budget)
+        if clamped is None:
+            return None
+        kwargs = {"thinking_budget": clamped}
+        if include_thoughts and clamped > 0:
+            kwargs["include_thoughts"] = True
+        return genai_types.ThinkingConfig(**kwargs)
+
     def _gemini_build_tool_config_function_auto(self, genai_types, use_google_search_grounding):
-        """ToolConfig para function calling Odoo; marca server-side si hay grounding combinado."""
+        """ToolConfig para function calling Odoo; marca server-side si hay grounding combinado.
+
+        Con ``include_server_side_tool_invocations`` la API **no** admite
+        ``mode=AUTO``: exige ``VALIDATED`` (ver Gemini tool combination docs).
+        Usar AUTO provoca 400 INVALID_ARGUMENT.
+        """
+        mode = "VALIDATED" if use_google_search_grounding else "AUTO"
         _tc_kwargs = {
-            "function_calling_config": genai_types.FunctionCallingConfig(mode="AUTO"),
+            "function_calling_config": genai_types.FunctionCallingConfig(mode=mode),
         }
         if use_google_search_grounding:
             _tc_kwargs["include_server_side_tool_invocations"] = True
@@ -818,10 +1137,10 @@ class LLMProvider(models.Model):
         """Chat con Gemini usando el nuevo SDK google-genai (1.x).
 
         Ventajas frente al SDK anterior:
-        - parameters_json_schema envía el schema JSON completo (anyOf, additionalProperties)
-          igual que ChatGPT, evitando que el modelo confunda tipos de parámetros.
-        - thinking_budget=0 desactiva el pensamiento profundo en tool calls para evitar
-          que Gemini 3 Flash sobre-razone y confunda write_values con fields.
+        - parameters_json_schema con schema sanitizado (sin additionalProperties /
+          anyOf+null de Pydantic) para evitar 400 INVALID_ARGUMENT.
+        - ThinkingConfig solo se envía con presupuestos válidos por modelo:
+          ``thinking_budget=0`` provoca 400 en Pro / alias ``*-latest`` / Gemini 3+.
         - thought_signature se maneja automáticamente al restaurar Content serializado.
         """
         from google import genai as genai_module
@@ -842,19 +1161,28 @@ class LLMProvider(models.Model):
         contents, system_instruction = self._gemini_build_contents(openai_style)
 
         has_odoo_tools = bool(tools)
-        use_google_search_grounding = bool(
+        want_google_search = bool(
             getattr(model_obj, "gemini_google_search_grounding", False)
         )
-        deep_thinking = bool(
-            kwargs.get("experience_thinking_budget") is not None
-            and int(kwargs.get("experience_thinking_budget") or 0) > 0
-        )
+
+        # Combinar Google Search + tools Odoo: Gemini 3+ / alias latest.
+        use_google_search_grounding = want_google_search
+        if want_google_search and has_odoo_tools:
+            if not self._gemini_model_supports_tool_combination(model_obj.name):
+                _logger.warning(
+                    "Gemini: el modelo «%s» no soporta combinar Google Search "
+                    "con herramientas Odoo (solo Gemini 3+ / alias latest). "
+                    "Se desactiva grounding en esta petición.",
+                    model_obj.name,
+                )
+                use_google_search_grounding = False
 
         # Construir config
         config_kwargs = {}
         if system_instruction:
             config_kwargs["system_instruction"] = system_instruction
 
+        declarations = None
         if has_odoo_tools:
             declarations = self.gemini_format_tools(tools)
             tool_names = [t.name for t in tools]
@@ -867,15 +1195,9 @@ class LLMProvider(models.Model):
             config_kwargs["tool_config"] = self._gemini_build_tool_config_function_auto(
                 genai_types, use_google_search_grounding
             )
-            # Desactivar pensamiento profundo para tool calls (salvo modo experiencia):
-            # Gemini 3 Flash con HIGH thinking confunde write_values (objeto) con fields (lista).
-            # thinking_budget=0 = DISABLED según la documentación del SDK.
-            config_kwargs["thinking_config"] = genai_types.ThinkingConfig(
-                thinking_budget=0
-            )
 
-        # Grounding: en modelos recientes se puede combinar con function calling
-        # (ver tool combinations en la documentación de Gemini API).
+        # Grounding: en Gemini 3+ / latest se combina con function calling
+        # (mode=VALIDATED + include_server_side_tool_invocations).
         if use_google_search_grounding:
             config_kwargs.setdefault("tools", [])
             config_kwargs["tools"].append(
@@ -883,90 +1205,169 @@ class LLMProvider(models.Model):
             )
             if has_odoo_tools:
                 _logger.info(
-                    "Gemini: Google Search grounding activo junto con herramientas Odoo."
+                    "Gemini: Google Search grounding activo junto con herramientas Odoo "
+                    "(mode=VALIDATED)."
                 )
             else:
                 _logger.info("Gemini: Google Search grounding activo.")
 
-        # AFC (Automatic Function Calling del SDK): por defecto el SDK usa 10 llamadas remotas.
-        # Con pensamiento profundo lo desactivamos para no encadenar rondas AFC pesadas;
-        # en el resto de casos subimos el techo (configurable en el modelo).
+        # AFC del SDK ejecuta callables Python y reescribe ``contents``.
+        # Con tools Odoo las ejecutamos nosotros en generate_messages: AFC
+        # activo provoca bucles rotos («Requests ending with a model turn…»).
         AFCConfig = getattr(genai_types, "AutomaticFunctionCallingConfig", None)
         if AFCConfig and has_odoo_tools:
-            if deep_thinking:
-                config_kwargs["automatic_function_calling"] = AFCConfig(disable=True)
-                _logger.info(
-                    "Gemini: AFC desactivado (modo pensamiento profundo / experiencia)."
-                )
-            else:
-                max_remote = int(
-                    getattr(model_obj, "gemini_afc_max_remote_calls", 0) or 30
-                )
-                max_remote = max(1, max_remote)
-                config_kwargs["automatic_function_calling"] = AFCConfig(
-                    maximum_remote_calls=max_remote,
-                )
-                _logger.info(
-                    "Gemini: AFC activo con máximo de llamadas remotas: %s", max_remote
-                )
-
-        # Módulo llm_experience: pensamiento profundo (sobrescribe thinking de tools si aplica)
-        exp_tb = kwargs.get("experience_thinking_budget")
-        if exp_tb is not None and int(exp_tb) > 0:
-            config_kwargs["thinking_config"] = genai_types.ThinkingConfig(
-                thinking_budget=int(exp_tb),
-                include_thoughts=bool(kwargs.get("experience_include_thoughts")),
+            config_kwargs["automatic_function_calling"] = AFCConfig(disable=True)
+            _logger.info(
+                "Gemini: AFC desactivado (tools Odoo se ejecutan en el hilo)."
             )
 
-        config = genai_types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
+        # Pensamiento: solo si hay presupuesto válido para este modelo.
+        exp_tb = kwargs.get("experience_thinking_budget")
+        if exp_tb is not None and int(exp_tb) > 0:
+            thinking_cfg = self._gemini_build_thinking_config(
+                genai_types,
+                model_obj.name,
+                int(exp_tb),
+                include_thoughts=bool(kwargs.get("experience_include_thoughts")),
+            )
+            if thinking_cfg is not None:
+                config_kwargs["thinking_config"] = thinking_cfg
+                _logger.info(
+                    "Gemini: thinking_budget=%s (modelo=%s).",
+                    thinking_cfg.thinking_budget,
+                    model_obj.name,
+                )
+            else:
+                _logger.warning(
+                    "Gemini: no se pudo aplicar thinking_budget=%s al modelo «%s»; "
+                    "se omite ThinkingConfig.",
+                    exp_tb,
+                    model_obj.name,
+                )
+
+        def _drop_google_search_from_config_kwargs(ck):
+            """Quita grounding y vuelve tool_config a AUTO (solo function calling)."""
+            tools_list = list(ck.get("tools") or [])
+            ck["tools"] = [
+                t
+                for t in tools_list
+                if not getattr(t, "google_search", None)
+            ]
+            if has_odoo_tools and declarations is not None:
+                ck["tool_config"] = self._gemini_build_tool_config_function_auto(
+                    genai_types, False
+                )
+            elif "tool_config" in ck:
+                ck.pop("tool_config", None)
+            return ck
+
+        def _is_tool_combination_reject(err):
+            msg = str(err or "").lower()
+            return any(
+                s in msg
+                for s in (
+                    "cannot be combined",
+                    "can not be combined",
+                    "tool combination",
+                    "built-in tools",
+                    "google_search",
+                    "include_server_side_tool_invocations",
+                )
+            )
+
+        config = (
+            genai_types.GenerateContentConfig(**config_kwargs)
+            if config_kwargs
+            else None
+        )
 
         if stream:
+            def _consume_stream(resp_iter):
+                seen_fc_keys = set()
+                last_content = None
+                last_usage_chunk = None
+                for chunk in resp_iter:
+                    um = getattr(chunk, "usage_metadata", None)
+                    if um:
+                        last_usage_chunk = chunk
+                    if not chunk.candidates:
+                        continue
+                    cand = chunk.candidates[0]
+                    if not cand.content:
+                        continue
+                    last_content = cand.content
+                    for part in cand.content.parts:
+                        if part.text:
+                            yield {"content": part.text}
+                        fc = getattr(part, "function_call", None)
+                        if fc and getattr(fc, "name", None):
+                            key = (getattr(fc, "id", "") or "", fc.name)
+                            if key in seen_fc_keys:
+                                continue
+                            seen_fc_keys.add(key)
+                            yield {"tool_calls": [self._gemini_fc_to_openai(fc)]}
+                if last_content:
+                    try:
+                        content_json = last_content.model_dump_json()
+                        if content_json:
+                            yield {"gemini_content_json": content_json}
+                    except Exception as err:
+                        _logger.debug(
+                            "Gemini: no se pudo serializar streaming content: %s", err
+                        )
+                if last_usage_chunk is not None:
+                    yield {
+                        "_usage_internal": self._gemini_usage_metadata_dict(
+                            last_usage_chunk
+                        )
+                    }
+
             def _stream():
+                nonlocal config, config_kwargs, use_google_search_grounding
                 try:
                     resp_iter = client.models.generate_content_stream(
                         model=model_obj.name,
                         contents=contents,
                         config=config,
                     )
-                    seen_fc_keys = set()
-                    last_content = None
-                    last_usage_chunk = None
-                    for chunk in resp_iter:
-                        um = getattr(chunk, "usage_metadata", None)
-                        if um:
-                            last_usage_chunk = chunk
-                        if not chunk.candidates:
-                            continue
-                        cand = chunk.candidates[0]
-                        if not cand.content:
-                            continue
-                        last_content = cand.content
-                        for part in cand.content.parts:
-                            if part.text:
-                                yield {"content": part.text}
-                            fc = getattr(part, "function_call", None)
-                            if fc and getattr(fc, "name", None):
-                                key = (getattr(fc, "id", "") or "", fc.name)
-                                if key in seen_fc_keys:
-                                    continue
-                                seen_fc_keys.add(key)
-                                yield {"tool_calls": [self._gemini_fc_to_openai(fc)]}
-                    # Serializar el Content completo del último chunk (preserva thought_signature)
-                    if last_content:
-                        try:
-                            content_json = last_content.model_dump_json()
-                            if content_json:
-                                yield {"gemini_content_json": content_json}
-                        except Exception as err:
-                            _logger.debug("Gemini: no se pudo serializar streaming content: %s", err)
-                    if last_usage_chunk is not None:
-                        yield {
-                            "_usage_internal": self._gemini_usage_metadata_dict(
-                                last_usage_chunk
-                            )
-                        }
+                    yield from _consume_stream(resp_iter)
                 except Exception as err:
-                    _logger.error("Gemini: error en streaming: %s", err)
+                    if (
+                        use_google_search_grounding
+                        and has_odoo_tools
+                        and _is_tool_combination_reject(err)
+                    ):
+                        _logger.warning(
+                            "Gemini: la API rechazó combinar Google Search con tools "
+                            "(%s). Reintento sin grounding.",
+                            err,
+                        )
+                        use_google_search_grounding = False
+                        config_kwargs = _drop_google_search_from_config_kwargs(
+                            dict(config_kwargs)
+                        )
+                        config = genai_types.GenerateContentConfig(**config_kwargs)
+                        try:
+                            resp_iter = client.models.generate_content_stream(
+                                model=model_obj.name,
+                                contents=contents,
+                                config=config,
+                            )
+                            yield from _consume_stream(resp_iter)
+                            return
+                        except Exception as err2:
+                            _logger.error(
+                                "Gemini: error en streaming (reintento): %s",
+                                err2,
+                                exc_info=True,
+                            )
+                            yield {"error": str(err2)}
+                            return
+                    _logger.error(
+                        "Gemini: error en streaming: %s",
+                        err,
+                        exc_info=True,
+                    )
                     yield {"error": str(err)}
 
             return _stream()
@@ -979,8 +1380,40 @@ class LLMProvider(models.Model):
                 config=config,
             )
         except Exception as err:
-            _logger.error("Gemini: error en generate_content: %s", err)
-            raise UserError(_("Error en Gemini API: %s") % err) from err
+            if (
+                use_google_search_grounding
+                and has_odoo_tools
+                and _is_tool_combination_reject(err)
+            ):
+                _logger.warning(
+                    "Gemini: la API rechazó combinar Google Search con tools "
+                    "(%s). Reintento sin grounding.",
+                    err,
+                )
+                config_kwargs = _drop_google_search_from_config_kwargs(
+                    dict(config_kwargs)
+                )
+                config = genai_types.GenerateContentConfig(**config_kwargs)
+                try:
+                    response = client.models.generate_content(
+                        model=model_obj.name,
+                        contents=contents,
+                        config=config,
+                    )
+                except Exception as err2:
+                    _logger.error(
+                        "Gemini: error en generate_content (reintento): %s",
+                        err2,
+                        exc_info=True,
+                    )
+                    raise UserError(_("Error en Gemini API: %s") % err2) from err2
+            else:
+                _logger.error(
+                    "Gemini: error en generate_content: %s",
+                    err,
+                    exc_info=True,
+                )
+                raise UserError(_("Error en Gemini API: %s") % err) from err
 
         out = self._gemini_response_to_dict(response)
         out["_usage_internal"] = self._gemini_usage_metadata_dict(response)

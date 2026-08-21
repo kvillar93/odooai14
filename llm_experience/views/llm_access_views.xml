@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+
+    <!-- =============================================================
+         Asistente LLM: añadir campo 'Usuarios permitidos' junto al
+         'Grupos permitidos' existente. Cuando se seleccionan usuarios,
+         solo esos ven el asistente (prevalece sobre grupos/público).
+         ============================================================= -->
+    <record id="view_llm_assistant_form_allowed_users" model="ir.ui.view">
+        <field name="name">llm.assistant.form.allowed.users</field>
+        <field name="model">llm.assistant</field>
+        <field name="inherit_id" ref="llm_assistant.view_llm_assistant_form" />
+        <field name="arch" type="xml">
+            <field name="allowed_group_ids" position="after">
+                <field
+                    name="allowed_user_ids"
+                    widget="many2many_tags"
+                    options="{'no_create': True}"
+                    help="Si se seleccionan usuarios, este asistente SOLO será visible para ellos. Si se deja vacío se aplican las reglas de grupos/público."
+                />
+            </field>
+        </field>
+    </record>
+
+    <!-- =============================================================
+         Proveedor LLM: nueva pestaña de control de acceso con
+         'Usuarios permitidos'.
+         ============================================================= -->
+    <record id="llm_provider_view_form_allowed_users" model="ir.ui.view">
+        <field name="name">llm.provider.form.allowed.users</field>
+        <field name="model">llm.provider</field>
+        <field name="inherit_id" ref="llm.llm_provider_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Control de acceso" name="access_control">
+                    <group>
+                        <field
+                            name="allowed_user_ids"
+                            widget="many2many_tags"
+                            options="{'no_create': True}"
+                            help="Si se seleccionan usuarios, SOLO ellos verán este proveedor. Si se deja vacío, lo ven todos los usuarios con acceso."
+                        />
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- =============================================================
+         Modelo LLM: nuevo grupo en el formulario con 'Usuarios permitidos'.
+         ============================================================= -->
+    <record id="llm_model_view_form_allowed_users" model="ir.ui.view">
+        <field name="name">llm.model.form.allowed.users</field>
+        <field name="model">llm.model</field>
+        <field name="inherit_id" ref="llm.llm_model_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <group string="Control de acceso">
+                    <field
+                        name="allowed_user_ids"
+                        widget="many2many_tags"
+                        options="{'no_create': True}"
+                        help="Si se seleccionan usuarios, SOLO ellos verán este modelo. Si se deja vacío, lo ven todos los usuarios con acceso."
+                    />
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

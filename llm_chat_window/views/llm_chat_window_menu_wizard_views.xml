@@ -13,6 +13,12 @@
                     />
                     <field name="menu_name" placeholder="Mismo nombre que la ventana si se deja vacío" />
                     <field name="sequence" />
+                    <field
+                        name="group_ids"
+                        widget="many2many_tags"
+                        options="{'no_create': True}"
+                        placeholder="Vacío = visible para todos los usuarios internos"
+                    />
                 </group>
                 <footer>
                     <button

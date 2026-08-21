@@ -24,18 +24,32 @@ class LLMToolRecordCreator(models.Model):
             return schema
         props = schema.setdefault("properties", {})
         if "write_values" in props:
-            props["write_values"]["description"] = (
-                "Obligatorio si no usa «records»: un ÚNICO objeto JSON (mapa), clave=nombre técnico "
-                "del campo Odoo, valor=dato a guardar. El nombre «write_values» evita confundirlo con "
-                "«fields» del retriever (lista de columnas). Prohibido enviar un array de nombres de campos. "
-                "Ejemplo línea de compra: "
-                '{"order_id": 123, "product_id": 45, "product_qty": 2, "price_unit": 10.5, "name": "Polo"}'
-            )
+            # Forzar objeto plano: Pydantic emite anyOf[object+additionalProperties, null]
+            # y Gemini (API Developer) responde 400 INVALID_ARGUMENT con eso.
+            props["write_values"] = {
+                "type": "object",
+                "description": (
+                    "Obligatorio si no usa «records»: un ÚNICO objeto JSON (mapa), clave=nombre técnico "
+                    "del campo Odoo, valor=dato a guardar. El nombre «write_values» evita confundirlo con "
+                    "«fields» del retriever (lista de columnas). Prohibido enviar un array de nombres de campos. "
+                    "Ejemplo línea de compra: "
+                    '{"order_id": 123, "product_id": 45, "product_qty": 2, "price_unit": 10.5, "name": "Polo"}'
+                ),
+            }
         if "records" in props:
-            props["records"]["description"] = (
+            rec_desc = (
                 "Lista de objetos (cada uno como «write_values») para crear varios registros en una llamada. "
                 "No mezclar con «write_values»."
             )
+            rec = props["records"]
+            if isinstance(rec, dict) and "anyOf" in rec:
+                props["records"] = {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": rec_desc,
+                }
+            else:
+                props["records"]["description"] = rec_desc
         if "model" in props:
             props["model"]["description"] = (
                 "Nombre técnico del modelo Odoo, p. ej. purchase.order.line, res.partner, sale.order."
@@ -173,17 +187,21 @@ class LLMToolRecordCreator(models.Model):
             return (1, int(cmd[1]), vals if isinstance(vals, dict) else {})
         return tuple(cmd)
 
-    def _normalize_field_value_m2m(self, value):
-        """Normaliza el valor de un campo many2many enviado por un LLM.
+    def _normalize_field_value_x2many(self, field, value):
+        """Normaliza el valor de un campo x2many enviado por un LLM.
 
         Casos soportados:
+        - one2many con lista de dicts → [(0, 0, vals), ...]
         - [[6, false, [5, 6]]] → [(6, 0, [5, 6])]   (comando set, false como 0)
         - [[6, 0, 6]]          → [(6, 0, [6])]        (ID suelto como int)
         - [[4, 6]]             → [(4, 6)]              (link)
-        - [5, 6, 7]            → [(6, 0, [5, 6, 7])]  (lista de IDs sin comando)
+        - many2many [5, 6, 7]  → [(6, 0, [5, 6, 7])]  (lista de IDs sin comando)
         """
         if not isinstance(value, list) or not value:
             return value
+
+        if field.type == "one2many" and all(isinstance(item, dict) for item in value):
+            return [(0, 0, item) for item in value]
 
         # Detectar si es lista de listas/tuplas (comandos ORM)
         if all(isinstance(item, (list, tuple)) for item in value):
@@ -194,14 +212,16 @@ class LLMToolRecordCreator(models.Model):
                     normalized.append(result)
             return normalized
 
-        # Detectar si es lista de enteros: convertir a [(6, 0, ids)]
-        if all(isinstance(item, (int, float)) for item in value):
+        # Detectar si es lista de enteros para many2many: convertir a [(6, 0, ids)].
+        # En one2many no convertimos IDs sueltos; suele indicar que el modelo omitió
+        # los valores de creación de las líneas.
+        if field.type == "many2many" and all(isinstance(item, (int, float)) for item in value):
             return [(6, 0, [int(i) for i in value])]
 
         return value
 
     def _normalize_write_values_m2m(self, model_name, values):
-        """Aplica normalización many2many a todos los campos m2m del dict values."""
+        """Aplica normalización x2many a todos los campos m2m/o2m del dict values."""
         if not values or not isinstance(values, dict):
             return values
         try:
@@ -213,7 +233,7 @@ class LLMToolRecordCreator(models.Model):
         for fname, fval in values.items():
             field = model_fields.get(fname)
             if field and field.type in ("many2many", "one2many") and isinstance(fval, list):
-                normalized[fname] = self._normalize_field_value_m2m(fval)
+                normalized[fname] = self._normalize_field_value_x2many(field, fval)
             else:
                 normalized[fname] = fval
         return normalized

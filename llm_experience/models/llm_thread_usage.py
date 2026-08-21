@@ -121,6 +121,14 @@ class LLMThread(models.Model):
         self.write({"usage_last_estimated_prompt": int(max(0, estimated_tokens))})
         self._usage_recompute_live_from_parts()
 
+    def usage_apply_llm_response(self, usage_dict):
+        """Alias genérico: aplica uso de tokens independientemente del proveedor.
+
+        El dict normalizado debe contener: ``prompt``, ``cached``, ``output``,
+        ``thoughts`` (opcional) y ``total``. Usado por Gemini, Anthropic, etc.
+        """
+        return self.usage_apply_gemini_response(usage_dict)
+
     def usage_apply_gemini_response(self, usage_dict):
         """Tras cada respuesta Gemini (usage_metadata normalizado)."""
         self.ensure_one()
@@ -168,6 +176,9 @@ class LLMThread(models.Model):
         self.env["llm.thread.cost.line"].create(
             {
                 "thread_id": self.id,
+                "thread_id_snapshot": self.id,
+                "thread_name_snapshot": self.name or "",
+                "user_id_snapshot": self.user_id.id if self.user_id else False,
                 "prompt_tokens": prompt,
                 "output_tokens": output,
                 "cached_tokens": cached,
@@ -175,6 +186,9 @@ class LLMThread(models.Model):
                 "cumulative_usd_total": new_total,
                 "pricing_rate_id": rate.id,
                 "model_name_snapshot": self.model_id.name,
+                "provider_name_snapshot": (
+                    self.provider_id.name if self.provider_id else ""
+                ),
             }
         )
 

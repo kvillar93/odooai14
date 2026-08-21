@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo noupdate="1">
+    <!-- Tarifas de referencia precargadas (USD / M tokens).
+         El cron diario actualiza todos los registros con auto_update=True
+         usando la tabla interna `_DEFAULT_GEMINI_USD_PER_MILLION`.
+         Los importes aquí son solo un punto de partida para instalaciones
+         nuevas; en ejecución los mantendrá sincronizados el cron. -->
+
+    <!-- ===== Claude Opus (familia 4.5+ a 5$/25$) ===== -->
+    <record id="pricing_rate_claude_opus_4_new" model="llm.gemini.pricing.rate">
+        <field name="name">Anthropic Claude Opus 4.5+</field>
+        <field name="model_name_pattern">claude-opus-4-5</field>
+        <field name="input_usd_per_million">5.00</field>
+        <field name="output_usd_per_million">25.00</field>
+        <field name="cached_input_usd_per_million">0.50</field>
+        <field name="sequence">90</field>
+        <field name="auto_update" eval="True" />
+        <field name="notes">Opus 4.5, 4.6, 4.7, 4.8… (tarifa actualizada abril 2026).</field>
+    </record>
+
+    <!-- ===== Claude Opus 4.1 (tier caro legacy) ===== -->
+    <record id="pricing_rate_claude_opus_41" model="llm.gemini.pricing.rate">
+        <field name="name">Anthropic Claude Opus 4.1</field>
+        <field name="model_name_pattern">claude-opus-4-1</field>
+        <field name="input_usd_per_million">15.00</field>
+        <field name="output_usd_per_million">75.00</field>
+        <field name="cached_input_usd_per_million">1.50</field>
+        <field name="sequence">95</field>
+        <field name="auto_update" eval="True" />
+    </record>
+
+    <!-- ===== Claude 3 Opus (legacy) ===== -->
+    <record id="pricing_rate_claude_opus" model="llm.gemini.pricing.rate">
+        <field name="name">Anthropic Claude 3 Opus (legacy)</field>
+        <field name="model_name_pattern">claude-3-opus</field>
+        <field name="input_usd_per_million">15.00</field>
+        <field name="output_usd_per_million">75.00</field>
+        <field name="cached_input_usd_per_million">1.50</field>
+        <field name="sequence">100</field>
+        <field name="auto_update" eval="True" />
+    </record>
+
+    <!-- ===== Claude Sonnet 4.x ===== -->
+    <record id="pricing_rate_claude_sonnet_4" model="llm.gemini.pricing.rate">
+        <field name="name">Anthropic Claude Sonnet 4.x</field>
+        <field name="model_name_pattern">claude-sonnet-4</field>
+        <field name="input_usd_per_million">3.00</field>
+        <field name="output_usd_per_million">15.00</field>
+        <field name="cached_input_usd_per_million">0.30</field>
+        <field name="sequence">105</field>
+        <field name="auto_update" eval="True" />
+    </record>
+
+    <!-- ===== Claude Sonnet 3.5 / 3.7 (legacy, mismo precio) ===== -->
+    <record id="pricing_rate_claude_sonnet" model="llm.gemini.pricing.rate">
+        <field name="name">Anthropic Claude 3.5/3.7 Sonnet</field>
+        <field name="model_name_pattern">claude-3-5-sonnet</field>
+        <field name="input_usd_per_million">3.00</field>
+        <field name="output_usd_per_million">15.00</field>
+        <field name="cached_input_usd_per_million">0.30</field>
+        <field name="sequence">110</field>
+        <field name="auto_update" eval="True" />
+    </record>
+
+    <!-- ===== Claude Haiku 4.x ===== -->
+    <record id="pricing_rate_claude_haiku_4" model="llm.gemini.pricing.rate">
+        <field name="name">Anthropic Claude Haiku 4.x</field>
+        <field name="model_name_pattern">claude-haiku-4</field>
+        <field name="input_usd_per_million">1.00</field>
+        <field name="output_usd_per_million">5.00</field>
+        <field name="cached_input_usd_per_million">0.10</field>
+        <field name="sequence">112</field>
+        <field name="auto_update" eval="True" />
+    </record>
+
+    <!-- ===== Claude 3.5 Haiku (legacy) ===== -->
+    <record id="pricing_rate_claude_haiku_35" model="llm.gemini.pricing.rate">
+        <field name="name">Anthropic Claude 3.5 Haiku</field>
+        <field name="model_name_pattern">claude-3-5-haiku</field>
+        <field name="input_usd_per_million">0.80</field>
+        <field name="output_usd_per_million">4.00</field>
+        <field name="cached_input_usd_per_million">0.08</field>
+        <field name="sequence">115</field>
+        <field name="auto_update" eval="True" />
+    </record>
+
+    <!-- ===== Claude 3 Haiku (legacy) ===== -->
+    <record id="pricing_rate_claude_haiku" model="llm.gemini.pricing.rate">
+        <field name="name">Anthropic Claude 3 Haiku</field>
+        <field name="model_name_pattern">claude-3-haiku</field>
+        <field name="input_usd_per_million">0.25</field>
+        <field name="output_usd_per_million">1.25</field>
+        <field name="cached_input_usd_per_million">0.03</field>
+        <field name="sequence">120</field>
+        <field name="auto_update" eval="True" />
+    </record>
+
+    <!-- ===== Fallback genérico Claude ===== -->
+    <record id="pricing_rate_claude_generic" model="llm.gemini.pricing.rate">
+        <field name="name">Anthropic Claude (genérico)</field>
+        <field name="model_name_pattern">claude</field>
+        <field name="input_usd_per_million">3.00</field>
+        <field name="output_usd_per_million">15.00</field>
+        <field name="cached_input_usd_per_million">0.30</field>
+        <field name="sequence">900</field>
+        <field name="auto_update" eval="True" />
+    </record>
+</odoo>

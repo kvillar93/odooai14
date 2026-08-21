@@ -3,6 +3,8 @@ from typing import Any, Union
 
 from odoo import api, models
 
+from .llm_tool_domain_utils import sanitize_domain
+
 _logger = logging.getLogger(__name__)
 
 
@@ -30,6 +32,8 @@ class LLMToolRecordUpdater(models.Model):
             values: Dictionary of field values to update
             limit: Maximum number of records to update (default: 1 for safety)
         """
+        domain = sanitize_domain(domain)
+
         _logger.info(
             f"Executing Odoo Record Updater with: model={model}, domain={domain}, values={values}, limit={limit}"
         )

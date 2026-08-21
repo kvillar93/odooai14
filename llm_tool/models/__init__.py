@@ -1,3 +1,4 @@
+from . import llm_tool_domain_utils
 from . import llm_tool
 from . import llm_tool_record_retriever
 from . import llm_provider

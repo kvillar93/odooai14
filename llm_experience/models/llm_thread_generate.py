@@ -14,6 +14,8 @@ class LLMThread(models.Model):
     def _generate_assistant_response(self, prepend_messages):
         """Investigación profunda: plan visible + mismo pipeline de generación con contexto extra."""
         self.ensure_one()
+        # Chequeo de topes mensuales (bloquea si se supera).
+        self.env["llm.model.monthly.cap"].enforce_before_generate(self)
         if self.chat_work_mode != "deep_research":
             return (yield from super()._generate_assistant_response(prepend_messages))
 

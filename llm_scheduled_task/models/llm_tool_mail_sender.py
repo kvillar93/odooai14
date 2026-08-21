@@ -150,7 +150,7 @@ class LLMToolMailSender(models.Model):
         mail = Mail.create(mail_vals)
         mail.send()
 
-        mail.invalidate_recordset(["state", "failure_reason"])
+        mail.invalidate_cache(["state", "failure_reason"])
         ok = mail.state == "sent"
         return {
             "ok": ok,

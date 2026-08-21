@@ -169,7 +169,7 @@ class MailMessage(models.Model):
                 }
 
         except Exception as e:
-            _logger.error(f"Error executing tool {name}: {e}")
+            _logger.exception("Error ejecutando herramienta %s: %s", name, e)
             # Update tool data with error
             tool_data["status"] = "error"
             tool_data["error"] = str(e)

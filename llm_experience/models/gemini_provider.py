@@ -93,7 +93,13 @@ class LLMProvider(models.Model):
             if system_instruction:
                 config_kwargs["system_instruction"] = system_instruction
             has_odoo_tools = bool(tools)
-            use_gs = getattr(model_obj, "gemini_google_search_grounding", False)
+            want_gs = bool(
+                getattr(model_obj, "gemini_google_search_grounding", False)
+            )
+            use_gs = want_gs
+            if want_gs and has_odoo_tools:
+                if not self._gemini_model_supports_tool_combination(model_obj.name):
+                    use_gs = False
             if has_odoo_tools:
                 declarations = self.gemini_format_tools(tools)
                 config_kwargs["tools"] = [
@@ -102,15 +108,17 @@ class LLMProvider(models.Model):
                 config_kwargs["tool_config"] = self._gemini_build_tool_config_function_auto(
                     genai_types, use_gs
                 )
-                config_kwargs["thinking_config"] = genai_types.ThinkingConfig(
-                    thinking_budget=0
-                )
+                # No enviar thinking_budget=0: rompe alias *-latest / Pro / Gemini 3+.
             exp_tb = kwargs.get("experience_thinking_budget")
             if exp_tb is not None and int(exp_tb) > 0:
-                config_kwargs["thinking_config"] = genai_types.ThinkingConfig(
-                    thinking_budget=int(exp_tb),
+                thinking_cfg = self._gemini_build_thinking_config(
+                    genai_types,
+                    model_obj.name,
+                    int(exp_tb),
                     include_thoughts=bool(kwargs.get("experience_include_thoughts")),
                 )
+                if thinking_cfg is not None:
+                    config_kwargs["thinking_config"] = thinking_cfg
             if use_gs:
                 config_kwargs.setdefault("tools", [])
                 config_kwargs["tools"].append(

@@ -331,6 +331,7 @@
                         <group string="Métricas">
                             <field name="duration_seconds" readonly="1" string="Duración (seg)"/>
                             <field name="message_count" readonly="1" string="Mensajes generados"/>
+                            <field name="review_iterations" readonly="1"/>
                             <field
                                 name="thread_id"
                                 readonly="1"
@@ -340,7 +341,14 @@
                         </group>
                     </group>
                     <group
-                        string="Detalle del error"
+                        string="Plan inicial"
+                        attrs="{'invisible': [('plan_text', '=', False)]}"
+                    >
+                        <field name="plan_text" readonly="1" nolabel="1"
+                               style="font-family: monospace; white-space: pre-wrap;"/>
+                    </group>
+                    <group
+                        string="Detalle del error / resumen"
                         attrs="{'invisible': [('error_message', '=', False)]}"
                     >
                         <field name="error_message" readonly="1" nolabel="1"

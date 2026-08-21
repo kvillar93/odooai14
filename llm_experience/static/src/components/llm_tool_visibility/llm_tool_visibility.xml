@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-inherit="llm_thread.Message.AssistantContent" t-inherit-mode="extension" owl="1">
+        <xpath expr="//details[hasclass('o_llm_tool_calls')]" position="attributes">
+            <attribute name="t-if">llmToolDebugEnabled and message.toolCalls and message.toolCalls.length &gt; 0</attribute>
+        </xpath>
+        <xpath expr="//details[hasclass('o_llm_tool_calls')]" position="before">
+            <t t-if="!llmToolDebugEnabled and llmToolCallEntries.length &gt; 0">
+                <div class="o_llm_tool_status_list" role="status" aria-live="polite">
+                    <t t-foreach="llmToolCallEntries" t-as="entry" t-key="entry.id">
+                        <div class="o_llm_tool_status" t-att-class="'o_llm_tool_status--' + entry.status">
+                            <span class="o_llm_tool_status__icon" aria-hidden="true">
+                                <t t-if="entry.status === 'pending'">
+                                    <i class="fa fa-magic"/>
+                                </t>
+                                <t t-elif="entry.status === 'done'">
+                                    <i class="fa fa-check-circle"/>
+                                </t>
+                                <t t-else="">
+                                    <i class="fa fa-exclamation-circle"/>
+                                </t>
+                            </span>
+                            <span class="o_llm_tool_status__label">
+                                <t t-esc="entry.label"/>
+                            </span>
+                            <t t-if="entry.status === 'pending'">
+                                <span class="o_llm_tool_status__dots" aria-hidden="true">
+                                    <span class="o_llm_tool_status__dot"/>
+                                    <span class="o_llm_tool_status__dot"/>
+                                    <span class="o_llm_tool_status__dot"/>
+                                </span>
+                            </t>
+                        </div>
+                    </t>
+                </div>
+            </t>
+        </xpath>
+    </t>
+
+    <t t-inherit="llm_thread.Message.ToolResultContent" t-inherit-mode="extension" owl="1">
+        <xpath expr="//div[hasclass('o_llm_tool_card')]" position="attributes">
+            <attribute name="t-if">llmToolDebugEnabled</attribute>
+        </xpath>
+        <xpath expr="//div[hasclass('o_llm_tool_card')]" position="before">
+            <t t-if="!llmToolDebugEnabled">
+                <div class="o_llm_tool_result_hidden" aria-hidden="true"/>
+            </t>
+        </xpath>
+    </t>
+
+</templates>

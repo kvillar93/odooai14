@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="llm_tool_task_status_reporter" model="llm.tool">
+        <field name="name">llm_task_status_reporter</field>
+        <field name="implementation">llm_task_status_reporter</field>
+        <field name="title">Reportar estado final de tarea programada</field>
+        <field name="read_only_hint" eval="False"/>
+        <field name="destructive_hint" eval="False"/>
+        <field name="idempotent_hint" eval="False"/>
+        <field name="open_world_hint" eval="False"/>
+        <field name="requires_user_consent" eval="False"/>
+        <field name="description"><![CDATA[
+**llm_task_status_reporter** — herramienta especial **obligatoria** dentro de las tareas programadas LLM.
+
+## Cuándo usarla
+Debes invocarla **siempre como ÚLTIMA acción** de una ejecución de tarea programada. Sirve para que el sistema sepa con certeza si la tarea terminó bien o falló, sin tener que esperar al cron supervisor ni hacer un diagnóstico IA posterior.
+
+## Reglas obligatorias
+1. Si lograste **todo** lo pedido en el `task_prompt` (envío de correos efectivo con `llm_mail_sender`, generación de artefactos, actualización de registros, etc.), llama esta tool con `state="success"`.
+2. Si **falló** algún paso clave (un tool devolvió error, faltan datos, no pudiste enviar el correo, te quedaste sin información para completar la tarea, etc.), llama esta tool con `state="error"`.
+3. **Nunca** dejes la tarea sin llamar a esta herramienta. Sin esta llamada el log queda «running» y otro proceso lo cerrará por ti.
+4. El resumen (`summary`) debe ser una frase clara en español que explique qué se hizo o por qué falló.
+
+## Parámetros
+| Parámetro | Obligatorio | Descripción |
+|-----------|-------------|-------------|
+| `state` | Sí | `success` o `error`. |
+| `summary` | Sí | Resumen ejecutivo en una o dos frases (qué hiciste o motivo del error). |
+| `details` | No | Detalles adicionales útiles: ids de registros creados, destinatarios y subject del correo enviado, número de filas analizadas, etc. |
+
+## Ejemplos
+- Tras enviar correctamente un informe por email:
+  `{ "state": "success", "summary": "Informe semanal generado y enviado a ventas@empresa.com.", "details": "Adjunto: informe_semanal.pdf (mail_id 1234)." }`
+- Si el envío de correo falló:
+  `{ "state": "error", "summary": "No pude enviar el correo: el servidor SMTP devolvió error de autenticación.", "details": "llm_mail_sender → estado=exception, motivo=AUTH failed." }`
+        ]]></field>
+    </record>
+</odoo>

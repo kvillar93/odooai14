@@ -129,6 +129,16 @@ odoo.define('llm_thread/static/src/models/thread.js', function (require) {
 
             if (Number.isInteger(llmProviderId) && llmProviderId > 0) {
                 values.provider_id = llmProviderId;
+            } else if (values.model_id && this.llmChat && this.llmChat.llmModels) {
+                const resolvedModel = this.llmChat.llmModels.find(function (m) {
+                    return m && m.id === values.model_id;
+                });
+                const resolvedProviderId = resolvedModel && resolvedModel.llmProvider && resolvedModel.llmProvider.id;
+                if (resolvedProviderId) {
+                    values.provider_id = resolvedProviderId;
+                } else if (this.llmModel && this.llmModel.llmProvider && this.llmModel.llmProvider.id) {
+                    values.provider_id = this.llmModel.llmProvider.id;
+                }
             } else if (this.llmModel && this.llmModel.llmProvider && this.llmModel.llmProvider.id) {
                 values.provider_id = this.llmModel.llmProvider.id;
             }

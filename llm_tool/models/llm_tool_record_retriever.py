@@ -6,6 +6,8 @@ from typing import Any, Optional, Union
 from odoo import _, api, models
 from odoo.exceptions import UserError
 
+from .llm_tool_domain_utils import sanitize_domain
+
 _logger = logging.getLogger(__name__)
 
 _SQL_BLOCKED = re.compile(
@@ -98,6 +100,8 @@ class LLMToolRecordRetriever(models.Model):
 
         if not model:
             raise UserError(_("Debe indicarse el modelo en modo orm."))
+
+        domain = sanitize_domain(domain)
 
         _logger.info(
             "Executing Odoo Record Retriever ORM: model=%s, domain=%s, fields=%s, limit=%s",

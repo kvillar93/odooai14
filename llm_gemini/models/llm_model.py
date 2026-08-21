@@ -16,7 +16,9 @@ class LLMModel(models.Model):
         help=(
             "Activa la herramienta nativa de Google: el modelo decide si buscar en la web, "
             "genera consultas y sintetiza resultados con citas (groundingMetadata). "
-            "Puede usarse junto con las herramientas Odoo (function calling) en modelos compatibles. "
+            "Combinarlo con herramientas Odoo (function calling) está soportado en "
+            "modelos Gemini 3+ y en el alias gemini-flash-latest (con mode=VALIDATED). "
+            "Si la API rechaza la mezcla, se reintenta sin grounding. "
             "Tiene coste según la tarifa de Google; no sustituye a herramientas Odoo personalizadas."
         ),
     )

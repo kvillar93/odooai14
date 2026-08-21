@@ -9,7 +9,7 @@
                 <field name="chat_work_mode_selector_enabled" />
             </field>
             <xpath expr="//sheet/group[last()]" position="after">
-                <group string="Coste estimado (Gemini)" groups="base.group_user">
+                <group string="Coste estimado (USD)" groups="base.group_user">
                     <field name="usage_cost_usd_total" />
                     <field name="usage_cost_currency" readonly="1" />
                     <field name="usage_billable_accumulated" />
@@ -44,7 +44,9 @@
                 <field name="input_usd_per_million" />
                 <field name="output_usd_per_million" />
                 <field name="cached_input_usd_per_million" />
+                <field name="auto_update" />
                 <field name="last_sync_date" />
+                <field name="last_sync_source" optional="hide" />
                 <field name="active" />
             </tree>
         </field>
@@ -55,11 +57,21 @@
         <field name="model">llm.gemini.pricing.rate</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <button
+                        name="action_refresh_now"
+                        type="object"
+                        string="Actualizar tarifas ahora"
+                        class="btn-primary"
+                        help="Lanza la misma sincronización que el cron diario."
+                    />
+                </header>
                 <sheet>
                     <group>
                         <field name="name" />
                         <field name="active" />
                         <field name="sequence" />
+                        <field name="auto_update" />
                     </group>
                     <group string="Coincidencia">
                         <field name="model_ids" widget="many2many_tags" />
@@ -70,8 +82,9 @@
                         <field name="output_usd_per_million" />
                         <field name="cached_input_usd_per_million" />
                     </group>
-                    <group>
+                    <group string="Sincronización automática">
                         <field name="last_sync_date" readonly="1" />
+                        <field name="last_sync_source" readonly="1" />
                         <field name="notes" />
                     </group>
                 </sheet>
@@ -80,17 +93,198 @@
     </record>
 
     <record id="action_llm_gemini_pricing_rate" model="ir.actions.act_window">
-        <field name="name">Tarifas Gemini (USD / M tokens)</field>
+        <field name="name">Tarifas LLM (USD / M tokens)</field>
         <field name="res_model">llm.gemini.pricing.rate</field>
         <field name="view_mode">tree,form</field>
     </record>
 
+    <!-- Acción server para refrescar tarifas desde el menú -->
+    <record id="action_llm_pricing_refresh_now" model="ir.actions.server">
+        <field name="name">Actualizar tarifas LLM ahora</field>
+        <field name="model_id" ref="model_llm_gemini_pricing_rate" />
+        <field name="binding_model_id" ref="model_llm_gemini_pricing_rate" />
+        <field name="binding_view_types">tree,form</field>
+        <field name="state">code</field>
+        <field
+            name="code"
+        >action = model.cron_refresh_rates_from_defaults()</field>
+    </record>
+
     <menuitem
         id="menu_llm_gemini_pricing_rate"
-        name="Tarifas Gemini (coste)"
+        name="Tarifas LLM (coste)"
         parent="llm.menu_llm_root"
         action="action_llm_gemini_pricing_rate"
         sequence="95"
+        groups="llm.group_llm_manager"
+    />
+
+    <!-- Historial de costes (sobrevive al borrado del chat) -->
+    <record id="llm_thread_cost_line_view_tree" model="ir.ui.view">
+        <field name="name">llm.thread.cost.line.tree</field>
+        <field name="model">llm.thread.cost.line</field>
+        <field name="arch" type="xml">
+            <tree
+                decoration-muted="thread_deleted"
+                decoration-warning="thread_deleted"
+                default_order="create_date desc"
+            >
+                <field name="create_date" />
+                <field name="year_month" />
+                <field name="display_thread_name" />
+                <field name="user_id_snapshot" />
+                <field name="model_name_snapshot" />
+                <field name="provider_name_snapshot" />
+                <field name="prompt_tokens" sum="Prompt" />
+                <field name="output_tokens" sum="Salida" />
+                <field name="cached_tokens" sum="Caché" />
+                <field name="cost_usd_delta" sum="Coste USD" />
+                <field name="cumulative_usd_total" />
+                <field name="thread_deleted" invisible="1" />
+                <field name="thread_id" optional="hide" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="llm_thread_cost_line_view_search" model="ir.ui.view">
+        <field name="name">llm.thread.cost.line.search</field>
+        <field name="model">llm.thread.cost.line</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="thread_name_snapshot" string="Nombre chat (snapshot)" />
+                <field name="display_thread_name" />
+                <field name="user_id_snapshot" />
+                <field name="model_name_snapshot" />
+                <field name="provider_name_snapshot" />
+                <field name="year_month" />
+                <filter
+                    name="filter_current_month"
+                    string="Mes actual"
+                    domain="[('year_month', '=', context_today().strftime('%Y-%m'))]"
+                />
+                <filter
+                    name="filter_deleted"
+                    string="Chat eliminado"
+                    domain="[('thread_deleted', '=', True)]"
+                />
+                <filter
+                    name="filter_alive"
+                    string="Chat existente"
+                    domain="[('thread_deleted', '=', False)]"
+                />
+                <group expand="0" string="Agrupar por">
+                    <filter
+                        name="group_by_month"
+                        string="Mes"
+                        context="{'group_by': 'year_month'}"
+                    />
+                    <filter
+                        name="group_by_model"
+                        string="Modelo"
+                        context="{'group_by': 'model_name_snapshot'}"
+                    />
+                    <filter
+                        name="group_by_user"
+                        string="Usuario"
+                        context="{'group_by': 'user_id_snapshot'}"
+                    />
+                    <filter
+                        name="group_by_thread"
+                        string="Chat"
+                        context="{'group_by': 'display_thread_name'}"
+                    />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_llm_thread_cost_line_history" model="ir.actions.act_window">
+        <field name="name">Historial de costes LLM</field>
+        <field name="res_model">llm.thread.cost.line</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="llm_thread_cost_line_view_search" />
+        <field name="context">{}</field>
+    </record>
+
+    <menuitem
+        id="menu_llm_thread_cost_line_history"
+        name="Historial de costes"
+        parent="llm.menu_llm_root"
+        action="action_llm_thread_cost_line_history"
+        sequence="96"
+        groups="base.group_user"
+    />
+
+    <!-- Topes mensuales por modelo -->
+    <record id="llm_model_monthly_cap_view_tree" model="ir.ui.view">
+        <field name="name">llm.model.monthly.cap.tree</field>
+        <field name="model">llm.model.monthly.cap</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="scope" />
+                <field name="model_id" optional="show" />
+                <field name="model_name_pattern" optional="show" />
+                <field name="year_month" optional="hide" />
+                <field name="cap_usd" />
+                <field name="consumed_usd_current" />
+                <field name="ratio_current" widget="progressbar" />
+                <field name="block_when_exceeded" />
+                <field name="active" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="llm_model_monthly_cap_view_form" model="ir.ui.view">
+        <field name="name">llm.model.monthly.cap.form</field>
+        <field name="model">llm.model.monthly.cap</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name" readonly="1" />
+                        <field name="active" />
+                        <field name="sequence" />
+                    </group>
+                    <group string="Alcance">
+                        <field name="scope" />
+                        <field
+                            name="model_id"
+                            attrs="{'invisible': [('scope', '!=', 'model')], 'required': [('scope', '=', 'model')]}"
+                        />
+                        <field
+                            name="model_name_pattern"
+                            attrs="{'invisible': [('scope', '!=', 'pattern')], 'required': [('scope', '=', 'pattern')]}"
+                        />
+                        <field name="year_month" placeholder="2026-04 (opcional)" />
+                    </group>
+                    <group string="Límites">
+                        <field name="cap_usd" />
+                        <field name="alert_ratio" />
+                        <field name="block_when_exceeded" />
+                    </group>
+                    <group string="Consumo actual (informativo)">
+                        <field name="consumed_usd_current" readonly="1" />
+                        <field name="ratio_current" widget="progressbar" readonly="1" />
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_llm_model_monthly_cap" model="ir.actions.act_window">
+        <field name="name">Topes mensuales por modelo</field>
+        <field name="res_model">llm.model.monthly.cap</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem
+        id="menu_llm_model_monthly_cap"
+        name="Topes mensuales por modelo"
+        parent="llm.menu_llm_root"
+        action="action_llm_model_monthly_cap"
+        sequence="97"
         groups="llm.group_llm_manager"
     />
 </odoo>

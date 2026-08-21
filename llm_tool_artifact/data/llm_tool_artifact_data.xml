@@ -4,30 +4,267 @@
         <field name="name">llm_artifact_builder</field>
         <field name="implementation">llm_artifact_builder</field>
         <field name="description"><![CDATA[
-**llm_artifact_builder** — genera gráficos interactivos (Apache ECharts) y archivos Excel en el chat.
+**llm_artifact_builder** — generador todo-en-uno: gráficos interactivos, Excel multi-hoja, PDF, Word y PowerPoint.
+
+Selecciona el formato con `artifact_type`:
+
+| `artifact_type` | Para qué                                | Lib usada           |
+|-----------------|-----------------------------------------|---------------------|
+| `echarts`       | Gráficos interactivos en el chat        | Apache ECharts 5    |
+| `xlsx`          | Excel descargable (1 o varias hojas)    | xlsxwriter          |
+| `pdf`           | Documento PDF rico (portada, tablas…)   | reportlab           |
+| `docx`          | Word con estilos                        | python-docx         |
+| `pptx`          | Presentación PowerPoint                 | python-pptx         |
+| `chart`         | PNG matplotlib (legacy / fallback)      | matplotlib          |
 
 ---
 
 ## 📊 Gráficos interactivos — `artifact_type: "echarts"` (por defecto)
 
-Usa Apache ECharts 5. El parámetro `echarts_option` es el JSON de opción ECharts completo.
+`echarts_option` es el JSON de opción ECharts 5 completo.
+**Tipos disponibles:** `bar`, `line`, `pie`, `doughnut`, `scatter`, `bubble`, `radar`, `heatmap`, `treemap`, `sankey`, `funnel`, `gauge`, `candlestick`, `boxplot`, `effectScatter`, `themeRiver`, `parallel`, `graph` (network), `tree`, `sunburst`, `pictorialBar`, `lines` (mapa), `map`, `calendar`.
 
-**Tipos de gráfico disponibles:** bar, line, pie, scatter, radar, heatmap, treemap, sankey, funnel, gauge, candlestick, boxplot, effectScatter, y más.
-
-### Estructura mínima de echarts_option:
-
+### 🟦 1) Bar simple
 ```json
 {
-  "title": {"text": "Ventas por producto"},
+  "title": {"text": "Ventas por producto", "left": "center"},
   "tooltip": {"trigger": "axis"},
-  "xAxis": {"type": "category", "data": ["Kit Escolar", "Combo Libros"]},
-  "yAxis": {"type": "value"},
-  "series": [{"name": "Cantidad", "type": "bar", "data": [18, 17]}]
+  "xAxis": {"type": "category", "data": ["Kit Escolar","Combo Libros","Mochila","Lápices","Cuaderno"]},
+  "yAxis": {"type": "value", "name": "Unidades"},
+  "series": [{"name": "Cantidad", "type": "bar", "data": [18, 17, 9, 7, 4],
+              "itemStyle": {"color": "#5470C6"},
+              "label": {"show": true, "position": "top"}}]
 }
 ```
 
-### Drill-down a registros Odoo (opcional):
-Añade `odoo_links` en la opción para que al hacer clic en el gráfico abra registros Odoo:
+### 🟩 2) Bar horizontal con multiserie
+```json
+{
+  "title": {"text": "Ventas vs Compras"},
+  "tooltip": {"trigger": "axis"},
+  "legend": {"data": ["Ventas", "Compras"], "top": "bottom"},
+  "grid": {"left": "120"},
+  "xAxis": {"type": "value"},
+  "yAxis": {"type": "category", "data": ["Ene","Feb","Mar","Abr"]},
+  "series": [
+    {"name": "Ventas",  "type": "bar", "data": [320, 332, 301, 334], "itemStyle": {"color": "#91CC75"}},
+    {"name": "Compras", "type": "bar", "data": [220, 182, 191, 234], "itemStyle": {"color": "#EE6666"}}
+  ]
+}
+```
+
+### 🟧 3) Bar apilado con totales
+```json
+{
+  "title": {"text": "Ingresos por canal"},
+  "tooltip": {"trigger": "axis"},
+  "legend": {},
+  "xAxis": {"type": "category", "data": ["Q1","Q2","Q3","Q4"]},
+  "yAxis": {"type": "value"},
+  "series": [
+    {"name": "Tienda",  "type": "bar", "stack": "total", "data": [120, 132, 101, 134]},
+    {"name": "Online",  "type": "bar", "stack": "total", "data": [220, 182, 191, 234]},
+    {"name": "Mayoreo", "type": "bar", "stack": "total", "data": [150, 232, 201, 154]}
+  ]
+}
+```
+
+### 📈 4) Línea con área suavizada
+```json
+{
+  "title": {"text": "Evolución mensual"},
+  "tooltip": {"trigger": "axis"},
+  "xAxis": {"type": "category", "boundaryGap": false,
+            "data": ["Ene","Feb","Mar","Abr","May","Jun"]},
+  "yAxis": {"type": "value"},
+  "series": [{
+    "type": "line", "smooth": true,
+    "data": [820, 932, 901, 934, 1290, 1330],
+    "areaStyle": {"color": "rgba(84,112,198,0.3)"},
+    "lineStyle": {"width": 3}
+  }]
+}
+```
+
+### 🥧 5) Pie / dona con etiquetas
+```json
+{
+  "title": {"text": "Distribución de gastos", "left": "center"},
+  "tooltip": {"trigger": "item", "formatter": "{b}: {c} ({d}%)"},
+  "legend": {"orient": "vertical", "right": 10, "top": "middle"},
+  "series": [{
+    "type": "pie", "radius": ["40%", "70%"], "avoidLabelOverlap": true,
+    "label": {"show": true, "formatter": "{b}\n{d}%"},
+    "data": [
+      {"value": 1048, "name": "Operación"},
+      {"value": 735,  "name": "Marketing"},
+      {"value": 580,  "name": "Personal"},
+      {"value": 484,  "name": "Software"}
+    ]
+  }]
+}
+```
+
+### 🔘 6) Scatter (dispersión) con tamaño variable
+```json
+{
+  "title": {"text": "Precio vs cantidad"},
+  "tooltip": {"trigger": "item"},
+  "xAxis": {"type": "value", "name": "Precio (USD)"},
+  "yAxis": {"type": "value", "name": "Cantidad"},
+  "series": [{
+    "type": "scatter",
+    "symbolSize": 14,
+    "data": [[10, 8], [15, 11], [22, 16], [30, 18], [50, 23]]
+  }]
+}
+```
+
+### 🕸️ 7) Radar (KPIs por área)
+```json
+{
+  "title": {"text": "KPIs por área"},
+  "tooltip": {},
+  "legend": {"data": ["Actual","Objetivo"]},
+  "radar": {
+    "indicator": [
+      {"name": "Ventas",     "max": 100},
+      {"name": "Marketing",  "max": 100},
+      {"name": "Soporte",    "max": 100},
+      {"name": "Operaciones","max": 100},
+      {"name": "Finanzas",   "max": 100}
+    ]
+  },
+  "series": [{
+    "type": "radar",
+    "data": [
+      {"name": "Actual",   "value": [80, 65, 90, 75, 70]},
+      {"name": "Objetivo", "value": [90, 80, 85, 90, 80]}
+    ]
+  }]
+}
+```
+
+### 🔥 8) Heatmap (calendario)
+```json
+{
+  "title": {"text": "Ventas diarias 2026"},
+  "tooltip": {"position": "top"},
+  "visualMap": {"min": 0, "max": 1000, "orient": "horizontal", "left": "center"},
+  "calendar": {"range": "2026", "cellSize": ["auto", 18]},
+  "series": [{
+    "type": "heatmap", "coordinateSystem": "calendar",
+    "data": [["2026-01-15", 432], ["2026-02-03", 870], ["2026-03-21", 540]]
+  }]
+}
+```
+
+### 🌳 9) Treemap (jerarquía)
+```json
+{
+  "title": {"text": "Productos por categoría"},
+  "tooltip": {"formatter": "{b}: {c}"},
+  "series": [{
+    "type": "treemap",
+    "data": [
+      {"name": "Electrónica", "value": 1200, "children": [
+        {"name": "Móviles", "value": 700},
+        {"name": "Laptops", "value": 500}
+      ]},
+      {"name": "Hogar", "value": 800, "children": [
+        {"name": "Cocina", "value": 300},
+        {"name": "Decoración", "value": 500}
+      ]}
+    ]
+  }]
+}
+```
+
+### 🌊 10) Sankey (flujos)
+```json
+{
+  "title": {"text": "Flujo de leads"},
+  "tooltip": {"trigger": "item", "triggerOn": "mousemove"},
+  "series": [{
+    "type": "sankey", "layout": "none",
+    "data": [
+      {"name": "Web"}, {"name": "Email"}, {"name": "Cualificado"},
+      {"name": "Demo"}, {"name": "Cerrado"}
+    ],
+    "links": [
+      {"source": "Web",   "target": "Cualificado", "value": 80},
+      {"source": "Email", "target": "Cualificado", "value": 50},
+      {"source": "Cualificado", "target": "Demo",   "value": 90},
+      {"source": "Demo",  "target": "Cerrado",     "value": 35}
+    ]
+  }]
+}
+```
+
+### 📍 11) Gauge (medidor)
+```json
+{
+  "series": [{
+    "type": "gauge",
+    "title": {"text": "Cumplimiento"},
+    "min": 0, "max": 100,
+    "axisLine": {"lineStyle": {"width": 18}},
+    "progress": {"show": true, "width": 18},
+    "detail": {"valueAnimation": true, "formatter": "{value}%"},
+    "data": [{"value": 78, "name": "Q1"}]
+  }]
+}
+```
+
+### 🕯️ 12) Candlestick (OHLC)
+```json
+{
+  "title": {"text": "Cotización"},
+  "xAxis": {"type": "category", "data": ["L","M","X","J","V"]},
+  "yAxis": {"type": "value"},
+  "series": [{
+    "type": "candlestick",
+    "data": [[20,30,15,32], [25,28,22,29], [28,26,25,31], [26,33,24,34], [33,35,31,36]]
+  }]
+}
+```
+
+### 📦 13) Boxplot
+```json
+{
+  "title": {"text": "Distribución por equipo"},
+  "xAxis": {"type": "category", "data": ["A","B","C"]},
+  "yAxis": {"type": "value"},
+  "series": [{
+    "type": "boxplot",
+    "data": [[850, 870, 880, 890, 920], [870, 880, 895, 910, 930], [820, 845, 870, 895, 910]]
+  }]
+}
+```
+
+### 🎯 14) Funnel (embudo de ventas)
+```json
+{
+  "title": {"text": "Pipeline de ventas"},
+  "tooltip": {"trigger": "item", "formatter": "{a} <br/>{b}: {c}"},
+  "legend": {"data": ["Etapas"]},
+  "series": [{
+    "name": "Etapas", "type": "funnel",
+    "left": "10%", "width": "80%",
+    "label": {"show": true, "position": "inside"},
+    "data": [
+      {"value": 100, "name": "Visitas"},
+      {"value": 60,  "name": "Leads"},
+      {"value": 35,  "name": "Oportunidades"},
+      {"value": 18,  "name": "Cotizaciones"},
+      {"value": 8,   "name": "Cerradas"}
+    ]
+  }]
+}
+```
+
+### 🔗 Drill-down a registros Odoo
+Añade `odoo_links` para que al hacer clic en una serie/categoría se abra una vista lista filtrada:
 ```json
 {
   "odoo_links": {
@@ -37,57 +274,189 @@ Añade `odoo_links` en la opción para que al hacer clic en el gráfico abra reg
   }
 }
 ```
-El placeholder `{{name}}` se reemplaza con el nombre del elemento clickeado.
+`{{name}}` es el nombre del elemento clickeado.
 
-### Ejemplos de series múltiples:
-```json
-{
-  "title": {"text": "Comparativa mensual"},
-  "tooltip": {"trigger": "axis"},
-  "legend": {"data": ["Ventas", "Compras"]},
-  "xAxis": {"type": "category", "data": ["Ene","Feb","Mar","Abr"]},
-  "yAxis": {"type": "value"},
-  "series": [
-    {"name": "Ventas", "type": "line", "data": [150, 230, 224, 218]},
-    {"name": "Compras", "type": "line", "data": [120, 132, 101, 134]}
-  ]
-}
-```
-
-### Pie chart:
-```json
-{
-  "title": {"text": "Distribución"},
-  "tooltip": {"trigger": "item"},
-  "series": [{
-    "type": "pie",
-    "radius": "60%",
-    "data": [{"value": 1048, "name": "Producto A"}, {"value": 735, "name": "Producto B"}]
-  }]
-}
-```
-
-**Parámetros:**
-- `echarts_option` (string JSON): opción ECharts completa
-- `explanation` (string): texto explicativo que acompaña el gráfico y se incluye en el PDF
-
-**IMPORTANTE:** Copia el campo `mensaje_markdown` del resultado LITERALMENTE en tu respuesta para que el gráfico aparezca en el chat. El usuario puede descargarlo como PDF desde el botón que aparece sobre el gráfico.
+**IMPORTANTE para ECharts:** copia el campo `mensaje_markdown` del resultado **literalmente** (incluyendo las tres comillas invertidas) para que el gráfico se renderice en el chat.
 
 ---
 
-## 📄 Excel — `artifact_type: "xlsx"`
+## 📄 Excel multi-hoja — `artifact_type: "xlsx"`
 
-Genera un archivo Excel descargable desde los datos.
+Para Excel **simple** (1 sola hoja) basta con `data_json` (lista de dicts):
+```json
+{"artifact_type": "xlsx", "title": "Ventas", "file_name": "ventas",
+ "data_json": "[{\"Cliente\":\"ACME\",\"Total\":1200},{\"Cliente\":\"Globex\",\"Total\":890}]"}
+```
 
-**Parámetros:** `data_json` (lista de objetos JSON), `title`, `file_name`.
+Para **Excel complejo** (varias hojas, totales, formato monetario, ancho de columna…) usa `document_json` con `sheets`:
+```json
+{
+  "artifact_type": "xlsx",
+  "title": "Reporte mensual",
+  "file_name": "reporte_mensual_abril",
+  "document_json": {
+    "sheets": [
+      {
+        "name": "Resumen",
+        "description": "Indicadores clave del mes de abril 2026.",
+        "headers": ["Indicador","Valor","Variación"],
+        "rows": [
+          {"Indicador": "Ventas USD", "Valor": 125000, "Variación": "+12%"},
+          {"Indicador": "Pedidos",    "Valor": 320,    "Variación": "+5%"}
+        ],
+        "column_widths": {"Indicador": 28, "Valor": 18, "Variación": 14},
+        "money_columns": ["Valor"]
+      },
+      {
+        "name": "Ventas por cliente",
+        "headers": ["Cliente","Pedidos","Total"],
+        "rows": [
+          {"Cliente": "ACME",   "Pedidos": 12, "Total": 12450.50},
+          {"Cliente": "Globex", "Pedidos": 8,  "Total": 8990.00}
+        ],
+        "totals": ["Pedidos", "Total"],
+        "money_columns": ["Total"],
+        "freeze_header": true,
+        "autofilter": true,
+        "zebra": true
+      },
+      {
+        "name": "Detalle de líneas",
+        "headers": ["Pedido","Producto","Cantidad","Subtotal"],
+        "rows": [
+          {"Pedido": "SO/001", "Producto": "Mochila", "Cantidad": 5, "Subtotal": 250.00}
+        ],
+        "money_columns": ["Subtotal"],
+        "totals": ["Cantidad","Subtotal"]
+      }
+    ]
+  }
+}
+```
+
+Cada hoja admite: `name`, `description`, `headers`, `rows` (lista de dicts), `column_widths`, `money_columns`, `totals`, `freeze_header`, `autofilter`, `zebra`.
 
 ---
 
-## Flujo típico:
-1. Usa `odoo_record_retriever` (SQL o ORM) para obtener datos
-2. Construye el `echarts_option` con los datos
-3. Llama a `llm_artifact_builder` con `artifact_type="echarts"` y la opción
-4. Incluye el `mensaje_markdown` en tu respuesta + explicación del gráfico
+## 📕 PDF — `artifact_type: "pdf"`
+
+Documento PDF profesional con portada opcional, secciones, tablas, listas, citas, imágenes y saltos de página. Estructura:
+```json
+{
+  "artifact_type": "pdf",
+  "title": "Reporte ejecutivo Q1 2026",
+  "file_name": "reporte_q1_2026",
+  "document_json": {
+    "subtitle": "Resultados del primer trimestre",
+    "author":   "Dirección Comercial",
+    "cover": true,
+    "sections": [
+      {"type": "heading",   "level": 1, "text": "Resumen ejecutivo"},
+      {"type": "paragraph", "text": "El primer trimestre cerró con un crecimiento del 12% interanual…"},
+      {"type": "list",      "ordered": false,
+        "items": ["Ventas: +12%", "Margen bruto: 38%", "NPS: 71"]},
+      {"type": "heading",   "level": 2, "text": "Detalle por canal"},
+      {"type": "table",
+        "title": "Ingresos por canal",
+        "headers": ["Canal","Q1 2025","Q1 2026","Var."],
+        "rows": [
+          ["Tienda",  120000, 134000, "+12%"],
+          ["Online",   80000, 102000, "+27%"],
+          ["Mayoreo",  60000,  58000, "-3%"]
+        ]
+      },
+      {"type": "quote", "text": "El canal online se confirma como el motor del crecimiento."},
+      {"type": "page_break"},
+      {"type": "heading", "level": 1, "text": "Próximos pasos"},
+      {"type": "list", "ordered": true,
+        "items": ["Aumentar inversión en pauta digital", "Lanzar nuevos productos en abril"]}
+    ]
+  }
+}
+```
+
+Tipos de bloque: `heading` (level 1-4), `paragraph`, `list` (`ordered: true|false`), `table` (`headers` + `rows`), `quote`, `image` (con `data_b64` + opcional `caption`), `spacer` (`height`), `page_break`.
+
+---
+
+## 📘 Word — `artifact_type: "docx"`
+
+Misma estructura que el PDF (campos `title`, `subtitle`, `author`, `cover`, `sections`).
+```json
+{
+  "artifact_type": "docx",
+  "title": "Plan de marketing 2026",
+  "file_name": "plan_marketing_2026",
+  "document_json": {
+    "author": "Equipo de Marketing",
+    "sections": [
+      {"type": "heading",   "level": 1, "text": "Objetivos"},
+      {"type": "list", "items": ["+30% leads cualificados", "+20% conversión web"]},
+      {"type": "heading",   "level": 1, "text": "Plan trimestral"},
+      {"type": "table",
+        "headers": ["Trimestre","Acción","Presupuesto"],
+        "rows": [
+          ["Q1","Campaña SEO","12.000"],
+          ["Q2","Lanzamiento producto X","25.000"]
+        ]
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 📙 PowerPoint — `artifact_type: "pptx"`
+
+Presentación con varias diapositivas. Layouts soportados:
+* `title` (portada): `title` + `subtitle`.
+* `content`: `title` + `bullets` (lista de strings).
+* `table`: `title` + `headers` + `rows`.
+* `image`: `title` + `data_b64` + `caption`.
+
+```json
+{
+  "artifact_type": "pptx",
+  "title": "Resumen comercial Q1",
+  "file_name": "resumen_q1",
+  "document_json": {
+    "subtitle": "Equipo de ventas",
+    "slides": [
+      {"layout": "title",   "title": "Resumen comercial Q1", "subtitle": "Abril 2026"},
+      {"layout": "content", "title": "Logros del trimestre",
+        "bullets": ["Ventas USD 125 000 (+12%)", "Pedidos 320 (+5%)", "NPS 71"]},
+      {"layout": "table",   "title": "Ventas por canal",
+        "headers": ["Canal","Q1 2025","Q1 2026","Var."],
+        "rows": [
+          ["Tienda",  120000, 134000, "+12%"],
+          ["Online",   80000, 102000, "+27%"]
+        ]
+      },
+      {"layout": "content", "title": "Próximos pasos",
+        "bullets": ["Lanzar nuevos productos en abril", "Reforzar pauta digital"]}
+    ]
+  }
+}
+```
+
+---
+
+## 🔁 Flujo recomendado
+
+1. Si necesitas datos reales, primero llama a `odoo_record_retriever` (SQL/ORM) para obtenerlos.
+2. Decide el formato según lo que pida el usuario:
+   * "Gráfico", "ver tendencia", "comparar"  → `echarts`.
+   * "Excel", "hoja de cálculo", "exportar"  → `xlsx`.
+   * "Reporte PDF", "documento formal"        → `pdf`.
+   * "Word", "documento editable"             → `docx`.
+   * "Presentación", "slides"                 → `pptx`.
+3. Construye el JSON correspondiente (`echarts_option` o `document_json`).
+4. Llama a `llm_artifact_builder` con los parámetros adecuados.
+5. Para `echarts`: incluye `mensaje_markdown` literal en tu respuesta.
+   Para los demás: comparte la `url_descarga` con el usuario y resume el contenido.
+
+> **Nota:** los formatos `pdf`, `docx` y `pptx` requieren que las librerías Python `reportlab`, `python-docx` y `python-pptx` estén instaladas en el servidor. Si falta alguna, el tool devuelve un error claro indicando qué instalar.
         ]]></field>
         <field name="active" eval="True" />
         <field name="default" eval="False" />

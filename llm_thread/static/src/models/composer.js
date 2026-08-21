@@ -159,7 +159,16 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
                 return;
             }
 
-            const usePost = attachmentIds && attachmentIds.length > 0;
+            // Los mensajes largos no caben en GET (Werkzeug/Nginx cortan ~8 KB
+            // y responden HTML en vez de SSE). POST si hay adjuntos o el
+            // cuerpo url-encoded supera ~4 KB.
+            const URL_SAFE_LIMIT = 4000;
+            const encodedLen = messageBody
+                ? encodeURIComponent(messageBody).length
+                : 0;
+            const usePost =
+                (attachmentIds && attachmentIds.length > 0) ||
+                encodedLen > URL_SAFE_LIMIT;
             const baseUrl = '/llm/thread/generate?thread_id=' + thread.id;
 
             try {
@@ -168,7 +177,7 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
                     var url = baseUrl + '&csrf_token=' + encodeURIComponent(csrfToken);
                     var response = await fetch(url, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'text/plain' },
+                        headers: { 'Content-Type': 'application/json' },
                         credentials: 'include',
                         body: JSON.stringify({
                             message: messageBody || '',
@@ -176,7 +185,16 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
                         }),
                     });
                     if (!response.ok) {
-                        throw new Error(response.statusText || 'POST fallido');
+                        var detail = response.statusText || '';
+                        try {
+                            var errBody = await response.text();
+                            if (errBody) {
+                                detail = (detail ? detail + ': ' : '') + errBody.slice(0, 400);
+                            }
+                        } catch (readErr) {
+                            /* ignorar */
+                        }
+                        throw new Error(detail || 'POST fallido');
                     }
                     this.update({ eventSource: { streamReader: true } });
                     await this._consumeSSEFromResponse(response);

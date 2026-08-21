@@ -1,9 +1,87 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
+    <!-- Grupo independiente (sin herencias) que habilita la vista técnica
+         de las llamadas a herramientas en el chat LLM. Usuarios normales
+         NO ven los mensajes `tool`, solo un indicador sutil de "pensando".
+         Los usuarios en este grupo ven la tarjeta completa con args/JSON. -->
+    <record id="group_llm_tool_debug" model="res.groups">
+        <field name="name">LLM: ver detalles técnicos de herramientas</field>
+        <field name="category_id" ref="llm.module_category_llm" />
+        <field
+            name="comment"
+        >Grupo independiente (no hereda ni implica otros grupos). Los usuarios asignados verán el detalle técnico (argumentos y JSON crudo) de cada llamada a herramientas dentro del chat LLM. El resto solo verá un indicador de actividad.</field>
+    </record>
+
+    <!-- =============================================================
+         Filtrado por usuario: si un proveedor / modelo / asistente tiene
+         `allowed_user_ids` establecido, SOLO los usuarios listados pueden
+         verlo. Si el campo está vacío, es visible para todos (OR
+         `allowed_user_ids = False`). Los gestores LLM (`llm.group_llm_manager`)
+         mantienen acceso total mediante las reglas ya existentes en
+         `llm` y `llm_assistant` que se aplican en OR con estas.
+
+         En `llm` ya existen las reglas `llm.llm_provider_rule_all` y
+         `llm.llm_model_rule_all` con dominio `(1, '=', 1)` para el grupo
+         `base.group_user`. Las reemplazamos (mismo XML id) para añadirles
+         el filtrado por `allowed_user_ids`. Los gestores siguen teniendo
+         su propia regla con dominio `(1, '=', 1)`, que aplica en OR.
+         ============================================================= -->
+
+    <record id="llm.llm_provider_rule_all" model="ir.rule">
+        <field name="name">LLM Providers: lectura filtrada por usuario permitido</field>
+        <field name="model_id" ref="llm.model_llm_provider" />
+        <field
+            name="domain_force"
+        >['|', ('allowed_user_ids', '=', False), ('allowed_user_ids', 'in', [user.id])]</field>
+        <field name="perm_read" eval="True" />
+        <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
+        <field name="perm_unlink" eval="False" />
+        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+    </record>
+
+    <record id="llm.llm_model_rule_all" model="ir.rule">
+        <field name="name">LLM Models: lectura filtrada por usuario permitido</field>
+        <field name="model_id" ref="llm.model_llm_model" />
+        <field
+            name="domain_force"
+        >['|', ('allowed_user_ids', '=', False), ('allowed_user_ids', 'in', [user.id])]</field>
+        <field name="perm_read" eval="True" />
+        <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
+        <field name="perm_unlink" eval="False" />
+        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+    </record>
+
+    <!-- llm.assistant no tenía reglas previas: la creamos de cero para el
+         grupo base + una permisiva para gestores. -->
+    <record id="llm_assistant_rule_user_scope" model="ir.rule">
+        <field name="name">LLM Assistants: lectura filtrada por usuario permitido</field>
+        <field name="model_id" ref="llm_assistant.model_llm_assistant" />
+        <field
+            name="domain_force"
+        >['|', ('allowed_user_ids', '=', False), ('allowed_user_ids', 'in', [user.id])]</field>
+        <field name="perm_read" eval="True" />
+        <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
+        <field name="perm_unlink" eval="False" />
+        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+    </record>
+    <record id="llm_assistant_rule_manager_all" model="ir.rule">
+        <field name="name">LLM Assistants: acceso total para gestores</field>
+        <field name="model_id" ref="llm_assistant.model_llm_assistant" />
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="perm_read" eval="True" />
+        <field name="perm_write" eval="True" />
+        <field name="perm_create" eval="True" />
+        <field name="perm_unlink" eval="True" />
+        <field name="groups" eval="[(4, ref('llm.group_llm_manager'))]" />
+    </record>
+
     <record id="llm_thread_cost_line_rule_own" model="ir.rule">
-        <field name="name">Líneas coste: solo mis chats</field>
+        <field name="name">Líneas coste: solo mis chats (incluye chats eliminados)</field>
         <field name="model_id" ref="model_llm_thread_cost_line" />
-        <field name="domain_force">[("thread_id.user_id", "=", user.id)]</field>
+        <field name="domain_force">['|', ('thread_id.user_id', '=', user.id), '&amp;', ('thread_id', '=', False), ('user_id_snapshot', '=', user.id)]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]" />
     </record>
     <record id="llm_thread_cost_line_rule_manager" model="ir.rule">

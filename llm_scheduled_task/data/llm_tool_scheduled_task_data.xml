@@ -16,26 +16,44 @@
 - El usuario pide automatizar algo periódico: informes por correo, revisiones de registros, recordatorios, etc.
 - Debes **configurar el intervalo** según lo que pida (ej.: «cada semana» → `interval_type`: `weeks`, `interval_number`: `1`).
 
+## ⚠️ task_prompt: hazlo MUY detallado
+La tarea se ejecutará **sin un humano delante** y exactamente con el `task_prompt` que pongas aquí. **Debes ampliar lo que dijo el usuario** y entregar un prompt extenso, paso a paso, que cubra TODO lo necesario para que la ejecución sea autosuficiente. Mínimo unas 8-15 líneas con la siguiente estructura:
+
+1. **Objetivo claro**: qué se quiere lograr (1-2 frases).
+2. **Datos a consultar**: qué modelos, dominios, fechas, filtros y columnas Odoo se deben leer y con qué tool (`odoo_record_retriever`, modos `orm` o `sql`). Indica el rango de fechas dinámico (p. ej. «últimos 7 días desde hoy»).
+3. **Procesamiento**: cálculos, agrupaciones, ordenaciones, KPIs, formato esperado (tablas, viñetas, gráficos, etc.).
+4. **Artefactos** (si aplica): instruir el uso de `llm_artifact_builder` con el formato exacto (Excel multi-hoja, PDF, Word, PowerPoint), nombres de archivos y secciones.
+5. **Acciones de salida**: si hay que enviar correo, indicar **destinatarios exactos**, asunto, plantilla del cuerpo y, **explícitamente**, «usa la herramienta `llm_mail_sender` para enviarlo SIN pedir confirmación al usuario».
+6. **Criterios de éxito**: qué considera la tarea como completada (correo enviado, registros actualizados, fichero adjunto, etc.).
+7. **Cierre obligatorio**: terminar con «Cuando termines, llama OBLIGATORIAMENTE a la herramienta `llm_task_status_reporter` con `state="success"` y un resumen, o `state="error"` si algo falló.»
+
+Si el usuario te dio una instrucción corta (p. ej. «mándame los pedidos pendientes cada lunes»), **NO la copies tal cual**: reescríbela siguiendo el esquema de arriba antes de pasarla a `task_prompt`.
+
 ## Envío de correos en la tarea
-Si la tarea debe **enviar correos reales**, incluye en el `task_prompt` (y en las herramientas del asistente) la herramienta **`llm_mail_sender`**, para que en cada ejecución el envío sea efectivo y no solo texto en el chat. Por igual, si se incluye un envio de correo asegurar de indicar al final del prompt "Enviar correo sin confirmacion adicional" o algo que siempre asegure que se envie al terminar la linea de pensamiento.
+Si la tarea debe **enviar correos reales**, en el `task_prompt` deja explícitamente:
+- la herramienta a usar (`llm_mail_sender`),
+- los destinatarios `to_emails` (y `cc_emails` si aplica),
+- el `subject` exacto,
+- una plantilla de `body` con marcadores que el modelo deberá rellenar con los datos calculados,
+- la frase «envíalo sin pedir confirmación adicional».
 
 ## Parámetros
 | Parámetro | Obligatorio | Descripción |
 |-----------|-------------|-------------|
-| `name` | Sí | Nombre corto de la tarea. |
-| `task_prompt` | Sí | Instrucción completa que se ejecutará en cada ciclo (mismo estilo que un mensaje de usuario al chat). |
+| `name` | Sí | Nombre corto de la tarea (5-10 palabras). |
+| `task_prompt` | Sí | Instrucción **MUY detallada** (ver arriba). Mínimo ~400 caracteres. |
 | `interval_number` | No (defecto `1`) | Cada cuántas unidades (ej. `2` con `days` = cada 2 días). |
 | `interval_type` | No (defecto `days`) | `minutes`, `hours`, `days`, `weeks`, `months`. |
 | `next_run_iso` | No | Primera ejecución en ISO 8601 (ej. `2026-04-05T08:00:00`). Si se omite, se usa la fecha/hora actual. |
 | `inherit_llm_config_from_chat` | No (defecto `True`) | Copia asistente, proveedor, modelo y herramientas **del chat donde se llama la herramienta**. Recomendado. |
 | `assistant_id` | No | ID de `llm.assistant` si no se puede heredar del chat. |
-| `notes` | No | Notas internas en el formulario de la tarea. |
+| `notes` | No | Notas internas en el formulario de la tarea (a quién va dirigida, motivo, etc.). |
 
 ## Permisos
 El usuario debe pertenecer al grupo **«LLM Tareas: Usuario»** (o superior) para poder crear registros.
 
 ## Tras crear
-Indica al usuario que puede revisar la tarea en **LLM → Tareas Programadas** y el historial en la pestaña **Ejecuciones**.
+Indica al usuario que puede revisar la tarea en **LLM → Tareas Programadas** y el historial en la pestaña **Ejecuciones**. Confirma el intervalo y la próxima ejecución.
         ]]></field>
     </record>
 </odoo>

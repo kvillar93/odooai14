@@ -59,18 +59,39 @@ odoo.define('llm_thread/static/src/models/llm_chat_thread_header_view.js', funct
                     return;
                 }
 
-                this.update({
-                    selectedModelId: selectedModelId,
+                const llmChat = this.threadView && this.threadView.thread && this.threadView.thread.llmChat;
+                const allModels = (llmChat && llmChat.llmModels) || [];
+                const newModel = allModels.find(function (m) {
+                    return m && m.id === selectedModelId;
                 });
-                const provider = this.selectedModel.llmProvider;
+                if (!newModel) {
+                    console.warn(
+                        'saveSelectedModel: modelo %s no encontrado en llmModels',
+                        selectedModelId
+                    );
+                    return;
+                }
+                const newProviderId = newModel.llmProvider && newModel.llmProvider.id;
+
                 this.update({
-                    selectedProviderId: provider.id,
+                    selectedModelId: newModel.id,
+                    selectedProviderId: newProviderId || clear(),
                 });
 
-                await this.threadView.thread.updateLLMChatThreadSettings({
-                    llmModelId: this.selectedModel.id,
-                    llmProviderId: provider.id,
-                });
+                try {
+                    await this.threadView.thread.updateLLMChatThreadSettings({
+                        llmModelId: newModel.id,
+                        llmProviderId: newProviderId,
+                    });
+                } catch (err) {
+                    console.error('Error al guardar modelo/proveedor del hilo:', err);
+                    llmEnvUtils.llmNotify(this.env, {
+                        type: 'danger',
+                        message: this.env._t(
+                            'No se pudo cambiar el modelo del chat. Inténtalo de nuevo.'
+                        ),
+                    });
+                }
             }
 
             async openThreadSettings() {

@@ -1,0 +1,33 @@
+// ---------------------------------------------------------------------------
+// Bugfix del widget `ace` de Odoo.
+//
+// El propio `ace.js` inyecta vía `importCssString("ace_editor.css")` la regla:
+//
+//   .ace_text-layer .ace_line,
+//   .ace_text-layer .ace_line_group {
+//       position: absolute;
+//       contain: style size layout;
+//       top: 0;
+//       left: 0;
+//       right: 0;
+//   }
+//
+// En ciertos navegadores/versiones `contain: style size layout` provoca que
+// los caracteres se pisen al inicializar el editor en un contenedor oculto
+// (p. ej. una pestaña inactiva del notebook del form). Además el valor
+// queda cacheado en `$fontMetrics`, por lo que cualquier otro editor Ace
+// que se abra después en la misma sesión hereda el render roto.
+//
+// Sobrescribimos la propiedad `contain` con `!important` para que el
+// navegador no aplique esas optimizaciones y el render quede correcto.
+// Mantenemos el resto (position/top/left/right) porque Ace los usa para
+// posicionar verticalmente cada línea del virtual scroll.
+// ---------------------------------------------------------------------------
+
+.ace_editor {
+    .ace_text-layer .ace_line,
+    .ace_text-layer .ace_line_group {
+        contain: none !important;
+        position: initial !important;
+    }
+}

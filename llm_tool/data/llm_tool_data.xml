@@ -21,6 +21,26 @@
 
 Parámetros ORM: `model`, `domain`, `fields`, `limit`.
 Parámetros SQL: `mode="sql"`, `query` (texto SELECT), `sql_limit`.
+
+**Formato OBLIGATORIO de `domain` (Odoo):**
+- Es una **lista de leafs**. Cada leaf es **exactamente** una lista de **3 elementos**: `[campo, operador, valor]`.
+- El operador es una cadena separada (NUNCA pegada al valor).
+- Operadores válidos: `=`, `!=`, `>`, `>=`, `<`, `<=`, `like`, `ilike`, `not like`, `not ilike`, `in`, `not in`, `child_of`, `parent_of`, `=like`, `=ilike`.
+- Conectores opcionales en notación polaca: `"&"` (AND, por defecto), `"|"` (OR), `"!"` (NOT) **antes** de los leafs que afectan.
+
+**Ejemplos correctos:**
+- Filtrar por id: `[["id", "=", 947]]`
+- Buscar por nombre: `[["name", "ilike", "Juan"]]`
+- Activos y de un país: `[["active", "=", true], ["country_id", "=", 7]]`
+- OR explícito: `["|", ["state", "=", "draft"], ["state", "=", "sent"]]`
+- Varios IDs (operador `in`): `[["id", "in", [1118, 1119]]]`  ← valores **DENTRO de una lista**.
+- Excluir varios IDs: `[["id", "not in", [10, 20, 30]]]`
+
+**INCORRECTO (no hagas esto, romperá la búsqueda):**
+- `[["id", "=947"]]` ← operador y valor pegados.
+- `[["id", "=", 947, "model": "..."]]` ← más de 3 elementos.
+- `[["id", "=,947"]]` ← coma pegada al operador.
+- `[["id", "in", 1118, 1119]]` ← los IDs deben ir agrupados en una lista: `[1118, 1119]`.
     ]]></field>
         <field name="default" eval="True" />
         <field name="active" eval="True" />
@@ -60,7 +80,37 @@ Requiere consentimiento del usuario antes de ejecutar (modifica datos).
         <field name="implementation">odoo_record_updater</field>
         <field
       name="description"
-    >Update existing records in any Odoo model. This tool allows you to modify data in the database by specifying the model name, domain filters to identify records, and a dictionary of field values to update. For safety, it defaults to updating only one record at a time. Due to its data modification capabilities, this tool requires user consent before execution.</field>
+    ><![CDATA[
+**odoo_record_updater** — modifica registros existentes en un modelo Odoo.
+
+**Parámetros:**
+- `model` (str): nombre técnico del modelo, p. ej. `res.partner`, `ir.actions.server`.
+- `domain` (lista): filtros para identificar los registros a modificar.
+- `values` (objeto): mapa `{campo: valor}` con los datos a actualizar.
+- `limit` (int, por defecto 1): máximo de registros a actualizar.
+
+**Formato OBLIGATORIO de `domain`:**
+- Es una **lista de leafs**. Cada leaf es **exactamente** una lista de **3 elementos**: `[campo, operador, valor]`.
+- El operador es una cadena separada (NUNCA pegada al valor).
+- Operadores válidos: `=`, `!=`, `>`, `>=`, `<`, `<=`, `like`, `ilike`, `not like`, `not ilike`, `in`, `not in`, `child_of`, `parent_of`.
+
+**Ejemplo correcto (un registro por id):**
+```
+{"model": "ir.actions.server", "domain": [["id", "=", 947]], "values": {"binding_model_id": 27}}
+```
+
+**Ejemplo correcto (varios filtros):**
+```
+{"model": "res.partner", "domain": [["active", "=", true], ["country_id", "=", 7]], "values": {"category_id": [[6, 0, [3]]]}, "limit": 50}
+```
+
+**INCORRECTO (provoca "Invalid leaf"):**
+- `[["id", "=,947]],model:"]]` ← operador y valor concatenados con sintaxis residual del JSON.
+- `[["id", "=947"]]` ← operador y valor pegados.
+- `[["id", "=", 947, "model", "ir.actions.server"]]` ← más de 3 elementos.
+
+Por seguridad, por defecto sólo actualiza **un** registro. Requiere consentimiento del usuario antes de ejecutarse.
+    ]]></field>
         <field name="default" eval="True" />
         <field name="active" eval="True" />
         <field name="requires_user_consent" eval="True" />
@@ -71,7 +121,20 @@ Requiere consentimiento del usuario antes de ejecutar (modifica datos).
         <field name="implementation">odoo_record_unlinker</field>
         <field
       name="description"
-    >Delete existing records from any Odoo model. This tool allows you to remove data from the database by specifying the model name and domain filters to identify records to delete. For safety, it defaults to deleting only one record at a time. Due to its data modification capabilities, this tool requires user consent before execution.</field>
+    ><![CDATA[
+**odoo_record_unlinker** — elimina registros existentes de un modelo Odoo.
+
+**Parámetros:**
+- `model` (str): nombre técnico del modelo, p. ej. `res.partner`.
+- `domain` (lista): filtros para identificar los registros a borrar (mismo formato que en `odoo_record_retriever`).
+- `limit` (int, por defecto 1): máximo de registros a borrar.
+
+**Formato OBLIGATORIO de `domain`:** lista de leafs `[[campo, operador, valor], ...]` con operador siempre como cadena separada.
+
+**Ejemplo correcto:** `{"model": "res.partner", "domain": [["id", "=", 947]]}`
+
+Por seguridad, por defecto sólo borra **un** registro. Requiere consentimiento del usuario antes de ejecutarse.
+    ]]></field>
         <field name="default" eval="True" />
         <field name="active" eval="True" />
         <field name="requires_user_consent" eval="True" />

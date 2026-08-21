@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "LLM Tareas Programadas",
-    "version": "14.0.1.0.0",
+    "version": "14.0.1.1.0",
     "category": "Productivity",
     "summary": "Automatiza tareas LLM mediante prompts y cron jobs",
     "description": """
@@ -26,6 +26,7 @@ Características:
         "security/ir.model.access.csv",
         "data/llm_tool_scheduled_task_data.xml",
         "data/llm_tool_mail_sender_data.xml",
+        "data/llm_tool_task_status_reporter_data.xml",
         "data/llm_scheduled_task_supervisor_cron.xml",
         "views/llm_scheduled_task_views.xml",
         "views/llm_thread_inherit_views.xml",
