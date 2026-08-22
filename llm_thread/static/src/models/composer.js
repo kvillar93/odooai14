@@ -5,6 +5,7 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
     const ModelField = require('mail/static/src/model/model_field.js');
     const { clear } = require('mail/static/src/model/model_field_command.js');
     const llmEnvUtils = require('llm_thread/static/src/js/llm_env_utils.js');
+    const webCore = require('web.core');
 
     const attr = ModelField.attr;
 
@@ -152,11 +153,18 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
             messageBody = messageBody === undefined ? null : messageBody;
             attachmentIds = attachmentIds || [];
             const llmChat = this.env.messaging.llmChat;
-            const thread = llmChat && llmChat.activeThread;
+            var thread = this.thread;
+            if (!thread || thread.model !== 'llm.thread') {
+                thread = llmChat && llmChat.activeThread;
+            }
 
             if (!thread || thread.model !== 'llm.thread') {
                 console.warn('No active LLM thread for generation');
-                return;
+                llmEnvUtils.llmNotify(this.env, {
+                    message: this.env._t('No hay un chat activo para enviar el mensaje.'),
+                    type: 'danger',
+                });
+                return false;
             }
 
             // Los mensajes largos no caben en GET (Werkzeug/Nginx cortan ~8 KB
@@ -173,16 +181,22 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
 
             try {
                 if (usePost) {
-                    var csrfToken = (typeof odoo !== 'undefined' && odoo.csrf_token) || '';
+                    // Odoo 14 trata application/json como JsonRequest y rechaza
+                    // esta ruta type=http. Hay que enviar form-urlencoded.
+                    var csrfToken = (webCore && webCore.csrf_token) ||
+                        (typeof odoo !== 'undefined' && odoo.csrf_token) || '';
+                    var formBody = new URLSearchParams();
+                    formBody.append('csrf_token', csrfToken);
+                    formBody.append('message', messageBody || '');
+                    formBody.append('attachment_ids', JSON.stringify(attachmentIds));
                     var url = baseUrl + '&csrf_token=' + encodeURIComponent(csrfToken);
                     var response = await fetch(url, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        },
                         credentials: 'include',
-                        body: JSON.stringify({
-                            message: messageBody || '',
-                            attachment_ids: attachmentIds,
-                        }),
+                        body: formBody.toString(),
                     });
                     if (!response.ok) {
                         var detail = response.statusText || '';
@@ -195,6 +209,11 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
                             /* ignorar */
                         }
                         throw new Error(detail || 'POST fallido');
+                    }
+                    var ctype = (response.headers.get('Content-Type') || '').toLowerCase();
+                    if (ctype && ctype.indexOf('text/event-stream') === -1 && ctype.indexOf('text/html') !== -1) {
+                        var htmlBody = await response.text();
+                        throw new Error(htmlBody.slice(0, 300) || 'Respuesta HTML inesperada');
                     }
                     this.update({ eventSource: { streamReader: true } });
                     await this._consumeSSEFromResponse(response);
@@ -221,13 +240,16 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
                         self._closeEventSource();
                     };
                 }
+                return true;
             } catch (error) {
                 console.error('Error sending LLM message:', error);
+                var errMsg = (error && error.message) || this.env._t('No se pudo enviar el mensaje.');
                 llmEnvUtils.llmNotify(this.env, {
-                    message: this.env._t('No se pudo enviar el mensaje.'),
+                    message: errMsg,
                     type: 'danger',
                 });
                 this._closeEventSource();
+                return false;
             } finally {
                 if (this.thread && this.thread.composer) {
                     this.thread.composer.update({ hasFocus: true });
@@ -239,8 +261,8 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
             var thread = this.thread;
             var messageBody = this.textInputContent.trim();
             var attachmentIds = this.attachments
-                .map(function (a) { return a.id; })
-                .filter(function (id) { return typeof id === 'number' && id > 0; });
+                .map(function (a) { return parseInt(a.id, 10); })
+                .filter(function (id) { return id > 0 && !isNaN(id); });
 
             if ((!messageBody && !attachmentIds.length) || !thread) {
                 llmEnvUtils.llmNotify(this.env, {
@@ -266,9 +288,8 @@ odoo.define('llm_thread/static/src/models/composer.js', function (require) {
             });
             this.env.messagingBus.trigger('llm-stream-update');
 
-            try {
-                await this.startGeneration(messageBody, attachmentIds);
-            } finally {
+            var sent = await this.startGeneration(messageBody, attachmentIds);
+            if (sent) {
                 this.update({
                     attachments: [['unlink-all']],
                     mentionedChannels: [['unlink-all']],

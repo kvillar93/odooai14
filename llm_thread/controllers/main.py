@@ -11,6 +11,58 @@ _logger = logging.getLogger(__name__)
 
 
 class LLMThreadController(http.Controller):
+    @staticmethod
+    def _coerce_attachment_ids(att):
+        """Normaliza attachment_ids desde JSON, form-urlencoded o lista."""
+        if not att:
+            return []
+        if isinstance(att, str):
+            raw = att.strip()
+            if not raw:
+                return []
+            try:
+                att = json.loads(raw)
+            except json.JSONDecodeError:
+                att = [part.strip() for part in raw.split(",") if part.strip()]
+        if not isinstance(att, list):
+            raise BadRequest(_("attachment_ids debe ser una lista."))
+        return [
+            int(x) for x in att if str(x).isdigit() or isinstance(x, int)
+        ]
+
+    @classmethod
+    def _parse_generate_post(cls, user_message_body):
+        """Lee message y adjuntos del POST.
+
+        En Odoo 14, ``Content-Type: application/json`` convierte la petición
+        en JsonRequest y choca con esta ruta ``type='http'``. El cliente debe
+        enviar ``application/x-www-form-urlencoded``; se acepta JSON solo como
+        compatibilidad si el dispatcher HTTP llega a ejecutarse.
+        """
+        extra_kwargs = {}
+        httprequest = request.httprequest
+        mimetype = (httprequest.mimetype or "").split(";")[0].strip().lower()
+        if mimetype in ("application/json", "application/json-rpc"):
+            raw = httprequest.get_data(cache=False, as_text=True) or ""
+            if not raw.strip():
+                raise BadRequest(
+                    _("Cuerpo JSON vacío. Incluya message y/o attachment_ids.")
+                )
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError as err:
+                raise BadRequest(_("JSON inválido: %s") % err) from err
+            user_message_body = payload.get("message", user_message_body)
+            att_ids = cls._coerce_attachment_ids(payload.get("attachment_ids"))
+        else:
+            params = request.params or {}
+            if "message" in params:
+                user_message_body = params.get("message") or user_message_body
+            att_ids = cls._coerce_attachment_ids(params.get("attachment_ids"))
+        if att_ids:
+            extra_kwargs["attachment_ids"] = att_ids
+        return user_message_body, extra_kwargs
+
     @http.route(
         "/llm/thread/<int:thread_id>/update",
         type="json",
@@ -100,23 +152,9 @@ class LLMThreadController(http.Controller):
         user_message_body = message
         extra_kwargs = {}
         if request.httprequest.method == "POST":
-            raw = request.httprequest.get_data(cache=False, as_text=True) or ""
-            if not raw.strip():
-                raise BadRequest(
-                    _("Cuerpo JSON vacío. Incluya message y/o attachment_ids.")
-                )
-            try:
-                payload = json.loads(raw)
-            except json.JSONDecodeError as err:
-                raise BadRequest(_("JSON inválido: %s") % err) from err
-            user_message_body = payload.get("message", user_message_body)
-            att = payload.get("attachment_ids")
-            if att:
-                if not isinstance(att, list):
-                    raise BadRequest(_("attachment_ids debe ser una lista."))
-                extra_kwargs["attachment_ids"] = [
-                    int(x) for x in att if str(x).isdigit() or isinstance(x, int)
-                ]
+            user_message_body, extra_kwargs = self._parse_generate_post(
+                user_message_body
+            )
         return Response(
             self._llm_thread_generate(
                 request.cr.dbname,

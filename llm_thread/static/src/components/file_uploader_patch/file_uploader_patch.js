@@ -64,6 +64,9 @@ odoo.define('llm_thread/static/src/components/file_uploader_patch/file_uploader_
                             continue;
                         }
                         await new Promise(function (resolve) { setTimeout(resolve); });
+                        if (uploadingAttachment) {
+                            uploadingAttachment.delete();
+                        }
                         var attachment = this.env.models['mail.attachment'].insert(
                             Object.assign(
                                 {
@@ -72,6 +75,7 @@ odoo.define('llm_thread/static/src/components/file_uploader_patch/file_uploader_
                                     mimetype: fd.mimetype,
                                     name: fd.name,
                                     size: fd.size,
+                                    isTemporary: false,
                                 },
                                 this.props.newAttachmentExtraData
                             )
