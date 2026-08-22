@@ -2,18 +2,16 @@ odoo.define('llm_experience/static/src/js/ace_field_visibility_fix.js', function
     'use strict';
 
     /**
-     * Recalcula métricas de Ace cuando el contenedor pasa de 0 px a visible
-     * (pestaña inactiva del notebook). En Odoo 14 el widget vive en web.ace_field.
+     * En Odoo 16+ el widget Ace es ``web.ace_field`` / AceField OWL.
+     * En Odoo 14 ese módulo no existe: un require() rompe el cargador AMD
+     * (el try/catch no sirve; Odoo extrae las dependencias de forma estática)
+     * y la webclient no arranca.
+     *
+     * Si en el futuro hay un FieldAce en web.basic_fields, se parchea aquí
+     * sin declarar dependencias que no existen.
      */
-    var AceField;
-    try {
-        AceField = require('web.ace_field');
-    } catch (_err) {
-        return;
-    }
-    if (AceField && AceField.FieldAce) {
-        AceField = AceField.FieldAce;
-    }
+    var basicFields = require('web.basic_fields');
+    var AceField = basicFields && basicFields.FieldAce;
     if (!AceField || typeof AceField.include !== 'function') {
         return;
     }

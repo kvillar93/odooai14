@@ -82,6 +82,16 @@ odoo.define('llm_thread/static/src/components/llm_chat_composer/llm_chat_compose
             };
         }
 
+        get uploadId() {
+            var thread = this.composer && this.composer.thread;
+            return (thread && thread.id) || 0;
+        }
+
+        get uploadModel() {
+            var thread = this.composer && this.composer.thread;
+            return (thread && thread.model) || 'mail.compose.message';
+        }
+
         _onClickSend() {
             if (this.isDisabled) {
                 return;

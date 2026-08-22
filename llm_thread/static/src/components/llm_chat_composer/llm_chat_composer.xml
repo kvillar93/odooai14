@@ -5,8 +5,8 @@
             <FileUploader
                 attachmentLocalIds="composer.attachments.map(attachment => attachment.localId)"
                 newAttachmentExtraData="newAttachmentExtraData"
-                uploadId="composer.thread ? composer.thread.id : 0"
-                uploadModel="composer.thread && composer.thread.model || 'mail.compose.message'"
+                uploadId="uploadId"
+                uploadModel="uploadModel"
                 t-ref="fileUploader"
             />
             <div class="o_LLMChatComposer_container d-flex flex-column mx-auto w-100">

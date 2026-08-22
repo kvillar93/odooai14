@@ -6,7 +6,6 @@
             <script type="text/javascript" src="/llm_experience/static/src/js/llm_chat_cost_patch.js"/>
             <script type="text/javascript" src="/llm_experience/static/src/models/main.js"/>
             <script type="text/javascript" src="/llm_experience/static/src/js/llm_tool_visibility.js"/>
-            <script type="text/javascript" src="/llm_experience/static/src/js/ace_field_visibility_fix.js"/>
             <!-- Componentes -->
             <script type="text/javascript" src="/llm_experience/static/src/components/llm_context_meter/llm_context_meter.js"/>
             <script type="text/javascript" src="/llm_experience/static/src/components/llm_chat_composer_experience/llm_chat_composer_experience.js"/>
