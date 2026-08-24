@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <menuitem
+    id="menu_llm_rag"
+    name="RAG"
+    parent="llm.menu_llm_root"
+    sequence="30"
+  />
+
+    <menuitem
+    id="menu_llm_document"
+    name="Documents"
+    parent="menu_llm_rag"
+    action="action_llm_document"
+    sequence="10"
+  />
+    <!-- Menu item for RAG Search -->
+    <menuitem
+    id="menu_llm_rag_search"
+    name="RAG Search"
+    parent="menu_llm_rag"
+    action="menu_action_rag_search"
+    sequence="20"
+  />
+</odoo>
