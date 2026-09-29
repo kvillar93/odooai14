@@ -24,6 +24,8 @@ Selecciona el formato con `artifact_type`:
 `echarts_option` es el JSON de opción ECharts 5 completo.
 **Tipos disponibles:** `bar`, `line`, `pie`, `doughnut`, `scatter`, `bubble`, `radar`, `heatmap`, `treemap`, `sankey`, `funnel`, `gauge`, `candlestick`, `boxplot`, `effectScatter`, `themeRiver`, `parallel`, `graph` (network), `tree`, `sunburst`, `pictorialBar`, `lines` (mapa), `map`, `calendar`.
 
+No uses `valueFormatter`: en JSON no puede ser una función y ECharts 5.6 lanza `TypeError: h is not a function`. Para el tooltip usa `formatter` con plantilla, por ejemplo `"{b}: {c}"` o `"{c} DOP"`.
+
 ### 🟦 1) Bar simple
 ```json
 {

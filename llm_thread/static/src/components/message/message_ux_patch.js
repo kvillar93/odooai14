@@ -308,6 +308,9 @@ const _llmMessageUxPatch = {
                 console.warn("[LLM Charts] JSON ECharts inválido:", e.message, optionStr.slice(0, 200));
                 continue;
             }
+            // El JSON no puede traer funciones. valueFormatter como string
+            // hace que ECharts 5.6 lance "h is not a function" al pintar el tooltip.
+            _sanitizeEchartsOption(option);
 
             // Extraer metadata de drill-down (campo personalizado ignorado por ECharts)
             const odooLinks = option.odoo_links || null;
@@ -688,6 +691,77 @@ function _sanitizeFilename(str) {
         .replace(/[^a-zA-Z0-9\u00C0-\u024F\s_-]/g, "_")
         .replace(/\s+/g, "_")
         .slice(0, 60);
+}
+
+/**
+ * ECharts 5.6 llama `tooltip.valueFormatter` (y el de cada serie) como función:
+ * `h(value, dataIndex)`. En el JSON del modelo ese campo llega como string
+ * y setOption revienta con `TypeError: h is not a function`.
+ * Plantillas `{c}` / `{value}` se convierten en función segura.
+ * Cuerpos `function` o flecha no se evalúan: se descartan y queda el formato por defecto.
+ * @param {Object} option
+ */
+function _sanitizeEchartsOption(option) {
+    _walkEchartsOption(option, new Set());
+}
+
+function _walkEchartsOption(node, seen) {
+    if (!node || typeof node !== "object") {
+        return;
+    }
+    if (seen.has(node)) {
+        return;
+    }
+    seen.add(node);
+    if (Array.isArray(node)) {
+        for (let i = 0; i < node.length; i++) {
+            _walkEchartsOption(node[i], seen);
+        }
+        return;
+    }
+    if (Object.prototype.hasOwnProperty.call(node, "valueFormatter")) {
+        const coerced = _coerceEchartsValueFormatter(node.valueFormatter);
+        if (coerced) {
+            node.valueFormatter = coerced;
+        } else if (typeof node.valueFormatter !== "function") {
+            delete node.valueFormatter;
+        }
+    }
+    const keys = Object.keys(node);
+    for (let i = 0; i < keys.length; i++) {
+        _walkEchartsOption(node[keys[i]], seen);
+    }
+}
+
+function _coerceEchartsValueFormatter(fmt) {
+    if (typeof fmt === "function") {
+        return fmt;
+    }
+    if (typeof fmt !== "string") {
+        return null;
+    }
+    const raw = fmt.trim();
+    if (!raw || /\bfunction\b|=>/.test(raw)) {
+        return null;
+    }
+    if (!/\{[a-zA-Z@]+\}/.test(raw)) {
+        return null;
+    }
+    return function (value) {
+        const text =
+            value == null
+                ? ""
+                : Array.isArray(value)
+                ? value.join(", ")
+                : String(value);
+        return raw.replace(/\{[a-zA-Z@]+\}/g, (token) => {
+            const key = token.slice(1, -1);
+            if (key === "c" || key === "value" || key === "d" || key === "@") {
+                return text;
+            }
+            return token;
+        });
+    };
 }
 
 // ---------------------------------------------------------------------------
