@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <!-- Franja de dictado: onda en vivo + tiempo + descartar / transcribir.
+         Requiere `dictation` y los métodos _onDictationCancel / _onDictationStop en el componente. -->
+    <t t-name="llm_thread.LLMDictationStrip" owl="1">
+        <div class="o_llm_dictation" t-att-class="{'o_llm_dictation--busy': dictation.state.status === 'transcribing'}" role="status">
+            <t t-if="dictation.state.status === 'recording'">
+                <button type="button" class="o_llm_dictation_btn" title="Descartar grabación" aria-label="Descartar grabación" t-on-click="_onDictationCancel">
+                    <i class="fa fa-times"/>
+                </button>
+                <span class="o_llm_dictation_rec" aria-hidden="true"/>
+                <div class="o_llm_dictation_wave" aria-hidden="true">
+                    <t t-foreach="dictation.state.levels" t-as="level" t-key="level_index">
+                        <span t-att-style="'height:' + level + '%'"/>
+                    </t>
+                </div>
+                <span class="o_llm_dictation_time" t-esc="dictation.state.clock"/>
+                <button type="button" class="o_llm_dictation_btn o_llm_dictation_btn--ok" title="Terminar y transcribir" aria-label="Terminar y transcribir" t-on-click="_onDictationStop">
+                    <i class="fa fa-check"/>
+                </button>
+            </t>
+            <t t-else="">
+                <i class="fa fa-circle-o-notch fa-spin"/>
+                <span class="o_llm_dictation_label">Transcribiendo…</span>
+            </t>
+        </div>
+    </t>
+</templates>

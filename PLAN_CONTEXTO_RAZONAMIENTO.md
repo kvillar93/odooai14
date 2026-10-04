@@ -219,3 +219,12 @@ Por modelo (`llm.model`): `context_window_tokens`, `context_budget_tokens`, `def
 ### Odoo 14
 
 Port completo (OWL 1, modelos `mail` de v14, POST form-urlencoded, adjuntos vía `ir.attachment`, contexto de pantalla desde la URL). **Validado sólo estáticamente**: no hay servidor Odoo 14 en el entorno.
+
+## 7. Fase 3: compositor, pestañas del popup y dictado por voz
+
+- **Compositor del chat grande en dos filas**, igual que el popup: texto arriba; adjuntar, esfuerzo de razonamiento, medidor de contexto, micrófono y enviar en la barra inferior.
+- **Nueva pestaña en el popup**: `llm.thread.create` completa `provider_id`/`model_id` si faltan (último modelo del usuario → modelo `default` → cualquier modelo de chat activo). Antes fallaba con «mandatory field … provider_id» cuando no había asistente predeterminado.
+- **Preferencia de razonamiento por usuario** en `ir.default` en lugar de una columna en `res.users` (evita que login/portal fallen si el módulo no está actualizado).
+- **Dictado por voz** (`utils/llm_voice.*` en v16, `voice/llm_voice.*` en v14): graba con onda y tiempo en vivo, descartar o confirmar; al confirmar sube el audio a `POST /llm/thread/transcribe` y el texto se inserta en el compositor para revisarlo. Si la grabación es silencio no se envía (los modelos inventan texto con audio vacío).
+  - Servidor: `llm.provider.llm_transcribe_audio` usa el proveedor del hilo o el primero que sepa transcribir. Gemini: modelo Flash sin razonamiento (`llm_gemini.transcription_model`, por defecto `gemini-flash-latest`); OpenAI: `whisper-1` (`llm_openai.transcription_model`).
+  - Gemini acepta el WebM/Opus que graba Chrome/Android sin convertir (transcripción en ~2 s).

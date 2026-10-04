@@ -687,8 +687,8 @@
   .o_LLMChatComposer_pill {
     background: var(--llm-composer-bg);
     border: 1px solid var(--llm-border-subtle);
-    border-radius: 1.75rem;
-    padding: 0.35rem 0.65rem 0.35rem 0.55rem;
+    border-radius: 1.25rem;
+    padding: 0.5rem 0.55rem 0.4rem 0.55rem;
     box-shadow: var(--llm-shadow-soft);
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 
@@ -698,13 +698,28 @@
     }
   }
 
-  // Una sola fila: adjunto | textarea | mic + enviar; align-items-center centra en vertical si el texto crece
+  // Dos filas (como el chat flotante): textarea arriba; adjunto, razonamiento,
+  // contexto, mic y enviar en la barra inferior.
   .o_LLMChatComposer_pillBody {
     min-width: 0;
+    gap: 0.25rem;
   }
 
   .o_LLMChatComposer_textCell {
     min-width: 0;
+  }
+
+  .o_LLMChatComposer_bar {
+    min-height: 2.5rem;
+    gap: 0.25rem;
+  }
+
+  .o_LLMChatComposer_actionsEnd {
+    gap: 0.25rem;
+  }
+
+  .o_llm_dictation {
+    padding: 0 0.15rem;
   }
 
   .o_LLMChatComposer_iconBtn {

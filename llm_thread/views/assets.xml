@@ -5,6 +5,7 @@
             <!-- Utilidades -->
             <script type="text/javascript" src="/llm_thread/static/src/js/llm_env_utils.js"/>
             <script type="text/javascript" src="/llm_thread/static/src/js/llm_ui_utils.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/voice/llm_voice.js"/>
 
             <!-- Modelos: cada archivo DEBE tener su <script> para entrar al bundle -->
             <script type="text/javascript" src="/llm_thread/static/src/models/llm_provider.js"/>
@@ -60,6 +61,7 @@
             <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chat_thread_related_record/llm_chat_thread_related_record.scss"/>
             <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/systray/llm_floating_systray.scss"/>
             <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/systray/llm_floating_dock.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/voice/llm_voice.scss"/>
             <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/scss/llm_steps.scss"/>
             <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chat/llm_chat.scss"/>
             <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/scss/llm_chat_chatgpt.scss"/>

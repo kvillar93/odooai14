@@ -8,7 +8,7 @@ Easy AI Chat for Odoo
 Chat de IA integrado con el sistema de correo de Odoo (mail), proveedores múltiples y herramientas.
     """,
     "category": "Productivity, Discuss",
-    "version": "14.0.1.6.0",
+    "version": "14.0.1.7.0",
     "depends": ["mail", "web", "llm", "llm_tool"],
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
@@ -37,6 +37,7 @@ Chat de IA integrado con el sistema de correo de Odoo (mail), proveedores múlti
         "static/src/components/message/message.xml",
         "static/src/components/llm_chat_thread_related_record/llm_chat_thread_related_record.xml",
         "static/src/systray/llm_floating_dock.xml",
+        "static/src/voice/llm_voice.xml",
         "static/src/systray/llm_floating_systray.xml",
     ],
     "images": [

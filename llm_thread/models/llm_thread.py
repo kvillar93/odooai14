@@ -220,6 +220,7 @@ class LLMThread(models.Model):
             else:
                 needs_unique_name.append(False)
 
+        self._llm_fill_missing_provider_model(vals_list)
         records = super().create(vals_list)
 
         # Update generic thread names to include unique ID y marcar título como autogenerable
@@ -233,6 +234,53 @@ class LLMThread(models.Model):
                 )
 
         return records
+
+    @api.model
+    def _llm_fallback_chat_model(self):
+        """Modelo para hilos creados sin proveedor/modelo (p. ej. el chat flotante).
+
+        Igual que el chat grande: el último modelo que usó el usuario, luego el
+        marcado como predeterminado y, si no, cualquier modelo de chat activo.
+        """
+        last = self.search(
+            [("user_id", "=", self.env.uid), ("model_id.active", "=", True)],
+            order="id desc",
+            limit=1,
+        )
+        if last.model_id.provider_id:
+            return last.model_id
+        domain = [
+            ("model_use", "in", ["chat", "multimodal"]),
+            ("provider_id", "!=", False),
+            ("provider_id.active", "=", True),
+        ]
+        Model = self.env["llm.model"]
+        return Model.search(domain + [("default", "=", True)], limit=1) or Model.search(
+            domain, limit=1
+        )
+
+    @api.model
+    def _llm_fill_missing_provider_model(self, vals_list):
+        fallback = None
+        for vals in vals_list:
+            if vals.get("provider_id") and vals.get("model_id"):
+                continue
+            if vals.get("model_id"):
+                model = self.env["llm.model"].browse(vals["model_id"])
+            else:
+                if fallback is None:
+                    fallback = self._llm_fallback_chat_model()
+                model = fallback
+            if not model:
+                raise UserError(
+                    _(
+                        "No hay ningún modelo de IA disponible. Configure un proveedor "
+                        "con al menos un modelo de chat activo."
+                    )
+                )
+            vals["model_id"] = model.id
+            if not vals.get("provider_id"):
+                vals["provider_id"] = model.provider_id.id
 
     def write(self, vals):
         """Si el usuario renombra a un título no genérico, bloquear futuros reemplazos automáticos."""

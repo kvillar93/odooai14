@@ -14,6 +14,7 @@ odoo.define('llm_thread/static/src/systray/llm_floating_dock.js', function (requ
     const Message = require('mail/static/src/components/message/message.js');
     const llmEnvUtils = require('llm_thread/static/src/js/llm_env_utils.js');
     const llmUi = require('llm_thread/static/src/js/llm_ui_utils.js');
+    const llmVoice = require('llm_thread/static/src/voice/llm_voice.js');
 
     const { Component } = owl;
     const { onMounted, onPatched, onWillUnmount, useRef, useState } = owl.hooks;
@@ -224,6 +225,21 @@ odoo.define('llm_thread/static/src/systray/llm_floating_dock.js', function (requ
             this.stickToBottom = true;
             this._lastTabKey = null;
             var self = this;
+            this.dictationSupported = llmVoice.dictationSupported;
+            // Pestaña en la que empezó el dictado: el texto vuelve a ella aunque
+            // el usuario cambie de pestaña mientras se transcribe.
+            this._dictationTab = null;
+            this.dictation = llmVoice.useDictation({
+                getThreadId: function () {
+                    return self._dictationTab && self._dictationTab.threadId;
+                },
+                onText: function (text) {
+                    self._insertDictation(text);
+                },
+                onError: function (message) {
+                    self.env.services.notification.notify({ message: message, type: 'warning' });
+                },
+            });
             onMounted(function () { self._afterRender(true); });
             onPatched(function () { self._afterRender(false); });
         }
@@ -242,7 +258,7 @@ odoo.define('llm_thread/static/src/systray/llm_floating_dock.js', function (requ
 
         get canSend() {
             var tab = this.tab;
-            return !tab.streaming && !tab.uploading &&
+            return this.dictation.state.status === 'idle' && !tab.streaming && !tab.uploading &&
                 Boolean(tab.draft.trim() || tab.attachments.length);
         }
 
@@ -382,6 +398,19 @@ odoo.define('llm_thread/static/src/systray/llm_floating_dock.js', function (requ
             if (this.stickToBottom) {
                 el.scrollTop = el.scrollHeight;
             }
+            if (this._focusAfterDictation && this.dictation.state.status === 'idle') {
+                this._focusAfterDictation = false;
+                var self = this;
+                requestAnimationFrame(function () {
+                    var input = self.inputRef.el;
+                    if (input) {
+                        input.value = self.tab.draft;
+                        self._autosize(input);
+                        input.focus();
+                        input.setSelectionRange(input.value.length, input.value.length);
+                    }
+                });
+            }
         }
 
         onInput(ev) {
@@ -390,6 +419,9 @@ odoo.define('llm_thread/static/src/systray/llm_floating_dock.js', function (requ
         }
 
         _autosize(el) {
+            if (!el.getClientRects().length) {
+                return; // oculto (dictando): se ajusta al volver a mostrarse
+            }
             el.style.height = 'auto';
             el.style.height = Math.min(el.scrollHeight, 160) + 'px';
         }
@@ -415,6 +447,31 @@ odoo.define('llm_thread/static/src/systray/llm_floating_dock.js', function (requ
 
         stop() {
             this.props.dock.stop(this.tab);
+        }
+
+        _onDictationStart() {
+            this._dictationTab = this.tab;
+            this.dictation.start();
+        }
+
+        _onDictationStop() {
+            this.dictation.stop();
+        }
+
+        _onDictationCancel() {
+            this.dictation.cancel();
+        }
+
+        _insertDictation(text) {
+            var tab = this._dictationTab || this.tab;
+            var draft = tab.draft || '';
+            tab.draft = draft + (draft && !/\s$/.test(draft) ? ' ' : '') + text;
+            // El textarea sigue oculto hasta el próximo render: se ajusta en _afterRender.
+            this._focusAfterDictation = tab === this.tab;
+            if (!this._focusAfterDictation) {
+                return;
+            }
+            this.render();
         }
 
         onClickAttach() {

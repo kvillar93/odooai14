@@ -106,6 +106,13 @@ _GEMINI_TRANSIENT_MARKERS = (
 _GEMINI_MAX_TRANSIENT_RETRIES = 3
 
 
+_GEMINI_TRANSCRIPTION_PROMPT = (
+    "Transcribe literalmente lo que se dice en este audio, en el idioma en que se "
+    "habla, con puntuación correcta. Devuelve solo el texto transcrito, sin "
+    "comillas, comentarios ni marcas de tiempo. Si no hay voz, devuelve un texto vacío."
+)
+
+
 @functools.lru_cache(maxsize=1)
 def _gemini_thinking_config_class():
     """ThinkingConfig con ``thinking_level`` aunque el SDK instalado no lo declare.
@@ -172,6 +179,43 @@ class LLMProvider(models.Model):
                 _("Instale google-genai: pip install google-genai. Error: %s") % e
             ) from e
         return genai_module.Client(api_key=self.api_key)
+
+    def gemini_transcribe_audio(self, data, mimetype, model=None):
+        """Dictado por voz con un modelo Flash (rápido y barato) sin razonamiento."""
+        from google.genai import types as genai_types
+
+        name = model.name if model else ""
+        if "flash" not in (name or "").lower():
+            name = (
+                self.env["ir.config_parameter"].sudo().get_param("llm_gemini.transcription_model")
+                or "gemini-flash-latest"
+            )
+        contents = [
+            genai_types.Content(
+                role="user",
+                parts=[
+                    genai_types.Part.from_bytes(data=data, mime_type=mimetype or "audio/webm"),
+                    genai_types.Part.from_text(text=_GEMINI_TRANSCRIPTION_PROMPT),
+                ],
+            )
+        ]
+        client = self.gemini_get_client()
+        last_err = None
+        for candidate in self._gemini_thinking_candidates(name, "instant"):
+            config = genai_types.GenerateContentConfig(
+                temperature=0,
+                thinking_config=self._gemini_thinking_config_from_candidate(candidate),
+            )
+            try:
+                response = client.models.generate_content(
+                    model=name, contents=contents, config=config
+                )
+                return (getattr(response, "text", None) or "").strip()
+            except Exception as err:  # noqa: BLE001
+                last_err = err
+                if not self._gemini_is_thinking_reject(err):
+                    raise
+        raise last_err
 
     # ------------------------------------------------------------------
     # Utilidades de modelo

@@ -51,6 +51,20 @@ class LLMProvider(models.Model):
         return OpenAI(api_key=self.api_key, base_url=self.api_base or None)
 
     # OpenAI specific implementation
+    def openai_transcribe_audio(self, data, mimetype, model=None):
+        """Dictado por voz con la API de transcripción de OpenAI."""
+        ext = (mimetype or "audio/webm").split("/")[-1].split(";")[0] or "webm"
+        if ext == "mpeg":
+            ext = "mp3"
+        name = (
+            self.env["ir.config_parameter"].sudo().get_param("llm_openai.transcription_model")
+            or "whisper-1"
+        )
+        result = self.openai_get_client().audio.transcriptions.create(
+            model=name, file=(f"dictado.{ext}", data, mimetype or "audio/webm")
+        )
+        return (getattr(result, "text", None) or "").strip()
+
     def openai_format_tools(self, tools):
         """Format tools for OpenAI"""
         out = [self._openai_format_tool(tool) for tool in tools]

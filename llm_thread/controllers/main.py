@@ -182,3 +182,48 @@ class LLMThreadController(http.Controller):
             direct_passthrough=True,
             headers=headers,
         )
+
+    # Límite de audio por dictado (Gemini acepta hasta ~20 MB en línea).
+    _TRANSCRIBE_MAX_BYTES = 19 * 1024 * 1024
+
+    @http.route(
+        "/llm/thread/transcribe",
+        type="http",
+        auth="user",
+        methods=["POST"],
+        csrf=True,
+    )
+    def llm_thread_transcribe(self, audio=None, thread_id=None, **kwargs):
+        """Dictado por voz: recibe el audio grabado y devuelve el texto transcrito."""
+
+        def _reply(payload, status=200):
+            return Response(
+                json.dumps(payload), status=status, content_type="application/json"
+            )
+
+        if not audio or not hasattr(audio, "read"):
+            return _reply({"error": _("No se recibió audio.")}, status=400)
+        data = audio.read()
+        if not data:
+            return _reply({"error": _("El audio está vacío.")}, status=400)
+        if len(data) > self._TRANSCRIBE_MAX_BYTES:
+            return _reply({"error": _("La grabación es demasiado larga.")}, status=413)
+        mimetype = (audio.mimetype or "audio/webm").split(";")[0].strip()
+
+        thread = None
+        if thread_id and str(thread_id).isdigit():
+            thread = request.env["llm.thread"].browse(int(thread_id)).exists()
+            if thread:
+                # Respeta las reglas de acceso del usuario sobre el hilo.
+                thread.check_access_rights("read")
+                thread.check_access_rule("read")
+        try:
+            text = request.env["llm.provider"].llm_transcribe_audio(
+                data, mimetype, thread=thread
+            )
+        except Exception as err:  # noqa: BLE001
+            _logger.exception("Error transcribiendo audio")
+            # En v14 str(UserError) devuelve la tupla de args: usar el mensaje.
+            message = err.args[0] if getattr(err, "args", None) else str(err)
+            return _reply({"error": str(message)}, status=502)
+        return _reply({"text": text})

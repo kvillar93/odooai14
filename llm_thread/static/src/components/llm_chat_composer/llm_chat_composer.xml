@@ -21,17 +21,9 @@
                     />
                 </t>
                 <div class="o_LLMChatComposer_pill w-100">
-                    <div class="o_LLMChatComposer_pillBody d-flex flex-nowrap align-items-center w-100 min-w-0">
-                        <button
-                            class="o_LLMChatComposer_iconBtn o_LLMChatComposer_toolBtn o_LLMChatComposer_attachBtn btn p-0 border-0 flex-shrink-0"
-                            type="button"
-                            title="Adjuntar archivo"
-                            aria-label="Adjuntar archivo"
-                            t-on-click="_onClickAddAttachment"
-                        >
-                            <i class="fa fa-paperclip" />
-                        </button>
-                        <div class="o_LLMChatComposer_textCell flex-grow-1 min-w-0">
+                    <!-- Dos filas, como el chat flotante: texto arriba y barra de acciones abajo -->
+                    <div class="o_LLMChatComposer_pillBody d-flex flex-column w-100 min-w-0">
+                        <div class="o_LLMChatComposer_textCell w-100 min-w-0" t-att-class="{'d-none': dictation.state.status !== 'idle'}">
                             <LLMChatComposerTextInput
                                 composerLocalId="composerLocalId"
                                 hasMentionSuggestionsBelowPosition="false"
@@ -39,44 +31,54 @@
                                 sendShortcuts="textInputSendShortcuts"
                             />
                         </div>
-                        <div class="o_LLMChatComposer_actionsEnd d-flex align-items-center flex-shrink-0">
+                        <t t-if="dictation.state.status !== 'idle'">
+                            <t t-call="llm_thread.LLMDictationStrip"/>
+                        </t>
+                        <div class="o_LLMChatComposer_bar d-flex align-items-center w-100 min-w-0">
                             <button
-                                t-if="state.hasVoiceAPI"
-                                class="o_LLMChatComposer_iconBtn o_LLMChatComposer_toolBtn btn p-0 border-0"
-                                t-att-class="state.isRecording ? 'o_LLMChatComposer_iconBtn--recording' : ''"
+                                class="o_LLMChatComposer_iconBtn o_LLMChatComposer_toolBtn o_LLMChatComposer_attachBtn btn p-0 border-0 flex-shrink-0"
                                 type="button"
-                                title="Nota de voz"
-                                aria-label="Nota de voz"
-                                t-on-click="onClickVoiceRecording"
+                                title="Adjuntar archivo"
+                                aria-label="Adjuntar archivo"
+                                t-on-click="_onClickAddAttachment"
                             >
-                                <i
-                                    class="fa"
-                                    t-att-class="state.isRecording ? 'fa-stop' : 'fa-microphone'"
-                                />
+                                <i class="fa fa-paperclip" />
                             </button>
-                            <t t-if="!isStreaming">
+                            <div class="o_LLMChatComposer_actionsEnd d-flex align-items-center flex-shrink-0 ml-auto">
                                 <button
-                                    class="o_LLMChatComposer_sendBtn o_Composer_actionButton o_Composer_button o_Composer_buttonSend btn o-last d-inline-flex align-items-center justify-content-center border-0"
-                                    t-on-click="_onClickSend"
-                                    t-att-disabled="isDisabled"
+                                    t-if="dictationSupported and dictation.state.status === 'idle'"
+                                    class="o_LLMChatComposer_iconBtn o_LLMChatComposer_toolBtn btn p-0 border-0"
                                     type="button"
-                                    title="Enviar"
-                                    aria-label="Enviar"
+                                    title="Dictar por voz"
+                                    aria-label="Dictar por voz"
+                                    t-on-click="_onDictationStart"
                                 >
-                                    <i class="fa fa-arrow-up" />
+                                    <i class="fa fa-microphone" />
                                 </button>
-                            </t>
-                            <t t-if="isStreaming">
-                                <button
-                                    class="o_LLMChatComposer_sendBtn o_LLMChatComposer_sendBtn--stop o_Composer_actionButton o_Composer_button o_Composer_buttonStop btn o-last d-inline-flex align-items-center justify-content-center border-0"
-                                    t-on-click="_onClickStop"
-                                    type="button"
-                                    title="Detener"
-                                    aria-label="Detener"
-                                >
-                                    <i class="fa fa-stop" />
-                                </button>
-                            </t>
+                                <t t-if="!isStreaming">
+                                    <button
+                                        class="o_LLMChatComposer_sendBtn o_Composer_actionButton o_Composer_button o_Composer_buttonSend btn o-last d-inline-flex align-items-center justify-content-center border-0"
+                                        t-on-click="_onClickSend"
+                                        t-att-disabled="isDisabled or dictation.state.status !== 'idle'"
+                                        type="button"
+                                        title="Enviar"
+                                        aria-label="Enviar"
+                                    >
+                                        <i class="fa fa-arrow-up" />
+                                    </button>
+                                </t>
+                                <t t-if="isStreaming">
+                                    <button
+                                        class="o_LLMChatComposer_sendBtn o_LLMChatComposer_sendBtn--stop o_Composer_actionButton o_Composer_button o_Composer_buttonStop btn o-last d-inline-flex align-items-center justify-content-center border-0"
+                                        t-on-click="_onClickStop"
+                                        type="button"
+                                        title="Detener"
+                                        aria-label="Detener"
+                                    >
+                                        <i class="fa fa-stop" />
+                                    </button>
+                                </t>
+                            </div>
                         </div>
                     </div>
                 </div>

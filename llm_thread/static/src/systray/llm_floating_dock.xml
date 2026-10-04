@@ -131,9 +131,13 @@
                     </t>
                     <span t-if="tab.uploading" class="o_llm_fchip"><i class="fa fa-circle-o-notch fa-spin"/> Subiendo…</span>
                 </div>
+                <t t-if="dictation.state.status !== 'idle'">
+                    <t t-call="llm_thread.LLMDictationStrip"/>
+                </t>
                 <textarea
                     t-ref="input"
                     class="o_llm_fcomposer_input"
+                    t-att-class="{'d-none': dictation.state.status !== 'idle'}"
                     rows="1"
                     placeholder="Pregunta lo que quieras…"
                     t-on-input="onInput"
@@ -149,6 +153,9 @@
                         <t t-component="meterComponent" threadId="tab.threadId"/>
                     </t>
                     <span class="flex-grow-1"/>
+                    <button t-if="dictationSupported and dictation.state.status === 'idle'" type="button" class="o_llm_ficonbtn" title="Dictar por voz" t-on-click="_onDictationStart">
+                        <i class="fa fa-microphone"/>
+                    </button>
                     <button t-if="tab.streaming" type="button" class="o_llm_fsend o_llm_fsend--stop" title="Detener" t-on-click="stop">
                         <i class="fa fa-stop"/>
                     </button>
