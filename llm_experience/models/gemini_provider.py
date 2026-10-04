@@ -18,21 +18,23 @@ class LLMProvider(models.Model):
         prepend_messages=None,
         **kwargs,
     ):
-        thread = kwargs.get("llm_thread")
-        exp_kwargs = self._experience_build_gemini_experience_kwargs(thread)
-        kwargs.update(exp_kwargs)
+        """Añade el esfuerzo de razonamiento del hilo y registra el uso de tokens.
 
-        if thread and self.service == "gemini":
-            est = self._experience_gemini_count_tokens(
-                messages, model, tools, prepend_messages, kwargs
-            )
-            if est is not None:
-                try:
-                    thread.usage_apply_gemini_estimated_prompt(est)
-                except Exception as err:
-                    _logger.debug("usage_apply_gemini_estimated_prompt: %s", err)
+        La estimación previa se hace localmente en el hilo
+        (``_context_preflight``): ``count_tokens`` de la Gemini API no admite
+        ``system_instruction`` y añadía una llamada HTTP por ronda.
+        """
+        thread = kwargs.pop("llm_thread", None)
+        if thread is not None and not kwargs.get("reasoning_effort"):
+            kwargs["reasoning_effort"] = thread._experience_effective_reasoning_effort()
+        if (
+            stream
+            and thread is not None
+            and not thread.env.context.get("llm_compaction_call")
+            and "experience_include_thoughts" not in kwargs
+        ):
+            kwargs["experience_include_thoughts"] = thread._experience_show_thinking()
 
-        kwargs.pop("llm_thread", None)
         res = super().gemini_chat(
             messages,
             model=model,
@@ -42,112 +44,30 @@ class LLMProvider(models.Model):
             **kwargs,
         )
 
-        if stream and thread:
+        if stream:
             return self._experience_wrap_gemini_stream(res, thread)
-        if not stream and thread and isinstance(res, dict):
-            u = res.pop("_usage_internal", None)
-            if u:
-                try:
-                    thread.usage_apply_gemini_response(u)
-                except Exception as err:
-                    _logger.debug("usage_apply_gemini_response: %s", err)
-            else:
-                res.pop("_usage_internal", None)
-        elif isinstance(res, dict):
-            res.pop("_usage_internal", None)
+        if isinstance(res, dict):
+            usage = res.pop("_usage_internal", None)
+            if usage and thread is not None:
+                self._experience_apply_usage(thread, usage)
         return res
 
-    def _experience_build_gemini_experience_kwargs(self, thread):
-        """Pensamiento profundo / flags para llm_gemini."""
-        if not thread:
-            return {}
-        out = {}
-        if thread.chat_work_mode == "deep_thinking":
-            budget = int(thread.gemini_thinking_budget or 8192)
-            out["experience_thinking_budget"] = max(1, budget)
-            out["experience_include_thoughts"] = False
-        return out
-
-    def _experience_gemini_count_tokens(
-        self, messages, model, tools, prepend_messages, kwargs
-    ):
-        """Llama a count_tokens del SDK con el mismo contenido que el chat."""
-        self.ensure_one()
+    def _experience_apply_usage(self, thread, usage):
         try:
-            from google.genai import types as genai_types
-        except ImportError:
-            return None
-        try:
-            model_obj = self.get_model(model, "chat")
-            client = self.gemini_get_client()
-            openai_style = self._gemini_build_openai_style_message_list(
-                prepend_messages, messages
-            )
-            if kwargs.get("system_prompt"):
-                openai_style = [
-                    {"role": "system", "content": kwargs["system_prompt"]}
-                ] + openai_style
-            contents, system_instruction = self._gemini_build_contents(openai_style)
-
-            config_kwargs = {}
-            if system_instruction:
-                config_kwargs["system_instruction"] = system_instruction
-            has_odoo_tools = bool(tools)
-            want_gs = bool(
-                getattr(model_obj, "gemini_google_search_grounding", False)
-            )
-            use_gs = want_gs
-            if want_gs and has_odoo_tools:
-                if not self._gemini_model_supports_tool_combination(model_obj.name):
-                    use_gs = False
-            if has_odoo_tools:
-                declarations = self.gemini_format_tools(tools)
-                config_kwargs["tools"] = [
-                    genai_types.Tool(function_declarations=declarations)
-                ]
-                config_kwargs["tool_config"] = self._gemini_build_tool_config_function_auto(
-                    genai_types, use_gs
-                )
-                # No enviar thinking_budget=0: rompe alias *-latest / Pro / Gemini 3+.
-            exp_tb = kwargs.get("experience_thinking_budget")
-            if exp_tb is not None and int(exp_tb) > 0:
-                thinking_cfg = self._gemini_build_thinking_config(
-                    genai_types,
-                    model_obj.name,
-                    int(exp_tb),
-                    include_thoughts=bool(kwargs.get("experience_include_thoughts")),
-                )
-                if thinking_cfg is not None:
-                    config_kwargs["thinking_config"] = thinking_cfg
-            if use_gs:
-                config_kwargs.setdefault("tools", [])
-                config_kwargs["tools"].append(
-                    genai_types.Tool(google_search=genai_types.GoogleSearch())
-                )
-            config = (
-                genai_types.GenerateContentConfig(**config_kwargs)
-                if config_kwargs
-                else None
-            )
-            resp = client.models.count_tokens(
-                model=model_obj.name,
-                contents=contents,
-                config=config,
-            )
-            total = getattr(resp, "total_tokens", None)
-            if total is not None:
-                return int(total)
+            thread.usage_apply_llm_response(usage)
         except Exception as err:
-            _logger.debug("Gemini count_tokens: %s", err)
-        return None
+            _logger.warning("No se pudo registrar el uso de tokens: %s", err)
 
     def _experience_wrap_gemini_stream(self, gen, thread):
         for chunk in gen:
             if isinstance(chunk, dict):
-                u = chunk.pop("_usage_internal", None)
-                if u:
-                    try:
-                        thread.usage_apply_gemini_response(u)
-                    except Exception as err:
-                        _logger.debug("stream usage: %s", err)
+                usage = chunk.pop("_usage_internal", None)
+                if usage:
+                    if thread is not None:
+                        self._experience_apply_usage(thread, usage)
+                    # Uso de esta petición para mostrarlo en el mensaje.
+                    chunk["usage_info"] = {
+                        key: usage.get(key, 0)
+                        for key in ("prompt", "cached", "output", "thoughts")
+                    }
             yield chunk

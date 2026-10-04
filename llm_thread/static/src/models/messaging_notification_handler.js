@@ -17,7 +17,27 @@ odoo.define('llm_thread/static/src/models/messaging_notification_handler.js', fu
             if (type === 'llm.thread/open_in_chatter') {
                 return this._handleLLMThreadOpenInChatter(data);
             }
+            if (type === 'llm.thread/update') {
+                return this._handleLLMThreadUpdate(data);
+            }
             return this._super.apply(this, arguments);
+        },
+
+        /**
+         * Título u otros datos del hilo cambiados en el servidor (desde cualquier vista).
+         */
+        _handleLLMThreadUpdate(data) {
+            if (!data || !data.id) {
+                return;
+            }
+            const thread = this.env.models['mail.thread'].findFromIdentifyingData({
+                id: data.id,
+                model: 'llm.thread',
+            });
+            if (thread && data.name) {
+                thread.update({ name: data.name });
+            }
+            window.dispatchEvent(new CustomEvent('llm-thread-updated', { detail: data }));
         },
 
         _handleLLMThreadsDelete(data) {

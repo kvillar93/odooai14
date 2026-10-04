@@ -9,10 +9,8 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
 
     const useShouldUpdateBasedOnProps = require('mail/static/src/component_hooks/use_should_update_based_on_props/use_should_update_based_on_props.js');
     const useStore = require('mail/static/src/component_hooks/use_store/use_store.js');
-    const LLMChat = require('llm_thread/static/src/components/llm_chat/llm_chat.js');
+    const { LLMFloatingDock } = require('llm_thread/static/src/systray/llm_floating_dock.js');
 
-    const LLM_ACTIVE_VIEW_HTML_MAX_CHARS = 2500000;
-    const LLM_SYSTRAY_ACTION_ID = 'llm_systray_float';
 
     class LLMFloatingSystrayMenuBody extends Component {
         constructor(...args) {
@@ -63,19 +61,6 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
         constructor(...args) {
             super(...args);
             useShouldUpdateBasedOnProps();
-            useStore(function () {
-                var messaging = this.env.messaging;
-                var llmChat = messaging && messaging.llmChat;
-                var activeThread = llmChat && llmChat.activeThread;
-                return {
-                    messaging: messaging ? messaging.__state : undefined,
-                    isInitialized: messaging && messaging.isInitialized,
-                    // Trackear el nombre del hilo activo para que el título del
-                    // panel flotante se actualice cuando cambia (SSE o renombrado)
-                    activeThreadName: activeThread ? activeThread.name : undefined,
-                };
-            }.bind(this));
-
             var self = this;
             this.state = useState({
                 search: '',
@@ -84,13 +69,26 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
                 hasMoreBrowse: false,
                 searchMode: false,
                 searchResults: [],
-                panelOpen: false,
-                panelMinimized: false,
                 loadingThreads: false,
                 loadingMore: false,
                 searchingRemote: false,
-                initializing: false,
             });
+            this.dock = null;
+            this.registerDock = function (dock) {
+                self.dock = dock;
+            };
+            this.onThreadsChanged = function () {
+                self.state.browseOffset = 0;
+            };
+            this.onThreadRenamed = function (thread) {
+                [self.state.browseThreads, self.state.searchResults].forEach(function (list) {
+                    list.forEach(function (row) {
+                        if (row.id === thread.id && thread.name) {
+                            row.name = thread.name;
+                        }
+                    });
+                });
+            };
 
             this._debouncedSearch = _.debounce(function () {
                 self._runSearchRemote();
@@ -101,28 +99,16 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
             return this.env.messaging;
         }
 
+        /** Referencia para el menú (la plantilla pasa ``systray`` como prop). */
+        get systray() {
+            return this;
+        }
+
         get displayedThreads() {
             if (this.state.searchMode && (this.state.search || '').trim()) {
                 return this.state.searchResults;
             }
             return this.state.browseThreads;
-        }
-
-        get canShowFloatingPanel() {
-            return this.state.panelOpen && !this._isFullLlmChatAction();
-        }
-
-        _isFullLlmChatAction() {
-            return Boolean(document.querySelector('.o_LLMChatClientAction'));
-        }
-
-        get floatingPanelTitle() {
-            var t = this.messaging.llmChat && this.messaging.llmChat.activeThread;
-            var raw = t && t.name;
-            if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
-                return String(raw).trim();
-            }
-            return this.env._t('Chat IA');
         }
 
         async _onDropdownShow() {
@@ -217,192 +203,23 @@ odoo.define('llm_thread/static/src/systray/llm_floating_systray.js', function (r
         }
 
         async onClickNewChat() {
-            this.state.initializing = true;
-            try {
-                var llmChat = this.messaging.llmChat;
-                llmChat.update({ isSystrayFloatingMode: true });
-                await this.env.messagingCreatedPromise;
-                await llmChat.ensureDataLoaded();
-                var thread = await llmChat.createThread({});
-                if (thread) {
-                    await this.loadBrowseFirstPage();
-                    await this.openThread(thread.id);
-                }
-            } catch (e) {
-                console.error('LLMFloatingSystray.onClickNewChat', e);
-            } finally {
-                this.state.initializing = false;
+            if (this.dock) {
+                await this.dock.newChat();
             }
         }
 
+        /** Abre el hilo como pestaña del chat flotante (convive con el chat completo). */
         async openThread(threadId) {
-            this.state.panelOpen = true;
-            this.state.panelMinimized = false;
-            var llmChat = this.messaging.llmChat;
-            llmChat.update({ isSystrayFloatingMode: true });
-            await this.env.messagingCreatedPromise;
-
-            var systrayScopeKey = LLM_SYSTRAY_ACTION_ID + '|';
-            var alreadySystray = llmChat.chatInitScopeKey === systrayScopeKey && llmChat.llmChatView;
-
-            if (!alreadySystray) {
-                this.state.initializing = true;
-                try {
-                    var action = {
-                        id: LLM_SYSTRAY_ACTION_ID,
-                        name: this.env._t('Chat IA flotante'),
-                        context: {},
-                    };
-                    await llmChat.initializeLLMChat(action, 'llm.thread_' + threadId, []);
-                } catch (e) {
-                    console.error('LLMFloatingSystray.openThread', e);
-                    this.state.initializing = false;
-                    return;
-                } finally {
-                    this.state.initializing = false;
-                }
+            var row = this.displayedThreads.find(function (t) { return t.id === threadId; });
+            if (this.dock) {
+                await this.dock.openThread(threadId, row && row.name);
             }
-
-            try {
-                await llmChat.selectThread(threadId);
-            } catch (e) {
-                console.error('LLMFloatingSystray.selectThread', e);
-            }
-            var self = this;
-            [100, 400, 1000].forEach(function (ms) {
-                window.setTimeout(function () {
-                    if (self.env && self.env.messagingBus) {
-                        self.env.messagingBus.trigger('llm-stream-update');
-                    }
-                }, ms);
-            });
-        }
-
-        onClickFullChat() {
-            var active = this.messaging.llmChat && this.messaging.llmChat.activeThread;
-            if (!active) return;
-            this.state.panelOpen = false;
-            this.state.panelMinimized = false;
-            this.messaging.llmChat.update({ isSystrayFloatingMode: false });
-            this.env.bus.trigger('do-action', {
-                action: 'llm_thread.action_llm_chat',
-                options: {
-                    active_id: this.messaging.llmChat.threadToActiveId(active),
-                    clear_breadcrumbs: false,
-                },
-            });
-        }
-
-        onClosePanel() {
-            this.state.panelOpen = false;
-            this.state.panelMinimized = false;
-            if (this.messaging.llmChat) {
-                this.messaging.llmChat.update({ isSystrayFloatingMode: false });
-            }
-        }
-
-        onClickMinimizePanel() {
-            this.state.panelMinimized = true;
-        }
-
-        onClickRestorePanel() {
-            this.state.panelMinimized = false;
-            var self = this;
-            [100, 400].forEach(function (ms) {
-                window.setTimeout(function () {
-                    if (self.env && self.env.messagingBus) {
-                        self.env.messagingBus.trigger('llm-stream-update');
-                    }
-                }, ms);
-            });
-        }
-
-        onClickFloatingHeaderBar() {
-            if (this.state.panelMinimized) {
-                this.onClickRestorePanel();
-            }
-        }
-
-        noop() {}
-
-        _escapeHtmlForSnapshot(s) {
-            return String(s)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;');
-        }
-
-        _sanitizeFilenameFromPageTitle() {
-            var s = (document.title || '').trim();
-            s = s.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '');
-            s = s.replace(/\s+/g, '-');
-            s = s.replace(/-+/g, '-').replace(/^-|-$/g, '');
-            if (s.length > 100) s = s.slice(0, 100).replace(/-+$/g, '');
-            if (!s) return 'documento-' + Date.now();
-            return s;
-        }
-
-        _buildActiveViewHtmlDocument() {
-            var root = document.querySelector('.o_action_manager') || document.body;
-            var clone = root.cloneNode(true);
-            clone.querySelectorAll('script, iframe, object, embed').forEach(function (n) { n.remove(); });
-            var metaLines = [
-                this.env._t('URL') + ': ' + window.location.href,
-                this.env._t('Título') + ': ' + document.title,
-            ];
-            var metaComment = '<!--\n' + metaLines.join('\n') + '\n-->';
-            var title = this._escapeHtmlForSnapshot(document.title);
-            return '<!DOCTYPE html>\n<html lang="es">\n<head>\n<meta charset="utf-8"/>\n<title>' + title + '</title>\n</head>\n<body>\n' + metaComment + '\n' + clone.outerHTML + '\n</body>\n</html>';
-        }
-
-        async onClickAttachActiveViewHtml() {
-            try {
-                var panel = document.querySelector('.o_llm_floating_panel');
-                var input = panel && panel.querySelector('.o_FileUploader_input');
-                if (!input) {
-                    this.env.services.notification.notify({
-                        message: this.env._t('Abre una conversación antes de adjuntar el HTML.'),
-                        type: 'warning',
-                    });
-                    return;
-                }
-                var html = this._buildActiveViewHtmlDocument();
-                var truncated = false;
-                if (html.length > LLM_ACTIVE_VIEW_HTML_MAX_CHARS) {
-                    html = html.slice(0, LLM_ACTIVE_VIEW_HTML_MAX_CHARS) + '\n<!-- truncado -->\n';
-                    truncated = true;
-                }
-                var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-                var fileName = this._sanitizeFilenameFromPageTitle() + '.html';
-                var file = new File([blob], fileName, { type: 'text/html' });
-                var dt = new DataTransfer();
-                dt.items.add(file);
-                input.files = dt.files;
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-                if (truncated) {
-                    this.env.services.notification.notify({
-                        message: this.env._t('El HTML se ha truncado por tamaño.'),
-                        type: 'warning',
-                    });
-                }
-            } catch (e) {
-                console.error('[LLM attach HTML] ERROR:', e);
-                this.env.services.notification.notify({
-                    message: this.env._t('Error al adjuntar el HTML de la vista.'),
-                    type: 'danger',
-                });
-            }
-        }
-
-        get systray() {
-            return this;
         }
     }
 
     Object.assign(LLMFloatingSystray, {
         components: {
-            LLMChat: LLMChat,
+            LLMFloatingDock: LLMFloatingDock,
             LLMFloatingSystrayMenuBody: LLMFloatingSystrayMenuBody,
         },
         template: 'llm_thread.LLMFloatingSystray',

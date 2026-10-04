@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 
 from odoo import models
 from odoo.exceptions import UserError
@@ -141,6 +142,7 @@ class MailMessage(models.Model):
 
         # Update status to executing
         tool_data["status"] = "executing"
+        started = time.monotonic()
         self.write({"body_json": tool_data})
         yield {"type": "message_update", "message": self.message_format()[0]}
 
@@ -154,6 +156,7 @@ class MailMessage(models.Model):
                 # Update tool data with result
                 tool_data["status"] = "completed"
                 tool_data["result"] = result
+                tool_data["duration_ms"] = int((time.monotonic() - started) * 1000)
                 self.write({"body_json": tool_data})
 
                 # Emit tool_succeeded event
@@ -173,6 +176,7 @@ class MailMessage(models.Model):
             # Update tool data with error
             tool_data["status"] = "error"
             tool_data["error"] = str(e)
+            tool_data["duration_ms"] = int((time.monotonic() - started) * 1000)
             self.write({"body_json": tool_data})
             
             # Emit tool_failed event

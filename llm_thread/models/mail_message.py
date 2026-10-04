@@ -25,7 +25,16 @@ class MailMessage(models.Model):
     def message_format(self):
         """Override to set is_note for LLM messages (bubble style)."""
         result = super().message_format()
+        # ``record_name`` se guarda al crear el mensaje: devolver el título
+        # actual del hilo para que la UI no muestre nombres antiguos.
+        thread_ids = {m.res_id for m in self if m.model == "llm.thread" and m.res_id}
+        thread_names = {
+            thread.id: thread.name
+            for thread in self.env["llm.thread"].sudo().browse(list(thread_ids)).exists()
+        }
         for message_data, message in zip(result, self):
+            if message.model == "llm.thread" and message.res_id in thread_names:
+                message_data["record_name"] = thread_names[message.res_id]
             if message.llm_role:
                 message_data["is_note"] = True
         return result

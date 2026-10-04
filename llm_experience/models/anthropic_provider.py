@@ -22,6 +22,8 @@ import re
 
 from odoo import models, tools
 
+from .llm_reasoning import ANTHROPIC_THINKING_BUDGETS, normalize_reasoning_effort
+
 _logger = logging.getLogger(__name__)
 
 
@@ -482,6 +484,9 @@ class LLMProviderAnthropic(models.Model):
                 else:
                     content_text = body or ""
                     is_error = False
+                content_text = record._llm_history_tool_text(
+                    content_text, is_error=is_error or record._llm_tool_is_error()
+                )
                 if not tool_call_id:
                     # Fallback: mensaje de texto para no romper la conversación
                     return {
@@ -553,17 +558,21 @@ class LLMProviderAnthropic(models.Model):
         # ---------- Modo de chat ----------
         thread = kwargs.get("llm_thread")
         work_mode = "normal"
-        thinking_budget = 8192
+        effort = kwargs.get("reasoning_effort")
         if thread is not None:
             try:
                 work_mode = (
                     getattr(thread, "chat_work_mode", "normal") or "normal"
                 )
-                thinking_budget = int(
-                    getattr(thread, "gemini_thinking_budget", 0) or 8192
-                )
+                if not effort:
+                    effort = getattr(thread, "reasoning_effort", None)
             except Exception:
                 pass
+        if work_mode == "deep_thinking":
+            work_mode, effort = "normal", effort or "high"
+        effort = normalize_reasoning_effort(effort)
+        thinking_budget = ANTHROPIC_THINKING_BUDGETS.get(effort)
+        tool_choice = kwargs.get("tool_choice")
 
         # max_tokens por defecto: 4096 (configurable por ICP). 1024 era
         # insuficiente y provocaba truncation del JSON de tool_use en
@@ -587,11 +596,8 @@ class LLMProviderAnthropic(models.Model):
             params["system"] = "\n\n".join(p for p in system_parts if p)
 
         # ---------- Extended Thinking ----------
-        if (
-            work_mode == "deep_thinking"
-            and self._anthropic_supports_thinking(model_name)
-        ):
-            budget = max(1024, int(thinking_budget or 8192))
+        if thinking_budget and self._anthropic_supports_thinking(model_name):
+            budget = max(1024, int(thinking_budget))
             if params["max_tokens"] <= budget:
                 params["max_tokens"] = budget + 1024
             params["thinking"] = {"type": "enabled", "budget_tokens": budget}
@@ -606,7 +612,7 @@ class LLMProviderAnthropic(models.Model):
         tools_list = []
 
         # (a) Web search server-side
-        if self._anthropic_supports_web_search(model_name):
+        if tool_choice != "none" and self._anthropic_supports_web_search(model_name):
             icp = self.env["ir.config_parameter"].sudo()
             enabled = (
                 icp.get_param(
@@ -678,6 +684,8 @@ class LLMProviderAnthropic(models.Model):
 
         if tools_list:
             params["tools"] = tools_list
+            if tool_choice == "none":
+                params["tool_choice"] = {"type": "none"}
 
         # ---------- Prompt caching ----------
         # Marca bloques estáticos (system, tools, histórico) como
@@ -688,7 +696,18 @@ class LLMProviderAnthropic(models.Model):
 
         # ---------- Llamada ----------
         try:
-            response = self.client.messages.create(**params)
+            try:
+                response = self.client.messages.create(**params)
+            except Exception as err:
+                # Thinking incompatible con el historial (p. ej. turnos de
+                # tool_use sin bloque thinking): reintentar sin thinking.
+                if "thinking" not in params or "thinking" not in str(err).lower():
+                    raise
+                _logger.warning(
+                    "Anthropic rechazó thinking (%s); reintento sin thinking.", err
+                )
+                params.pop("thinking", None)
+                response = self.client.messages.create(**params)
         except Exception as err:
             # Si el SDK agotó reintentos con 429, devolvemos un mensaje
             # visible al usuario en vez de un traceback críptico.
@@ -815,6 +834,8 @@ class LLMProviderAnthropic(models.Model):
             "output": output_tokens,
             "thoughts": 0,
             "total": total,
+            # Anthropic informa la caché aparte de ``input_tokens``.
+            "prompt_includes_cached": False,
         }
 
     def _anthropic_apply_usage_to_thread(self, thread, usage):
@@ -832,10 +853,7 @@ class LLMProviderAnthropic(models.Model):
         try:
             # ``usage_apply_llm_response`` es el alias genérico añadido
             # en ``llm_experience`` para no estar atados a Gemini.
-            if hasattr(thread, "usage_apply_llm_response"):
-                thread.usage_apply_llm_response(u)
-            else:
-                thread.usage_apply_gemini_response(u)
+            thread.usage_apply_llm_response(u)
             _logger.info(
                 "Anthropic usage: prompt=%s cached=%s output=%s total=%s "
                 "(thread=%s)",
@@ -913,7 +931,7 @@ class LLMProviderAnthropic(models.Model):
           - ``content_block_delta`` con ``delta.type == "input_json_delta"``
             acumula el JSON parcial de los argumentos.
           - ``message_delta``: contiene ``usage.output_tokens`` final.
-          - ``thinking_delta`` se descarta (no se muestra al usuario).
+          - ``thinking_delta`` se emite como ``{"thinking": ...}`` para la UI.
         Al terminar, emite un único chunk con ``tool_calls`` agregados y
         aplica el uso total al thread para registrar coste/tokens.
         """
@@ -984,8 +1002,9 @@ class LLMProviderAnthropic(models.Model):
                                 getattr(delta, "partial_json", "") or ""
                             )
                     elif dtype == "thinking_delta":
-                        # No emitimos el chain-of-thought al usuario.
-                        continue
+                        text = getattr(delta, "thinking", "") or ""
+                        if text:
+                            yield {"thinking": text}
                     continue
 
                 # Otros eventos (ping, content_block_stop, message_stop)
@@ -997,6 +1016,15 @@ class LLMProviderAnthropic(models.Model):
 
         # Registrar tokens/coste al terminar el stream.
         self._anthropic_apply_usage_to_thread(thread, usage_totals)
+        yield {
+            "usage_info": {
+                "prompt": usage_totals["input_tokens"]
+                + usage_totals["cache_creation_input_tokens"],
+                "cached": usage_totals["cache_read_input_tokens"],
+                "output": usage_totals["output_tokens"],
+                "thoughts": 0,
+            }
+        }
 
         if tool_uses:
             tool_calls = []

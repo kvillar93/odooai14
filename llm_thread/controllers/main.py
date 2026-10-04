@@ -54,13 +54,22 @@ class LLMThreadController(http.Controller):
                 raise BadRequest(_("JSON inválido: %s") % err) from err
             user_message_body = payload.get("message", user_message_body)
             att_ids = cls._coerce_attachment_ids(payload.get("attachment_ids"))
+            screen_context = payload.get("screen_context")
         else:
             params = request.params or {}
             if "message" in params:
                 user_message_body = params.get("message") or user_message_body
             att_ids = cls._coerce_attachment_ids(params.get("attachment_ids"))
+            screen_context = params.get("screen_context")
         if att_ids:
             extra_kwargs["attachment_ids"] = att_ids
+        if isinstance(screen_context, str) and screen_context.strip():
+            try:
+                screen_context = json.loads(screen_context)
+            except json.JSONDecodeError:
+                screen_context = None
+        if isinstance(screen_context, dict):
+            extra_kwargs["screen_context"] = screen_context
         return user_message_body, extra_kwargs
 
     @http.route(
@@ -131,6 +140,12 @@ class LLMThreadController(http.Controller):
                             client_connected = False
 
                 finally:
+                    # Confirmar antes de «done»: el cliente vuelve a leer el hilo
+                    # (título, coste) al recibirlo y vería datos sin confirmar.
+                    try:
+                        cr.commit()
+                    except Exception:
+                        cr.rollback()
                     if client_connected:
                         yield from cls._safe_yield(
                             f"data: {json.dumps({'type': 'done'})}\n\n".encode()

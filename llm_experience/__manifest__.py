@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Experiencia LLM (contexto, Gemini, investigación)",
-    "summary": "Medidor de contexto/tokens, compactación, modos pensamiento/investigación y orquestador extensible",
-    "version": "14.0.1.1.1",
+    "summary": "Medidor de contexto/tokens, resumen automático de contexto, niveles de razonamiento e investigación profunda",
+    "version": "14.0.1.3.0",
     "category": "Productivity",
     "depends": [
         "mail",

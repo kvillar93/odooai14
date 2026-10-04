@@ -1,125 +1,188 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
     <t t-name="llm_experience.LLMContextMeter" owl="1">
-        <div
-            class="o_llm_ctxMeter o_llm_ctxMeter--wrap flex-shrink-0 position-relative"
-            t-ref="root"
-        >
-            <t t-if="state.loaded and state.selectorEnabled">
+        <div class="o_llm_exp d-flex align-items-center flex-shrink-0" t-ref="root">
+            <t t-if="state.loaded and data">
+                <button
+                    t-if="selectorEnabled"
+                    type="button"
+                    class="o_llm_exp__effort btn btn-sm d-flex align-items-center"
+                    t-ref="effortTrigger"
+                    t-att-disabled="state.busy"
+                    t-att-aria-expanded="state.popover === 'effort' ? 'true' : 'false'"
+                    aria-haspopup="true"
+                    t-attf-title="Razonamiento: {{ currentEffort.label }}"
+                    t-on-click="toggleEffortMenu"
+                >
+                    <t t-set="glyph" t-value="effortGlyph(currentEffort.value)"/>
+                    <span class="o_llm_exp__glyph" aria-hidden="true">
+                        <i t-if="glyph.bolt" class="fa fa-bolt"/>
+                        <t t-else="">
+                            <t t-foreach="glyph.bars" t-as="bar" t-key="bar.n">
+                                <span t-att-class="bar.cls"/>
+                            </t>
+                        </t>
+                    </span>
+                    <span class="o_llm_exp__effortLabel" t-esc="currentEffort.label"/>
+                    <i t-if="data.deep_research" class="fa fa-search o_llm_exp__researchBadge" title="Investigación profunda activa"/>
+                    <i class="fa fa-angle-down o_llm_exp__caret"/>
+                </button>
                 <button
                     type="button"
-                    class="o_llm_ctxMeter__trigger btn border-0 p-0 position-relative"
-                    style="width:28px;height:28px;line-height:0;"
-                    t-ref="trigger"
-                    t-att-title="ctxTitle"
-                    t-att-disabled="state.saving"
-                    t-att-aria-expanded="ariaExpanded"
-                    t-att-aria-haspopup="true"
-                    t-att-aria-label="ariaLabel"
-                    t-on-click="toggleMenu"
+                    class="o_llm_exp__ring btn btn-sm d-flex align-items-center"
+                    t-ref="ringTrigger"
+                    t-att-title="ringTitle"
+                    t-att-aria-expanded="state.popover === 'context' ? 'true' : 'false'"
+                    aria-haspopup="true"
+                    t-on-click="toggleContextCard"
                 >
-                    <span
-                        class="o_llm_ctxMeter__gauge"
-                        aria-hidden="true"
-                        style="position:relative;display:inline-block;width:28px;height:28px;"
-                        t-att-title="ctxTitle"
-                    >
-                        <svg class="o_llm_ctxMeter__svg" viewBox="0 0 40 40" width="28" height="28" style="display:block;">
-                            <circle
-                                class="o_llm_ctxMeter__ring-bg"
-                                cx="20"
-                                cy="20"
-                                r="16"
-                                fill="none"
-                                stroke-width="3"
-                                stroke="rgba(0,0,0,0.1)"
-                            />
-                            <circle
-                                t-att-class="ringFillClass"
-                                cx="20"
-                                cy="20"
-                                r="16"
-                                fill="none"
-                                stroke-width="3"
-                                stroke-linecap="round"
-                                transform="rotate(-90 20 20)"
-                                t-att-stroke-dasharray="gaugeDashArray"
-                                t-att-stroke-dashoffset="gaugeDashOffset"
-                            />
-                        </svg>
-                        <span class="o_llm_ctxMeter__abbr" t-esc="currentOption.abbr"/>
-                    </span>
-                </button>
-                <div
-                    t-if="state.menuOpen"
-                    t-ref="menu"
-                    class="o_llm_ctxMeter__menu shadow-sm bg-white border py-1"
-                    role="menu"
-                >
-                    <t t-foreach="options" t-as="opt" t-key="opt.value">
-                        <button
-                            type="button"
-                            class="o_llm_ctxMeter__item d-flex align-items-center py-2 px-2 w-100 border-0 bg-transparent text-start"
-                            t-att-class="{'o_llm_ctxMeter__item--active': state.current === opt.value}"
-                            role="menuitem"
-                            t-att-data-mode="opt.value"
-                            t-on-click="onPickMode"
-                        >
-                            <i t-att-class="'fa ' + opt.icon + ' o_llm_ctxMeter__itemIcon flex-shrink-0 mr-2'"/>
-                            <span class="o_llm_ctxMeter__itemAbbr" t-esc="opt.abbr"/>
-                            <span class="o_llm_ctxMeter__itemLabel text-truncate" t-esc="opt.label"/>
-                        </button>
-                    </t>
-                </div>
-            </t>
-            <t t-if="state.loaded and !state.selectorEnabled">
-                <div class="o_llm_ctxMeter__gaugeOnly position-relative" style="line-height:0;">
-                    <span
-                        class="o_llm_ctxMeter__gauge"
-                        aria-hidden="true"
-                        style="position:relative;display:inline-block;width:28px;height:28px;"
-                        t-att-title="ctxTitle"
-                    >
-                        <svg class="o_llm_ctxMeter__svg" viewBox="0 0 40 40" width="28" height="28" style="display:block;">
-                            <circle
-                                class="o_llm_ctxMeter__ring-bg"
-                                cx="20"
-                                cy="20"
-                                r="16"
-                                fill="none"
-                                stroke-width="3"
-                                stroke="rgba(0,0,0,0.1)"
-                            />
-                            <circle
-                                t-att-class="ringFillClass"
-                                cx="20"
-                                cy="20"
-                                r="16"
-                                fill="none"
-                                stroke-width="3"
-                                stroke-linecap="round"
-                                transform="rotate(-90 20 20)"
-                                t-att-stroke-dasharray="gaugeDashArray"
-                                t-att-stroke-dashoffset="gaugeDashOffset"
-                            />
-                        </svg>
-                    </span>
-                </div>
-            </t>
-            <t t-if="!state.loaded">
-                <span class="o_llm_ctxMeter__placeholder o_llm_ctxMeter__gauge" aria-hidden="true" style="position:relative;display:inline-block;width:28px;height:28px;">
-                    <svg class="o_llm_ctxMeter__svg o_llm_ctxMeter__svg--muted" viewBox="0 0 40 40" width="28" height="28" style="display:block;opacity:0.45;">
+                    <svg class="o_llm_exp__svg" viewBox="0 0 40 40" width="18" height="18" aria-hidden="true">
+                        <circle class="o_llm_exp__ringBg" cx="20" cy="20" r="16" fill="none" stroke-width="4" stroke="rgba(0,0,0,0.12)"/>
                         <circle
-                            class="o_llm_ctxMeter__ring-bg"
-                            cx="20"
-                            cy="20"
-                            r="16"
-                            fill="none"
-                            stroke-width="3"
-                            stroke="rgba(0,0,0,0.1)"
+                            t-attf-class="o_llm_exp__ringFill o_llm_exp__ringFill--{{ stateSuffix }}"
+                            cx="20" cy="20" r="16" fill="none" stroke-width="4"
+                            stroke-linecap="round" transform="rotate(-90 20 20)"
+                            t-att-stroke-dasharray="gaugeDashArray"
+                            t-att-stroke-dashoffset="gaugeDashOffset"
                         />
                     </svg>
-                </span>
+                    <span class="o_llm_exp__pct"><t t-esc="pct"/>%</span>
+                </button>
+
+                <div
+                    t-if="state.popover === 'effort'"
+                    t-ref="popover"
+                    class="o_llm_exp__popover o_llm_exp__menu bg-white border shadow"
+                    role="menu"
+                >
+                    <div class="o_llm_exp__popTitle">Razonamiento</div>
+                    <t t-foreach="effortOptions" t-as="opt" t-key="opt.value">
+                        <button
+                            type="button"
+                            role="menuitemradio"
+                            t-att-aria-checked="opt.value === currentEffort.value ? 'true' : 'false'"
+                            t-attf-class="o_llm_exp__item {{ opt.value === currentEffort.value ? 'o_llm_exp__item--active' : '' }}"
+                            t-att-data-value="opt.value"
+                            t-on-click="onPickEffort"
+                        >
+                            <t t-set="glyph" t-value="effortGlyph(opt.value)"/>
+                    <span class="o_llm_exp__glyph" aria-hidden="true">
+                        <i t-if="glyph.bolt" class="fa fa-bolt"/>
+                        <t t-else="">
+                            <t t-foreach="glyph.bars" t-as="bar" t-key="bar.n">
+                                <span t-att-class="bar.cls"/>
+                            </t>
+                        </t>
+                    </span>
+                            <span class="o_llm_exp__itemText">
+                                <span class="o_llm_exp__itemLabel" t-esc="opt.label"/>
+                                <span class="o_llm_exp__itemDesc" t-esc="opt.description"/>
+                            </span>
+                            <i t-if="opt.value === currentEffort.value" class="fa fa-check o_llm_exp__check"/>
+                        </button>
+                    </t>
+                    <div t-if="data.reasoning_note" class="o_llm_exp__note" t-esc="data.reasoning_note"/>
+                    <div class="o_llm_exp__divider"/>
+                    <button
+                        type="button"
+                        role="menuitemcheckbox"
+                        t-att-aria-checked="data.deep_research ? 'true' : 'false'"
+                        class="o_llm_exp__item"
+                        t-att-disabled="state.busy"
+                        t-on-click="onToggleResearch"
+                    >
+                        <span class="o_llm_exp__glyph" aria-hidden="true"><i class="fa fa-search"/></span>
+                        <span class="o_llm_exp__itemText">
+                            <span class="o_llm_exp__itemLabel">Investigación profunda</span>
+                            <span class="o_llm_exp__itemDesc">Plan de varios pasos con herramientas e informe final.</span>
+                        </span>
+                        <span t-attf-class="o_llm_exp__switch {{ data.deep_research ? 'o_llm_exp__switch--on' : '' }}" aria-hidden="true"/>
+                    </button>
+                </div>
+
+                <div
+                    t-if="state.popover === 'context'"
+                    t-ref="popover"
+                    class="o_llm_exp__popover o_llm_exp__card bg-white border shadow"
+                    role="dialog"
+                    aria-label="Uso de contexto"
+                >
+                    <div class="o_llm_exp__cardHead">
+                        <span class="o_llm_exp__popTitle mb-0">Contexto</span>
+                        <span class="o_llm_exp__model text-truncate" t-esc="data.model_name"/>
+                    </div>
+                    <div class="o_llm_exp__bigline">
+                        <strong t-esc="fmt(data.live)"/> / <t t-esc="fmt(data.limit)"/> tokens
+                        <span t-attf-class="o_llm_exp__bigPct o_llm_exp__bigPct--{{ stateSuffix }}"><t t-esc="pct"/> %</span>
+                    </div>
+                    <div class="o_llm_exp__bar-track" role="progressbar" t-att-aria-valuenow="pct" aria-valuemin="0" aria-valuemax="100">
+                        <div t-attf-class="o_llm_exp__bar-fill o_llm_exp__bar-fill--{{ stateSuffix }}" t-attf-style="width: {{ pct }}%"/>
+                        <div class="o_llm_exp__bar-marker" t-attf-style="left: {{ compactionPct }}%" t-attf-title="Resumen automático al {{ compactionPct }} %"/>
+                    </div>
+                    <div class="o_llm_exp__status" t-esc="compactionStatus"/>
+
+                    <div t-if="breakdown.length" class="o_llm_exp__composition">
+                        <div class="o_llm_exp__compBar">
+                            <t t-foreach="breakdown" t-as="seg" t-key="seg.key">
+                                <span t-attf-class="o_llm_exp__compSeg o_llm_exp__compSeg--{{ seg.key }}" t-attf-style="width: {{ seg.width }}" t-attf-title="{{ seg.label }}: ~{{ seg.tokensLabel }} tokens"/>
+                            </t>
+                        </div>
+                        <div class="o_llm_exp__compLegend">
+                            <t t-foreach="breakdown" t-as="seg" t-key="seg.key">
+                                <span class="o_llm_exp__compItem">
+                                    <span t-attf-class="o_llm_exp__compDot o_llm_exp__compSeg--{{ seg.key }}"/>
+                                    <t t-esc="seg.label"/> <span class="o_llm_exp__compTokens">~<t t-esc="seg.tokensLabel"/></span>
+                                </span>
+                            </t>
+                        </div>
+                    </div>
+
+
+                    <dl class="o_llm_exp__stats">
+                        <dt>Última petición</dt>
+                        <dd>
+                            Entrada <t t-esc="fmt(data.last.prompt)"/>
+                            <t t-if="data.last.cached"> (caché <t t-esc="fmt(data.last.cached)"/>)</t>
+                            · Salida <t t-esc="fmt(data.last.output)"/>
+                            · Razonamiento <t t-esc="fmt(data.last.thoughts)"/>
+                        </dd>
+                        <dt>Conversación</dt>
+                        <dd>
+                            <t t-esc="data.totals.requests"/> peticiones
+                            · Entrada <t t-esc="fmt(data.totals.input)"/>
+                            · Salida <t t-esc="fmt(data.totals.output)"/>
+                            · Razonamiento <t t-esc="fmt(data.totals.thoughts)"/>
+                        </dd>
+                        <t t-if="costLabel">
+                            <dt>Coste estimado</dt>
+                            <dd t-esc="costLabel"/>
+                        </t>
+                        <dt>Resúmenes</dt>
+                        <dd>
+                            <t t-esc="data.compaction_count"/>
+                            <t t-if="lastCompactionLabel"> · último <t t-esc="lastCompactionLabel"/></t>
+                        </dd>
+                    </dl>
+
+                    <div t-if="state.notice" class="o_llm_exp__notice" t-esc="state.notice"/>
+                    <div class="o_llm_exp__actions">
+                        <button type="button" class="btn btn-sm btn-secondary" t-att-disabled="state.busy" t-on-click="onCompactNow">
+                            <i class="fa fa-compress mr-1"/>Resumir ahora
+                        </button>
+                        <button
+                            type="button"
+                            t-attf-class="btn btn-sm {{ state.confirmReset ? 'btn-danger' : 'btn-link text-muted' }}"
+                            t-att-disabled="state.busy"
+                            t-on-click="onResetContext"
+                        >
+                            <t t-if="state.confirmReset">¿Reiniciar? Pulsa de nuevo</t>
+                            <t t-else="">Reiniciar contexto</t>
+                        </button>
+                    </div>
+                </div>
+            </t>
+            <t t-elif="!state.loaded">
+                <span class="o_llm_exp__placeholder" aria-hidden="true"/>
             </t>
         </div>
     </t>

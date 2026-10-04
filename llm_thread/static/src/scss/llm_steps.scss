@@ -1,0 +1,296 @@
+// =============================================================================
+// Razonamiento, pasos de herramientas y metadatos (chat grande y flotante)
+// Estilo Cursor / ChatGPT: compacto, legible y plegable.
+// =============================================================================
+
+$llm-step-muted: rgba(0, 0, 0, 0.55);
+$llm-step-border: rgba(0, 0, 0, 0.08);
+$llm-step-hover: rgba(0, 0, 0, 0.04);
+$llm-step-accent: #2563eb;
+$llm-step-error: #dc2626;
+
+@keyframes llm-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+// --- Razonamiento ------------------------------------------------------------
+.o_llm_thinking {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+
+  > summary {
+    list-style: none;
+    &::-webkit-details-marker {
+      display: none;
+    }
+  }
+
+  &_summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    max-width: 100%;
+    padding: 0.15rem 0.5rem 0.15rem 0.35rem;
+    border-radius: 999px;
+    color: $llm-step-muted;
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+      background: $llm-step-hover;
+      color: inherit;
+    }
+  }
+
+  &_icon {
+    width: 1rem;
+    text-align: center;
+  }
+
+  &_label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &_chevron {
+    transition: transform 0.2s ease;
+  }
+
+  &[open] &_chevron {
+    transform: rotate(180deg);
+  }
+
+  &--active &_label {
+    background: linear-gradient(
+      90deg,
+      $llm-step-muted 0%,
+      rgba(0, 0, 0, 0.25) 50%,
+      $llm-step-muted 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: llm-shimmer 2s linear infinite;
+  }
+
+  &_body {
+    margin: 0.35rem 0 0.25rem 0.85rem;
+    padding: 0.1rem 0 0.1rem 0.85rem;
+    border-left: 2px solid $llm-step-border;
+    color: $llm-step-muted;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    max-height: 22rem;
+    overflow-y: auto;
+
+    p {
+      margin: 0 0 0.45rem;
+    }
+  }
+}
+
+// --- Pasos de herramientas ---------------------------------------------------
+.o_llm_step {
+  font-size: 0.85rem;
+
+  > summary {
+    list-style: none;
+    &::-webkit-details-marker {
+      display: none;
+    }
+  }
+
+  &_summary {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    padding: 0.2rem 0.5rem 0.2rem 0.35rem;
+    border-radius: 0.45rem;
+    color: $llm-step-muted;
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+      background: $llm-step-hover;
+      color: inherit;
+    }
+  }
+
+  &_status {
+    display: inline-flex;
+    justify-content: center;
+    width: 1rem;
+    flex-shrink: 0;
+  }
+
+  &_label {
+    white-space: nowrap;
+  }
+
+  &_target {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 0.3rem;
+    border-radius: 0.3rem;
+    background: rgba(0, 0, 0, 0.05);
+    color: inherit;
+    font-size: 0.78rem;
+  }
+
+  &_summaryText,
+  &_duration {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    opacity: 0.75;
+  }
+
+  &_duration::before,
+  &_summaryText::before {
+    content: "·";
+    margin-right: 0.35rem;
+  }
+
+  &_chevron {
+    margin-left: auto;
+    opacity: 0;
+    transition: transform 0.2s ease, opacity 0.15s ease;
+  }
+
+  &_summary:hover &_chevron,
+  &[open] &_chevron {
+    opacity: 0.7;
+  }
+
+  &[open] &_chevron {
+    transform: rotate(180deg);
+  }
+
+  &--running &_label {
+    background: linear-gradient(90deg, $llm-step-muted 0%, rgba(0, 0, 0, 0.25) 50%, $llm-step-muted 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: llm-shimmer 2s linear infinite;
+  }
+
+  &--error &_status,
+  &--error &_summaryText {
+    color: $llm-step-error;
+  }
+
+  &_body {
+    margin: 0.25rem 0 0.4rem 1.35rem;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid $llm-step-border;
+    border-radius: 0.5rem;
+    background: rgba(0, 0, 0, 0.02);
+  }
+
+  &_error {
+    margin-bottom: 0.5rem;
+    color: $llm-step-error;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  &_section + &_section {
+    margin-top: 0.5rem;
+  }
+
+  &_sectionTitle {
+    display: flex;
+    align-items: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    margin-bottom: 0.25rem;
+  }
+
+  &_pre {
+    margin: 0;
+    max-height: 16rem;
+    overflow: auto;
+    padding: 0.4rem 0.5rem;
+    border-radius: 0.35rem;
+    background: rgba(0, 0, 0, 0.04);
+    font-size: 0.75rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
+
+// --- Metadatos de respuesta --------------------------------------------------
+.o_llm_meta {
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  color: $llm-step-muted;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.o_Message:hover .o_llm_meta,
+.o_llm_fmsg:hover .o_llm_meta {
+  opacity: 1;
+}
+
+// --- Chat grande (Odoo 14): el tipo viene en data-llm-kind del contenido ------
+.o_LLMChat,
+.o_LLMChatContainer,
+.o_LLMChatClientAction {
+  .o_Message:has(> * [data-llm-kind="hidden"]),
+  .o_Message:has([data-llm-kind="hidden"]) {
+    display: none !important;
+  }
+
+  .o_Message:has([data-llm-kind="tool"]),
+  .o_Message:has([data-llm-kind="thinkingOnly"]) {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+
+    .o_Message_header,
+    .o_Message_authorAvatarContainer,
+    .o_Message_authorAvatar,
+    .o_Message_date,
+    .o_Message_commands,
+    .o_llm_message_vote {
+      display: none !important;
+    }
+
+    .o_Message_sidebar {
+      visibility: hidden;
+    }
+
+    .o_Message_bubble,
+    .o_Message_background {
+      background: transparent !important;
+      padding: 0 !important;
+    }
+  }
+
+  .o_Message:has([data-llm-kind="contextNote"]) {
+    .o_Message_sidebar,
+    .o_Message_header {
+      display: none !important;
+    }
+
+    .o_Message_prettyBody {
+      text-align: center;
+      font-size: 0.78rem !important;
+      color: $llm-step-muted !important;
+    }
+  }
+}

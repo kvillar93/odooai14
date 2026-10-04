@@ -72,7 +72,9 @@ class LLMToolRecordRetriever(models.Model):
     def odoo_record_retriever_execute(
         self,
         model: str = "",
-        domain: list[list[Union[str, int, bool, float, None]]] = [],  # noqa: B006
+        domain: list[
+            list[Union[str, int, bool, float, None, list[Union[str, int, float, bool]]]]
+        ] = [],  # noqa: B006
         fields: list[str] = [],  # noqa: B006
         limit: int = 100,
         mode: str = "orm",
@@ -99,7 +101,15 @@ class LLMToolRecordRetriever(models.Model):
             return {"rows": rows}
 
         if not model:
-            raise UserError(_("Debe indicarse el modelo en modo orm."))
+            raise UserError(
+                _(
+                    "Falta el parámetro obligatorio «model» (nombre técnico, p. ej. "
+                    "\"product.template\"). Ejemplo completo: {\"model\": "
+                    "\"product.template\", \"domain\": [[\"name\", \"in\", "
+                    "[\"A\", \"B\"]]], \"fields\": [\"name\", \"list_price\"], "
+                    "\"limit\": 10}. Repite la llamada incluyendo «model»."
+                )
+            )
 
         domain = sanitize_domain(domain)
 

@@ -4,6 +4,7 @@
         <xpath expr="." position="inside">
             <!-- Utilidades -->
             <script type="text/javascript" src="/llm_thread/static/src/js/llm_env_utils.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/js/llm_ui_utils.js"/>
 
             <!-- Modelos: cada archivo DEBE tener su <script> para entrar al bundle -->
             <script type="text/javascript" src="/llm_thread/static/src/models/llm_provider.js"/>
@@ -43,6 +44,7 @@
             <script type="text/javascript" src="/llm_thread/static/src/components/file_uploader_patch/file_uploader_patch.js"/>
             <script type="text/javascript" src="/llm_thread/static/src/components/message/message_ux_patch.js"/>
             <script type="text/javascript" src="/llm_thread/static/src/llm_chat_client_action.js"/>
+            <script type="text/javascript" src="/llm_thread/static/src/systray/llm_floating_dock.js"/>
             <script type="text/javascript" src="/llm_thread/static/src/systray/llm_floating_systray.js"/>
 
             <!-- Estilos -->
@@ -57,6 +59,8 @@
             <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chat_thread_list/llm_chat_thread_list.scss"/>
             <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chat_thread_related_record/llm_chat_thread_related_record.scss"/>
             <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/systray/llm_floating_systray.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/systray/llm_floating_dock.scss"/>
+            <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/scss/llm_steps.scss"/>
             <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/components/llm_chat/llm_chat.scss"/>
             <link rel="stylesheet" type="text/scss" href="/llm_thread/static/src/scss/llm_chat_chatgpt.scss"/>
         </xpath>

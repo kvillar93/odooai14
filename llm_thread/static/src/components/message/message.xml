@@ -1,27 +1,30 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
 
+    <t t-name="llm_thread.Message.Thinking" owl="1">
+        <details
+            t-if="message.llmThinking"
+            class="o_llm_thinking"
+            t-att-class="{'o_llm_thinking--active': message.llmThinkingActive}"
+            t-att-open="message.llmThinkingActive"
+        >
+            <summary class="o_llm_thinking_summary">
+                <i t-if="message.llmThinkingActive" class="fa fa-circle-o-notch fa-spin o_llm_thinking_icon" aria-hidden="true"/>
+                <i t-else="" class="fa fa-lightbulb-o o_llm_thinking_icon" aria-hidden="true"/>
+                <span class="o_llm_thinking_label" t-esc="message.llmThinkingLabel"/>
+                <i class="fa fa-angle-down o_llm_thinking_chevron" aria-hidden="true"/>
+            </summary>
+            <div class="o_llm_thinking_body" t-raw="message.llmThinkingHtml"/>
+        </details>
+    </t>
+
     <t t-name="llm_thread.Message.AssistantContent" owl="1">
+        <t t-call="llm_thread.Message.Thinking"/>
         <div class="o_Message_prettyBody" t-ref="prettyBody" t-raw="message.prettyBody or message.body or ''" />
-        <t t-if="message.toolCalls and message.toolCalls.length > 0">
-            <details class="o_llm_tool_calls o_llm_tool_calls--subtle mt-2 small text-muted border-top pt-1">
-                <summary class="cursor-pointer user-select-none">
-                    <strong>Herramientas solicitadas</strong>
-                    <span class="text-muted"> (clic para ver)</span>
-                </summary>
-                <div class="mt-2">
-                    <t t-foreach="message.toolCalls" t-as="toolCall" t-key="toolCall.id">
-                        <span
-                            class="badge bg-light text-dark border mr-1 mb-1"
-                            t-att-title="toolCall.function and toolCall.function.arguments and ('ID: ' + toolCall.id + '\nArgs: ' + toolCall.function.arguments) or ''"
-                        >
-                            <i class="fa fa-cog mr-1" aria-hidden="true" />
-                            <t t-esc="toolCall.function and toolCall.function.name or ''" />
-                        </span>
-                    </t>
-                </div>
-            </details>
-        </t>
+        <div t-if="message.llmMetaLine" class="o_llm_meta">
+            <span t-esc="message.llmMetaLine"/>
+        </div>
+        <t t-if="!message.llmIsToolCallOnly">
         <div class="o_llm_message_vote mt-2 border-top pt-2" t-on-click.stop="">
             <span
                 class="o_Message_command fa fa-lg mr-2"
@@ -40,77 +43,41 @@
                 t-on-click="_onClickLlmThumbDown"
             />
         </div>
+        </t>
     </t>
 
     <t t-name="llm_thread.Message.ToolResultContent" owl="1">
+        <t t-set="step" t-value="message.llmToolStep or {}"/>
         <div class="o_Message_prettyBody o_llm_tool_result">
             <p class="d-none mb-0" t-ref="prettyBody" />
-            <div class="o_llm_tool_card">
-                <div class="o_llm_tool_card_head">
-                    <div
-                        class="o_llm_tool_card_icon"
-                        t-att-class="message.toolCallResultIsError ? 'bg-light text-danger' : ''"
-                    >
-                        <i
-                            class="fa"
-                            t-att-class="message.toolCallResultIsError ? 'fa-exclamation-circle' : 'fa-check'"
-                            aria-hidden="true"
-                        />
+            <details
+                class="o_llm_step"
+                t-att-class="{'o_llm_step--running': step.running, 'o_llm_step--error': step.error}"
+            >
+                <summary class="o_llm_step_summary">
+                    <span class="o_llm_step_status" aria-hidden="true">
+                        <i t-if="step.running" class="fa fa-circle-o-notch fa-spin"/>
+                        <i t-elif="step.error" class="fa fa-exclamation-circle"/>
+                        <i t-else="" t-attf-class="fa {{ step.icon }}"/>
+                    </span>
+                    <span class="o_llm_step_label" t-esc="step.label"/>
+                    <code t-if="step.target" class="o_llm_step_target" t-esc="step.target"/>
+                    <span t-if="step.summary" class="o_llm_step_summaryText" t-esc="step.summary"/>
+                    <span t-if="step.duration" class="o_llm_step_duration" t-esc="step.duration"/>
+                    <i class="fa fa-angle-down o_llm_step_chevron" aria-hidden="true"/>
+                </summary>
+                <div class="o_llm_step_body">
+                    <div t-if="step.error" class="o_llm_step_error" t-esc="step.error"/>
+                    <div class="o_llm_step_section">
+                        <div class="o_llm_step_sectionTitle">Argumentos</div>
+                        <pre class="o_llm_step_pre"><code t-esc="message.llmToolArgsFormatted"/></pre>
                     </div>
-                    <div class="o_llm_tool_card_title text-truncate">
-                        <t t-esc="message.toolName or (message.toolCallDefinitionFormatted and message.toolCallDefinitionFormatted.function and message.toolCallDefinitionFormatted.function.name) or 'Herramienta'" />
-                        <div class="o_llm_tool_card_meta">
-                            Resultado
-                            <t t-if="message.toolCallId">
-                                · ID <t t-esc="message.toolCallId" />
-                            </t>
-                        </div>
-                    </div>
-                    <div class="o_llm_tool_card_actions">
-                        <button
-                            type="button"
-                            class="btn btn-sm btn-outline-secondary"
-                            title="Copiar JSON completo"
-                            t-on-click="_onClickCopyLlmToolResult"
-                        >
-                            <i class="fa fa-copy" />
-                        </button>
+                    <div t-if="!step.error and message.toolCallResultFormatted" class="o_llm_step_section">
+                        <div class="o_llm_step_sectionTitle">Resultado</div>
+                        <pre class="o_llm_step_pre o_llm_tool_result_pre"><code t-esc="message.toolCallResultFormatted"/></pre>
                     </div>
                 </div>
-                <div class="o_llm_tool_card_body">
-                    <p class="o_llm_tool_card_hint">
-                        <t t-if="message.toolCallResultIsError">
-                            Se produjo un error al ejecutar la herramienta. Puedes ver el detalle técnico abajo.
-                        </t>
-                        <t t-else="">
-                            La herramienta terminó correctamente. El detalle técnico (JSON) está oculto por defecto; ábrelo solo si lo necesitas.
-                        </t>
-                    </p>
-                    <div class="o_llm_tool_raw">
-                        <details class="mb-1">
-                            <summary>Argumentos enviados al motor</summary>
-                            <pre class="bg-100 p-2 rounded small mt-1 mb-0 border"><code
-                                t-esc="message.toolCallDefinitionFormatted and message.toolCallDefinitionFormatted.function and message.toolCallDefinitionFormatted.function.arguments or '{}'"
-                            /></pre>
-                        </details>
-                        <details>
-                            <summary>Respuesta técnica (raw)</summary>
-                            <t t-if="message.toolCallResultIsError">
-                                <pre
-                                    class="bg-light border border-danger text-danger p-2 rounded small mt-1 mb-0"
-                                ><code
-                                    t-esc="message.toolCallResultData and message.toolCallResultData.error or 'Error desconocido'"
-                                /></pre>
-                            </t>
-                            <t t-else="">
-                                <pre
-                                    class="bg-100 border p-2 rounded small mt-1 mb-0 o_llm_tool_result_pre"
-                                ><code t-esc="message.toolCallResultFormatted" /></pre>
-                            </t>
-                        </details>
-                    </div>
-                </div>
-            </div>
+            </details>
         </div>
     </t>
 
@@ -149,6 +116,7 @@
             <div
                 class="o_Message_content position-relative text-break"
                 t-att-class="{'opacity-75': props.isSquashed}"
+                t-att-data-llm-kind="message.llmKind"
                 t-ref="content"
             >
                 <t t-if="message.llmRole === 'assistant'">

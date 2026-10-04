@@ -88,79 +88,11 @@
                 <LLMFloatingSystrayMenuBody systray="systray"/>
             </div>
 
-            <t t-if="canShowFloatingPanel">
-                <div
-                    class="o_llm_floating_panel d-flex flex-column shadow"
-                    t-att-class="{'o_llm_floating_panel--minimized': state.panelMinimized}"
-                >
-                    <div
-                        class="o_llm_floating_panel_header d-flex align-items-center flex-shrink-0 px-2 py-1"
-                        t-on-click="onClickFloatingHeaderBar"
-                    >
-                        <span
-                            class="text-truncate flex-grow-1 font-weight-bold small"
-                            t-esc="floatingPanelTitle"
-                            t-att-title="floatingPanelTitle"
-                        />
-                        <div class="btn-group btn-group-sm" t-on-click.stop="noop">
-                            <t t-if="!state.panelMinimized">
-                            <button
-                                type="button"
-                                class="btn btn-light border-0"
-                                t-att-title="env._t('Adjuntar HTML de la vista activa')"
-                                t-on-click="onClickAttachActiveViewHtml"
-                            >
-                                <i class="fa fa-code"/>
-                            </button>
-                            <button
-                                type="button"
-                                class="btn btn-light border-0"
-                                t-att-title="env._t('Abrir chat completo')"
-                                t-on-click="onClickFullChat"
-                            >
-                                <i class="fa fa-external-link"/>
-                            </button>
-                            </t>
-                            <button
-                                t-if="!state.panelMinimized"
-                                type="button"
-                                class="btn btn-light border-0"
-                                t-att-title="env._t('Minimizar')"
-                                t-on-click="onClickMinimizePanel"
-                            >
-                                <i class="fa fa-minus"/>
-                            </button>
-                            <button
-                                t-if="state.panelMinimized"
-                                type="button"
-                                class="btn btn-light border-0"
-                                t-att-title="env._t('Restaurar conversación')"
-                                t-on-click="onClickRestorePanel"
-                            >
-                                <i class="fa fa-expand"/>
-                            </button>
-                            <button
-                                type="button"
-                                class="btn btn-light border-0"
-                                t-att-title="env._t('Cerrar panel')"
-                                t-on-click="onClosePanel"
-                            >
-                                <i class="fa fa-times"/>
-                            </button>
-                        </div>
-                    </div>
-                    <div t-if="!state.panelMinimized" class="o_llm_floating_panel_body flex-grow-1 min-h-0 position-relative">
-                        <t t-if="state.initializing">
-                            <div class="o_llm_floating_panel_loading d-flex align-items-center justify-content-center h-100">
-                                <i class="fa fa-circle-o-notch fa-spin fa-2x text-muted"/>
-                            </div>
-                        </t>
-                        <t t-elif="messaging and messaging.llmChat and messaging.llmChat.llmChatView and messaging.isInitialized">
-                            <LLMChat record="messaging.llmChat.llmChatView"/>
-                        </t>
-                    </div>
-                </div>
-            </t>
+            <LLMFloatingDock
+                registerDock="registerDock"
+                onThreadsChanged="onThreadsChanged"
+                onThreadRenamed="onThreadRenamed"
+            />
         </div>
     </t>
 </templates>

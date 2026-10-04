@@ -273,6 +273,47 @@ def sanitize_domain(domain: Any) -> list:
         )
 
     out = []
-    for leaf in domain:
+    for leaf in _merge_split_leaves(domain):
         out.append(_validate_leaf(leaf))
+    return out
+
+
+def _looks_like_leaf(item: Any) -> bool:
+    return (
+        isinstance(item, (list, tuple))
+        and len(item) == 3
+        and isinstance(item[0], str)
+        and isinstance(item[1], str)
+        and item[1].lower() in VALID_OPERATORS
+    )
+
+
+def _merge_split_leaves(domain: list) -> list:
+    """Une leafs partidos por el LLM: ``["name", "in"], ["a", "b"]`` → ``["name", "in", ["a", "b"]]``.
+
+    Ocurre cuando el esquema de la tool no deja expresar una lista como valor
+    y el modelo la emite como elemento siguiente del domain.
+    """
+    out = []
+    index = 0
+    while index < len(domain):
+        leaf = domain[index]
+        nxt = domain[index + 1] if index + 1 < len(domain) else None
+        if (
+            isinstance(leaf, (list, tuple))
+            and len(leaf) == 2
+            and isinstance(leaf[0], str)
+            and isinstance(leaf[1], str)
+            and leaf[1].strip().lower() in VALID_OPERATORS
+            and isinstance(nxt, (list, tuple))
+            and not _looks_like_leaf(nxt)
+            and not (isinstance(nxt, str) and nxt in LOGICAL_OPS)
+        ):
+            merged = [leaf[0], leaf[1].strip(), list(nxt)]
+            _logger.warning("llm_tool: leaf domain partido reparado %r + %r -> %r", leaf, nxt, merged)
+            out.append(merged)
+            index += 2
+            continue
+        out.append(leaf)
+        index += 1
     return out

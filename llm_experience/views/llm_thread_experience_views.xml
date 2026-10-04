@@ -6,15 +6,36 @@
         <field name="inherit_id" ref="llm_thread.llm_thread_view_form" />
         <field name="arch" type="xml">
             <field name="tool_ids" position="after">
+                <field name="reasoning_effort" />
+                <field name="chat_work_mode" />
                 <field name="chat_work_mode_selector_enabled" />
             </field>
             <xpath expr="//sheet/group[last()]" position="after">
-                <group string="Coste estimado (USD)" groups="base.group_user">
-                    <field name="usage_cost_usd_total" />
-                    <field name="usage_cost_currency" readonly="1" />
-                    <field name="usage_billable_accumulated" />
+                <group>
+                    <group string="Coste estimado (USD)" groups="base.group_user">
+                        <field name="usage_cost_usd_total" />
+                        <field name="usage_cost_currency" readonly="1" />
+                        <field name="usage_billable_accumulated" />
+                    </group>
+                    <group string="Tokens" groups="base.group_user">
+                        <field name="usage_live_tokens" readonly="1" />
+                        <field name="usage_total_input_tokens" readonly="1" />
+                        <field name="usage_total_output_tokens" readonly="1" />
+                        <field name="usage_total_thoughts_tokens" readonly="1" />
+                        <field name="usage_total_cached_tokens" readonly="1" />
+                        <field name="usage_request_count" readonly="1" />
+                    </group>
                 </group>
                 <notebook>
+                    <page string="Contexto" groups="base.group_user">
+                        <group>
+                            <field name="usage_compaction_count" readonly="1" />
+                            <field name="usage_last_compaction_date" readonly="1" />
+                            <field name="context_cutoff_message_id" readonly="1" />
+                            <field name="usage_chars_per_token" readonly="1" />
+                        </group>
+                        <field name="usage_compaction_summary" readonly="1" />
+                    </page>
                     <page string="Seguimiento de costes" groups="base.group_user">
                         <field name="cost_line_ids" readonly="1">
                             <tree>
@@ -22,6 +43,7 @@
                                 <field name="prompt_tokens" />
                                 <field name="output_tokens" />
                                 <field name="cached_tokens" />
+                                <field name="thoughts_tokens" />
                                 <field name="cost_usd_delta" />
                                 <field name="cumulative_usd_total" />
                                 <field name="model_name_snapshot" />
@@ -29,6 +51,25 @@
                         </field>
                     </page>
                 </notebook>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="llm_model_view_form_experience_context" model="ir.ui.view">
+        <field name="name">llm.model.form.experience.context</field>
+        <field name="model">llm.model</field>
+        <field name="inherit_id" ref="llm.llm_model_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group" position="after">
+                <group string="Contexto y razonamiento">
+                    <group>
+                        <field name="context_window_tokens" />
+                        <field name="context_budget_tokens" />
+                    </group>
+                    <group>
+                        <field name="default_reasoning_effort" />
+                    </group>
+                </group>
             </xpath>
         </field>
     </record>
@@ -138,6 +179,7 @@
                 <field name="prompt_tokens" sum="Prompt" />
                 <field name="output_tokens" sum="Salida" />
                 <field name="cached_tokens" sum="Caché" />
+                <field name="thoughts_tokens" sum="Razonamiento" optional="show" />
                 <field name="cost_usd_delta" sum="Coste USD" />
                 <field name="cumulative_usd_total" />
                 <field name="thread_deleted" invisible="1" />

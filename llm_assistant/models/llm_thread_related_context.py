@@ -30,6 +30,7 @@ class LLMThread(models.Model):
         self.ensure_one()
         prepend = []
         prepend.extend(self._get_related_record_prepend_messages())
+        prepend.extend(self._get_screen_context_prepend_messages())
         prepend.extend(self._get_extra_prepend_messages())
 
         # Resolución del prompt activo: el del thread si tiene, en caso
@@ -66,6 +67,34 @@ class LLMThread(models.Model):
                     f"'{active_prompt.name}': {str(e)}"
                 )
         return prepend
+
+    def _get_screen_context_prepend_messages(self):
+        """Indica al modelo qué pantalla tiene abierta el usuario (sin volcar datos).
+
+        Los datos se leen bajo demanda con la tool ``odoo_active_screen`` para no
+        gastar contexto cuando la pregunta no tiene que ver con la pantalla.
+        """
+        self.ensure_one()
+        screen = self.screen_context_json
+        if not isinstance(screen, dict) or not (screen.get("model") or screen.get("title")):
+            return []
+        if not self.tool_ids.filtered(lambda t: t.name == "odoo_active_screen"):
+            return []
+        where = screen.get("title") or screen.get("action_name") or screen.get("model")
+        details = []
+        if screen.get("model"):
+            details.append(_("modelo %s") % screen["model"])
+        if screen.get("view_type"):
+            details.append(_("vista %s") % screen["view_type"])
+        if screen.get("res_id"):
+            details.append(_("registro id %s") % screen["res_id"])
+        text = _(
+            "Pantalla activa del usuario en Odoo: «%(where)s» (%(details)s). "
+            "Si la pregunta se refiere a lo que está viendo («esto», «este registro», "
+            "«esta pantalla», «estos datos»…), llama primero a la herramienta "
+            "odoo_active_screen para leerla; si no, ignora esta información."
+        ) % {"where": where, "details": ", ".join(details) or "-"}
+        return [{"role": "system", "content": text}]
 
     def _get_related_record_prepend_messages(self):
         """Mensajes system con snapshot del registro vinculado (chatter)."""

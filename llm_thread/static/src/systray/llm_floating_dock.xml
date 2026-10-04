@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="llm_thread.LLMFloatingMessage" owl="1">
+        <div t-attf-class="o_llm_fmsg o_llm_fmsg--{{ msg.role }}">
+            <t t-if="msg.role === 'user'">
+                <div class="o_llm_fmsg_bubble">
+                    <div class="o_Message_prettyBody" t-ref="body"/>
+                    <div t-if="msg.attachments.length" class="o_llm_fmsg_atts">
+                        <t t-foreach="msg.attachments" t-as="att" t-key="att.id">
+                            <a class="o_llm_fchip" t-attf-href="/web/content/{{ att.id }}?download=true" target="_blank">
+                                <i class="fa fa-paperclip"/> <t t-esc="att.name"/>
+                            </a>
+                        </t>
+                    </div>
+                </div>
+            </t>
+            <t t-elif="msg.role === 'note'">
+                <div class="o_llm_fmsg_note"><span class="o_Message_prettyBody" t-ref="body"/></div>
+            </t>
+            <t t-else="">
+                <details t-if="thinking" class="o_llm_thinking" t-att-class="{'o_llm_thinking--active': thinkingActive}" t-att-open="thinkingActive">
+                    <summary class="o_llm_thinking_summary">
+                        <i t-if="thinkingActive" class="fa fa-circle-o-notch fa-spin o_llm_thinking_icon"/>
+                        <i t-else="" class="fa fa-lightbulb-o o_llm_thinking_icon"/>
+                        <span class="o_llm_thinking_label" t-esc="thinkingLabel"/>
+                        <i class="fa fa-angle-down o_llm_thinking_chevron"/>
+                    </summary>
+                    <div class="o_llm_thinking_body" t-raw="thinkingHtml"/>
+                </details>
+                <div class="o_llm_fmsg_answer">
+                    <div class="o_Message_prettyBody" t-ref="body"/>
+                    <span t-if="props.live and !hasBody and !thinking" class="o_llm_fdots"><span/><span/><span/></span>
+                </div>
+                <div t-if="hasBody and !props.live" class="o_llm_fmsg_footer">
+                    <button type="button" class="o_llm_ficonbtn" title="Copiar respuesta" t-on-click="onCopy">
+                        <i class="fa fa-copy"/>
+                    </button>
+                    <span t-if="metaLine" class="o_llm_meta" t-esc="metaLine"/>
+                </div>
+            </t>
+        </div>
+    </t>
+
+    <t t-name="llm_thread.LLMFloatingConversation" owl="1">
+        <div class="o_llm_fconv">
+            <div class="o_llm_fconv_scroll" t-ref="scroll" t-on-scroll="onScroll">
+                <div t-if="tab.hasMore" class="text-center my-2">
+                    <button type="button" class="btn btn-sm btn-link" t-att-disabled="tab.loading" t-on-click="loadOlder">
+                        Cargar mensajes anteriores
+                    </button>
+                </div>
+                <div t-if="tab.loading and !tab.messages.length" class="o_llm_fconv_empty">
+                    <i class="fa fa-circle-o-notch fa-spin"/>
+                </div>
+                <div t-elif="tab.loaded and !tab.messages.length" class="o_llm_fconv_empty">
+                    <i class="fa fa-magic o_llm_fconv_emptyIcon"/>
+                    <div class="font-weight-bold">¿En qué te ayudo?</div>
+                    <div class="small text-muted">Puedo leer la pantalla que tienes abierta: pregúntame por «este registro» o «estos datos».</div>
+                </div>
+                <t t-foreach="items" t-as="item" t-key="item.key">
+                    <t t-if="item.type === 'message'">
+                        <LLMFloatingMessage msg="item.msg" live="isLiveMessage(item)"/>
+                    </t>
+                    <div t-else="" class="o_llm_fgroup" t-att-class="{'o_llm_fgroup--running': item.running, 'o_llm_fgroup--open': item.open}">
+                        <button type="button" class="o_llm_fgroup_head" t-on-click="toggleGroup(item)">
+                            <i t-if="item.running" class="fa fa-circle-o-notch fa-spin o_llm_fgroup_icon"/>
+                            <i t-elif="item.errors" class="fa fa-exclamation-circle o_llm_fgroup_icon text-danger"/>
+                            <i t-else="" class="fa fa-check-circle-o o_llm_fgroup_icon"/>
+                            <span class="o_llm_fgroup_label" t-esc="item.label"/>
+                            <span t-if="item.detail and !item.running" class="o_llm_fgroup_detail" t-esc="item.detail"/>
+                            <i t-if="!item.running" class="fa fa-angle-down o_llm_fgroup_chevron"/>
+                        </button>
+                        <div t-if="item.open" class="o_llm_fgroup_steps">
+                            <t t-foreach="item.steps" t-as="step" t-key="step.key">
+                                <details t-if="step.kind === 'thinking'" class="o_llm_thinking" t-att-class="{'o_llm_thinking--active': step.msg.bodyJson.thinking_active}">
+                                    <summary class="o_llm_thinking_summary">
+                                        <i class="fa fa-lightbulb-o o_llm_thinking_icon"/>
+                                        <span class="o_llm_thinking_label" t-esc="thinkingStepLabel(step)"/>
+                                        <i class="fa fa-angle-down o_llm_thinking_chevron"/>
+                                    </summary>
+                                    <div class="o_llm_thinking_body" t-raw="thinkingStepHtml(step)"/>
+                                </details>
+                                <details t-else="" class="o_llm_step" t-att-class="{'o_llm_step--running': step.running, 'o_llm_step--error': step.error}">
+                                    <summary class="o_llm_step_summary">
+                                        <span class="o_llm_step_status">
+                                            <i t-if="step.running" class="fa fa-circle-o-notch fa-spin"/>
+                                            <i t-elif="step.error" class="fa fa-exclamation-circle"/>
+                                            <i t-else="" t-attf-class="fa {{ step.icon }}"/>
+                                        </span>
+                                        <span class="o_llm_step_label" t-esc="step.label"/>
+                                        <code t-if="step.target" class="o_llm_step_target" t-esc="step.target"/>
+                                        <span t-if="step.summary" class="o_llm_step_summaryText" t-esc="step.summary"/>
+                                        <span t-if="step.duration" class="o_llm_step_duration" t-esc="step.duration"/>
+                                        <i t-if="canInspectTools or step.error" class="fa fa-angle-down o_llm_step_chevron"/>
+                                    </summary>
+                                    <div t-if="canInspectTools or step.error" class="o_llm_step_body">
+                                        <div t-if="step.error" class="o_llm_step_error" t-esc="step.error"/>
+                                        <div t-if="canInspectTools" class="o_llm_step_section">
+                                            <div class="o_llm_step_sectionTitle">Argumentos</div>
+                                            <pre class="o_llm_step_pre"><code t-esc="step.args"/></pre>
+                                        </div>
+                                        <div t-if="canInspectTools and step.result" class="o_llm_step_section">
+                                            <div class="o_llm_step_sectionTitle">Resultado</div>
+                                            <pre class="o_llm_step_pre"><code t-esc="step.result"/></pre>
+                                        </div>
+                                    </div>
+                                </details>
+                            </t>
+                        </div>
+                    </div>
+                </t>
+                <div t-if="waiting" class="o_llm_fgroup o_llm_fgroup--running">
+                    <span class="o_llm_fgroup_head">
+                        <i class="fa fa-circle-o-notch fa-spin o_llm_fgroup_icon"/>
+                        <span class="o_llm_fgroup_label">Pensando…</span>
+                    </span>
+                </div>
+                <div t-if="tab.error" class="o_llm_ferror">
+                    <i class="fa fa-exclamation-triangle mr-1"/><t t-esc="tab.error"/>
+                </div>
+            </div>
+
+            <div class="o_llm_fcomposer">
+                <div t-if="tab.attachments.length or tab.uploading" class="o_llm_fcomposer_atts">
+                    <t t-foreach="tab.attachments" t-as="att" t-key="att.id">
+                        <span class="o_llm_fchip">
+                            <i class="fa fa-paperclip"/> <t t-esc="att.name"/>
+                            <button type="button" class="o_llm_fchip_x" title="Quitar" t-on-click="removeAttachment(att)">×</button>
+                        </span>
+                    </t>
+                    <span t-if="tab.uploading" class="o_llm_fchip"><i class="fa fa-circle-o-notch fa-spin"/> Subiendo…</span>
+                </div>
+                <textarea
+                    t-ref="input"
+                    class="o_llm_fcomposer_input"
+                    rows="1"
+                    placeholder="Pregunta lo que quieras…"
+                    t-on-input="onInput"
+                    t-on-keydown="onKeydown"
+                    t-on-paste="onPaste"
+                />
+                <div class="o_llm_fcomposer_bar">
+                    <button type="button" class="o_llm_ficonbtn" title="Adjuntar archivo" t-on-click="onClickAttach">
+                        <i class="fa fa-paperclip"/>
+                    </button>
+                    <input type="file" class="d-none" multiple="multiple" t-ref="file" t-on-change="onFilesSelected"/>
+                    <t t-if="meterComponent">
+                        <t t-component="meterComponent" threadId="tab.threadId"/>
+                    </t>
+                    <span class="flex-grow-1"/>
+                    <button t-if="tab.streaming" type="button" class="o_llm_fsend o_llm_fsend--stop" title="Detener" t-on-click="stop">
+                        <i class="fa fa-stop"/>
+                    </button>
+                    <button t-else="" type="button" class="o_llm_fsend" t-att-disabled="!canSend" title="Enviar (Enter)" t-on-click="send">
+                        <i class="fa fa-arrow-up"/>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </t>
+
+    <t t-name="llm_thread.LLMFloatingDock" owl="1">
+        <div
+            t-if="state.open and state.tabs.length"
+            class="o_llm_fdock"
+            t-att-class="{
+                'o_llm_fdock--minimized': state.minimized,
+                'o_llm_fdock--expanded': state.expanded and !state.minimized,
+            }"
+        >
+            <div class="o_llm_fdock_head" t-on-dblclick="toggleMinimize">
+                <div class="o_llm_fdock_tabs" role="tablist">
+                    <t t-foreach="state.tabs" t-as="tab" t-key="tab.key">
+                        <div
+                            role="tab"
+                            t-att-aria-selected="tab.key === state.activeKey ? 'true' : 'false'"
+                            class="o_llm_fdock_tab"
+                            t-att-class="{
+                                'o_llm_fdock_tab--active': tab.key === state.activeKey,
+                                'o_llm_fdock_tab--unread': tab.unread,
+                            }"
+                            t-att-title="tab.name"
+                            t-on-click="activate(tab)"
+                        >
+                            <span t-if="tab.streaming" class="o_llm_fdock_tabDot"/>
+                            <span class="o_llm_fdock_tabName" t-esc="tab.name"/>
+                            <button type="button" class="o_llm_fdock_tabClose" title="Cerrar pestaña" t-on-click.stop="closeTab(tab)">×</button>
+                        </div>
+                    </t>
+                    <button type="button" class="o_llm_fdock_btn" title="Nuevo chat" t-on-click="newChat">
+                        <i class="fa fa-plus"/>
+                    </button>
+                </div>
+                <div class="o_llm_fdock_actions">
+                    <button t-if="!state.minimized" type="button" class="o_llm_fdock_btn" title="Abrir en el chat completo" t-on-click="openInFullChat">
+                        <i class="fa fa-external-link"/>
+                    </button>
+                    <button t-if="!state.minimized" type="button" class="o_llm_fdock_btn" t-att-title="state.expanded ? 'Reducir' : 'Ampliar'" t-on-click="toggleExpand">
+                        <i t-attf-class="fa {{ expandIcon }}"/>
+                    </button>
+                    <button type="button" class="o_llm_fdock_btn" t-att-title="state.minimized ? 'Restaurar' : 'Minimizar'" t-on-click="toggleMinimize">
+                        <i t-attf-class="fa {{ minimizeIcon }}"/>
+                    </button>
+                    <button type="button" class="o_llm_fdock_btn" title="Cerrar" t-on-click="closeAll">
+                        <i class="fa fa-times"/>
+                    </button>
+                </div>
+            </div>
+            <t t-if="!state.minimized and activeTab">
+                <LLMFloatingConversation t-key="activeTab.key" tab="activeTab" dock="dockRef"/>
+            </t>
+        </div>
+    </t>
+</templates>

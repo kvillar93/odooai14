@@ -454,9 +454,12 @@ class LLMScheduledTask(models.Model):
 
         # PP automático si el prompt ya se ve complejo (antes del plan).
         needs_pp, reasons = self._task_needs_deep_thinking()
-        if needs_pp and "chat_work_mode" in self.env["llm.thread"]._fields:
+        thread_fields = self.env["llm.thread"]._fields
+        if needs_pp and "reasoning_effort" in thread_fields:
+            thread_vals["reasoning_effort"] = "high"
+        elif needs_pp and "chat_work_mode" in thread_fields:
             thread_vals["chat_work_mode"] = "deep_thinking"
-            if "gemini_thinking_budget" in self.env["llm.thread"]._fields:
+            if "gemini_thinking_budget" in thread_fields:
                 thread_vals["gemini_thinking_budget"] = (
                     _DEEP_THINKING_BUDGET_DEFAULT
                 )
@@ -464,7 +467,7 @@ class LLMScheduledTask(models.Model):
         thread = self.env["llm.thread"].sudo().create(thread_vals)
         self.sudo().write({"thread_id": thread.id})
         log.sudo().write({"thread_id": thread.id})
-        if needs_pp and getattr(thread, "chat_work_mode", None) == "deep_thinking":
+        if needs_pp:
             _logger.info(
                 "LLM Tarea «%s»: PP activado al crear el hilo (%s).",
                 self.name,
@@ -524,6 +527,17 @@ class LLMScheduledTask(models.Model):
         needs_pp, reasons = self._task_needs_deep_thinking(plan_dict)
         if not needs_pp:
             return False
+        if "reasoning_effort" in thread._fields:
+            if thread.reasoning_effort in ("high", "xhigh"):
+                return True
+            thread.sudo().write({"reasoning_effort": "high"})
+            _logger.info(
+                "LLM Tarea «%s»: esfuerzo alto forzado en hilo %s (%s).",
+                self.name,
+                thread.id,
+                "; ".join(reasons),
+            )
+            return True
         if thread.chat_work_mode == "deep_thinking":
             return True
         vals = {"chat_work_mode": "deep_thinking"}

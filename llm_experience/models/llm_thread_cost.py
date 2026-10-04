@@ -45,6 +45,7 @@ class LlmThreadCostLine(models.Model):
     prompt_tokens = fields.Integer(string="Tokens entrada", default=0)
     output_tokens = fields.Integer(string="Tokens salida", default=0)
     cached_tokens = fields.Integer(string="Tokens caché", default=0)
+    thoughts_tokens = fields.Integer(string="Tokens razonamiento", default=0)
     cost_usd_delta = fields.Float(
         string="Coste USD (este turno)",
         digits=(16, 8),

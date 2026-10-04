@@ -2,6 +2,8 @@
 import functools
 import json
 import logging
+import re
+import time
 import uuid
 
 from odoo import _, api, models
@@ -63,6 +65,66 @@ _GEMINI_USER_NAMED_KEY_MAPS = frozenset(
         "dependentSchemas",
     }
 )
+
+
+REASONING_EFFORTS = ("instant", "low", "medium", "high", "xhigh")
+
+# Candidatos de ThinkingConfig por esfuerzo, en orden de preferencia. Si la API
+# rechaza uno (400 de thinking), se prueba el siguiente; ``None`` = sin config.
+# Verificado contra la API (oct-2026): 3.8 Flash acepta budget=0 y
+# low/medium/high, no ``minimal``; 3.1 Pro rechaza budget=0.
+_GEMINI3_THINKING_CANDIDATES = {
+    "instant": [{"budget": 0}, {"level": "minimal"}, {"level": "low"}, None],
+    "low": [{"level": "low"}, {"budget": 1024}, None],
+    "medium": [{"level": "medium"}, {"budget": 4096}, None],
+    "high": [{"level": "high"}, {"budget": 16384}, None],
+    "xhigh": [{"level": "high"}, {"budget": 24576}, None],
+}
+_GEMINI25_THINKING_BUDGETS = {
+    "instant": 0,
+    "low": 1024,
+    "medium": 4096,
+    "high": 16384,
+    "xhigh": 24576,
+}
+
+# (modelo, clave de candidato) rechazados por la API en este proceso.
+_GEMINI_REJECTED_THINKING = set()
+
+_GEMINI_TRANSIENT_MARKERS = (
+    "429",
+    "resource_exhausted",
+    "500",
+    "503",
+    "unavailable",
+    "internal",
+    "overloaded",
+    "deadline",
+    "timed out",
+    "timeout",
+)
+_GEMINI_MAX_TRANSIENT_RETRIES = 3
+
+
+@functools.lru_cache(maxsize=1)
+def _gemini_thinking_config_class():
+    """ThinkingConfig con ``thinking_level`` aunque el SDK instalado no lo declare.
+
+    google-genai 1.47 sólo expone ``thinking_budget``; Gemini 3.x usa
+    ``thinking_level``. La subclase se serializa dentro de ``thinkingConfig``.
+    """
+    from typing import Optional
+
+    from pydantic import Field
+    from google.genai import types as genai_types
+
+    if "thinking_level" in (genai_types.ThinkingConfig.model_fields or {}):
+        return genai_types.ThinkingConfig
+
+    class GeminiThinkingConfigExtended(genai_types.ThinkingConfig):
+        thinking_level: Optional[str] = Field(default=None)
+
+    return GeminiThinkingConfigExtended
 
 
 @functools.lru_cache(maxsize=1)
@@ -1001,7 +1063,12 @@ class LLMProvider(models.Model):
         texts = []
         tool_calls = []
 
-        for part in parts:
+        thoughts = []
+        for part in parts or []:
+            if getattr(part, "thought", False):
+                if part.text:
+                    thoughts.append(part.text)
+                continue
             if part.text:
                 texts.append(part.text)
             fc = getattr(part, "function_call", None)
@@ -1011,10 +1078,17 @@ class LLMProvider(models.Model):
         out = {"content": "\n".join(texts)}
         if tool_calls:
             out["tool_calls"] = tool_calls
+        if thoughts:
+            out["thinking"] = "".join(thoughts)
 
         # Serializar el Content completo para preservar thought_signature real
         try:
-            content_json = cand.content.model_dump_json()
+            from google.genai import types as genai_types
+
+            content_json = genai_types.Content(
+                role=cand.content.role,
+                parts=self._gemini_merge_stream_parts(parts or [], genai_types),
+            ).model_dump_json()
             if content_json:
                 out["gemini_content_json"] = content_json
         except Exception as err:
@@ -1106,13 +1180,91 @@ class LLMProvider(models.Model):
             kwargs["include_thoughts"] = True
         return genai_types.ThinkingConfig(**kwargs)
 
-    def _gemini_build_tool_config_function_auto(self, genai_types, use_google_search_grounding):
+    def _gemini_uses_thinking_levels(self, model_name):
+        """Gemini 3+ (y alias ``*-latest``) usan ``thinking_level``; 2.x usa budget."""
+        name = (model_name or "").lower()
+        if "latest" in name:
+            return True
+        m = re.search(r"gemini-(\d+)", name)
+        if m:
+            return int(m.group(1)) >= 3
+        return True
+
+    def _gemini_thinking_candidates(self, model_name, reasoning_effort):
+        """Lista de candidatos ``{"level"|"budget": v}`` / ``None`` para un esfuerzo."""
+        effort = reasoning_effort if reasoning_effort in REASONING_EFFORTS else "medium"
+        name = (model_name or "").lower()
+        if self._gemini_uses_thinking_levels(name):
+            candidates = list(_GEMINI3_THINKING_CANDIDATES[effort])
+        else:
+            budget = _GEMINI25_THINKING_BUDGETS[effort]
+            if effort == "xhigh" and "pro" in name:
+                budget = 32768
+            if budget > 0 and "flash-lite" in name and budget < 512:
+                budget = 512
+            clamped = self._gemini_clamp_thinking_budget(name, budget)
+            if clamped is None and budget == 0:
+                clamped = 128 if "pro" in name else None
+            candidates = [{"budget": clamped}] if clamped is not None else []
+            candidates.append(None)
+        return [
+            c
+            for c in candidates
+            if c is None
+            or (name, self._gemini_thinking_candidate_key(c))
+            not in _GEMINI_REJECTED_THINKING
+        ] or [None]
+
+    @staticmethod
+    def _gemini_thinking_candidate_key(candidate):
+        if not candidate:
+            return "none"
+        if "level" in candidate:
+            return "level:%s" % candidate["level"]
+        return "budget:%s" % candidate["budget"]
+
+    def _gemini_thinking_config_from_candidate(self, candidate, include_thoughts=False):
+        if not candidate:
+            return None
+        cls = _gemini_thinking_config_class()
+        kwargs = {}
+        if "level" in candidate:
+            kwargs["thinking_level"] = candidate["level"]
+        else:
+            kwargs["thinking_budget"] = int(candidate["budget"])
+        if include_thoughts and candidate.get("budget", 1) != 0:
+            kwargs["include_thoughts"] = True
+        return cls(**kwargs)
+
+    @staticmethod
+    def _gemini_is_thinking_reject(err):
+        msg = str(err or "").lower()
+        if "400" not in msg and "invalid_argument" not in msg:
+            return False
+        return "thinking" in msg or "budget" in msg
+
+    @staticmethod
+    def _gemini_is_transient_error(err):
+        msg = str(err or "").lower()
+        if "api key" in msg or "invalid_argument" in msg or "permission" in msg:
+            return False
+        return any(marker in msg for marker in _GEMINI_TRANSIENT_MARKERS)
+
+    def _gemini_build_tool_config_function_auto(
+        self, genai_types, use_google_search_grounding, tool_choice=None
+    ):
         """ToolConfig para function calling Odoo; marca server-side si hay grounding combinado.
 
         Con ``include_server_side_tool_invocations`` la API **no** admite
         ``mode=AUTO``: exige ``VALIDATED`` (ver Gemini tool combination docs).
         Usar AUTO provoca 400 INVALID_ARGUMENT.
+
+        ``tool_choice="none"`` fuerza una respuesta de texto (mode=NONE).
         """
+        if tool_choice == "none":
+            return genai_types.ToolConfig(
+                function_calling_config=genai_types.FunctionCallingConfig(mode="NONE")
+            )
         mode = "VALIDATED" if use_google_search_grounding else "AUTO"
         _tc_kwargs = {
             "function_calling_config": genai_types.FunctionCallingConfig(mode=mode),
@@ -1136,17 +1288,19 @@ class LLMProvider(models.Model):
     ):
         """Chat con Gemini usando el nuevo SDK google-genai (1.x).
 
-        Ventajas frente al SDK anterior:
         - parameters_json_schema con schema sanitizado (sin additionalProperties /
           anyOf+null de Pydantic) para evitar 400 INVALID_ARGUMENT.
-        - ThinkingConfig solo se envía con presupuestos válidos por modelo:
-          ``thinking_budget=0`` provoca 400 en Pro / alias ``*-latest`` / Gemini 3+.
+        - ``reasoning_effort`` (instant | low | medium | high | xhigh) se traduce
+          a ``thinking_level`` (Gemini 3+) o ``thinking_budget`` (2.x). Si la API
+          rechaza la combinación, se prueba el siguiente candidato y se recuerda.
+        - ``tool_choice="none"`` obliga a responder en texto.
+        - Reintenta errores transitorios (429 / 5xx) con espera exponencial.
         - thought_signature se maneja automáticamente al restaurar Content serializado.
         """
-        from google import genai as genai_module
         from google.genai import types as genai_types
 
         model_obj = self.get_model(model, "chat")
+        model_name = model_obj.name
         client = self.gemini_get_client()
 
         openai_style = self._gemini_build_openai_style_message_list(
@@ -1160,106 +1314,87 @@ class LLMProvider(models.Model):
 
         contents, system_instruction = self._gemini_build_contents(openai_style)
 
+        tool_choice = kwargs.get("tool_choice")
         has_odoo_tools = bool(tools)
         want_google_search = bool(
             getattr(model_obj, "gemini_google_search_grounding", False)
-        )
+        ) and tool_choice != "none"
 
         # Combinar Google Search + tools Odoo: Gemini 3+ / alias latest.
         use_google_search_grounding = want_google_search
         if want_google_search and has_odoo_tools:
-            if not self._gemini_model_supports_tool_combination(model_obj.name):
+            if not self._gemini_model_supports_tool_combination(model_name):
                 _logger.warning(
                     "Gemini: el modelo «%s» no soporta combinar Google Search "
                     "con herramientas Odoo (solo Gemini 3+ / alias latest). "
                     "Se desactiva grounding en esta petición.",
-                    model_obj.name,
+                    model_name,
                 )
                 use_google_search_grounding = False
-
-        # Construir config
-        config_kwargs = {}
-        if system_instruction:
-            config_kwargs["system_instruction"] = system_instruction
 
         declarations = None
         if has_odoo_tools:
             declarations = self.gemini_format_tools(tools)
-            tool_names = [t.name for t in tools]
             _logger.info(
-                "Gemini: petición con function calling, herramientas=%s", tool_names
-            )
-            config_kwargs["tools"] = [
-                genai_types.Tool(function_declarations=declarations)
-            ]
-            config_kwargs["tool_config"] = self._gemini_build_tool_config_function_auto(
-                genai_types, use_google_search_grounding
+                "Gemini: petición con function calling, herramientas=%s",
+                [t.name for t in tools],
             )
 
-        # Grounding: en Gemini 3+ / latest se combina con function calling
-        # (mode=VALIDATED + include_server_side_tool_invocations).
-        if use_google_search_grounding:
-            config_kwargs.setdefault("tools", [])
-            config_kwargs["tools"].append(
-                genai_types.Tool(google_search=genai_types.GoogleSearch())
+        # Candidatos de razonamiento: esfuerzo explícito o budget heredado.
+        reasoning_effort = kwargs.get("reasoning_effort")
+        include_thoughts = bool(kwargs.get("experience_include_thoughts"))
+        if reasoning_effort:
+            thinking_candidates = self._gemini_thinking_candidates(
+                model_name, reasoning_effort
             )
+        else:
+            exp_tb = kwargs.get("experience_thinking_budget")
+            thinking_candidates = [None]
+            if exp_tb is not None and int(exp_tb) > 0:
+                clamped = self._gemini_clamp_thinking_budget(model_name, int(exp_tb))
+                if clamped is not None:
+                    thinking_candidates = [{"budget": clamped}, None]
+
+        state = {
+            "thinking_idx": 0,
+            "grounding": use_google_search_grounding,
+            "transient_tries": 0,
+        }
+
+        def _build_config():
+            config_kwargs = {}
+            if system_instruction:
+                config_kwargs["system_instruction"] = system_instruction
+            tools_list = []
             if has_odoo_tools:
-                _logger.info(
-                    "Gemini: Google Search grounding activo junto con herramientas Odoo "
-                    "(mode=VALIDATED)."
+                tools_list.append(genai_types.Tool(function_declarations=declarations))
+                config_kwargs["tool_config"] = (
+                    self._gemini_build_tool_config_function_auto(
+                        genai_types, state["grounding"], tool_choice=tool_choice
+                    )
                 )
-            else:
-                _logger.info("Gemini: Google Search grounding activo.")
-
-        # AFC del SDK ejecuta callables Python y reescribe ``contents``.
-        # Con tools Odoo las ejecutamos nosotros en generate_messages: AFC
-        # activo provoca bucles rotos («Requests ending with a model turn…»).
-        AFCConfig = getattr(genai_types, "AutomaticFunctionCallingConfig", None)
-        if AFCConfig and has_odoo_tools:
-            config_kwargs["automatic_function_calling"] = AFCConfig(disable=True)
-            _logger.info(
-                "Gemini: AFC desactivado (tools Odoo se ejecutan en el hilo)."
-            )
-
-        # Pensamiento: solo si hay presupuesto válido para este modelo.
-        exp_tb = kwargs.get("experience_thinking_budget")
-        if exp_tb is not None and int(exp_tb) > 0:
-            thinking_cfg = self._gemini_build_thinking_config(
-                genai_types,
-                model_obj.name,
-                int(exp_tb),
-                include_thoughts=bool(kwargs.get("experience_include_thoughts")),
+                # AFC del SDK ejecuta callables Python y reescribe ``contents``.
+                # Las tools Odoo se ejecutan en el hilo: AFC activo rompe el bucle.
+                afc_cls = getattr(genai_types, "AutomaticFunctionCallingConfig", None)
+                if afc_cls:
+                    config_kwargs["automatic_function_calling"] = afc_cls(disable=True)
+            if state["grounding"]:
+                tools_list.append(
+                    genai_types.Tool(google_search=genai_types.GoogleSearch())
+                )
+            if tools_list:
+                config_kwargs["tools"] = tools_list
+            candidate = thinking_candidates[state["thinking_idx"]]
+            thinking_cfg = self._gemini_thinking_config_from_candidate(
+                candidate, include_thoughts=include_thoughts
             )
             if thinking_cfg is not None:
                 config_kwargs["thinking_config"] = thinking_cfg
-                _logger.info(
-                    "Gemini: thinking_budget=%s (modelo=%s).",
-                    thinking_cfg.thinking_budget,
-                    model_obj.name,
-                )
-            else:
-                _logger.warning(
-                    "Gemini: no se pudo aplicar thinking_budget=%s al modelo «%s»; "
-                    "se omite ThinkingConfig.",
-                    exp_tb,
-                    model_obj.name,
-                )
-
-        def _drop_google_search_from_config_kwargs(ck):
-            """Quita grounding y vuelve tool_config a AUTO (solo function calling)."""
-            tools_list = list(ck.get("tools") or [])
-            ck["tools"] = [
-                t
-                for t in tools_list
-                if not getattr(t, "google_search", None)
-            ]
-            if has_odoo_tools and declarations is not None:
-                ck["tool_config"] = self._gemini_build_tool_config_function_auto(
-                    genai_types, False
-                )
-            elif "tool_config" in ck:
-                ck.pop("tool_config", None)
-            return ck
+            return (
+                genai_types.GenerateContentConfig(**config_kwargs)
+                if config_kwargs
+                else None
+            )
 
         def _is_tool_combination_reject(err):
             msg = str(err or "").lower()
@@ -1275,28 +1410,80 @@ class LLMProvider(models.Model):
                 )
             )
 
-        config = (
-            genai_types.GenerateContentConfig(**config_kwargs)
-            if config_kwargs
-            else None
-        )
+        def _recover(err):
+            """Ajusta ``state`` para reintentar; False si el error es definitivo."""
+            if self._gemini_is_thinking_reject(err) and state["thinking_idx"] < len(
+                thinking_candidates
+            ) - 1:
+                rejected = thinking_candidates[state["thinking_idx"]]
+                _GEMINI_REJECTED_THINKING.add(
+                    (model_name.lower(), self._gemini_thinking_candidate_key(rejected))
+                )
+                state["thinking_idx"] += 1
+                _logger.warning(
+                    "Gemini: «%s» rechazó thinking %s (%s); se prueba %s.",
+                    model_name,
+                    self._gemini_thinking_candidate_key(rejected),
+                    err,
+                    self._gemini_thinking_candidate_key(
+                        thinking_candidates[state["thinking_idx"]]
+                    ),
+                )
+                return True
+            if state["grounding"] and has_odoo_tools and _is_tool_combination_reject(err):
+                _logger.warning(
+                    "Gemini: la API rechazó combinar Google Search con tools "
+                    "(%s). Reintento sin grounding.",
+                    err,
+                )
+                state["grounding"] = False
+                return True
+            if (
+                self._gemini_is_transient_error(err)
+                and state["transient_tries"] < _GEMINI_MAX_TRANSIENT_RETRIES
+            ):
+                wait = 2 ** state["transient_tries"]
+                state["transient_tries"] += 1
+                _logger.warning(
+                    "Gemini: error transitorio (%s); reintento %s en %ss.",
+                    err,
+                    state["transient_tries"],
+                    wait,
+                )
+                time.sleep(wait)
+                return True
+            return False
+
+        def _log_thinking():
+            candidate = thinking_candidates[state["thinking_idx"]]
+            _logger.info(
+                "Gemini: modelo=%s esfuerzo=%s thinking=%s",
+                model_name,
+                reasoning_effort or "-",
+                self._gemini_thinking_candidate_key(candidate),
+            )
 
         if stream:
             def _consume_stream(resp_iter):
                 seen_fc_keys = set()
-                last_content = None
+                model_parts = []
+                last_role = "model"
                 last_usage_chunk = None
                 for chunk in resp_iter:
-                    um = getattr(chunk, "usage_metadata", None)
-                    if um:
+                    if getattr(chunk, "usage_metadata", None):
                         last_usage_chunk = chunk
                     if not chunk.candidates:
                         continue
                     cand = chunk.candidates[0]
                     if not cand.content:
                         continue
-                    last_content = cand.content
-                    for part in cand.content.parts:
+                    last_role = cand.content.role or last_role
+                    for part in cand.content.parts or []:
+                        model_parts.append(part)
+                        if getattr(part, "thought", False):
+                            if part.text:
+                                yield {"thinking": part.text}
+                            continue
                         if part.text:
                             yield {"content": part.text}
                         fc = getattr(part, "function_call", None)
@@ -1306,11 +1493,17 @@ class LLMProvider(models.Model):
                                 continue
                             seen_fc_keys.add(key)
                             yield {"tool_calls": [self._gemini_fc_to_openai(fc)]}
-                if last_content:
+                if model_parts:
+                    # Content completo del turno (todas las partes, con
+                    # thought_signature) para restaurarlo en el historial.
                     try:
-                        content_json = last_content.model_dump_json()
-                        if content_json:
-                            yield {"gemini_content_json": content_json}
+                        full = genai_types.Content(
+                            role=last_role,
+                            parts=self._gemini_merge_stream_parts(
+                                model_parts, genai_types
+                            ),
+                        )
+                        yield {"gemini_content_json": full.model_dump_json()}
                     except Exception as err:
                         _logger.debug(
                             "Gemini: no se pudo serializar streaming content: %s", err
@@ -1323,95 +1516,59 @@ class LLMProvider(models.Model):
                     }
 
             def _stream():
-                nonlocal config, config_kwargs, use_google_search_grounding
-                try:
-                    resp_iter = client.models.generate_content_stream(
-                        model=model_obj.name,
-                        contents=contents,
-                        config=config,
-                    )
-                    yield from _consume_stream(resp_iter)
-                except Exception as err:
-                    if (
-                        use_google_search_grounding
-                        and has_odoo_tools
-                        and _is_tool_combination_reject(err)
-                    ):
-                        _logger.warning(
-                            "Gemini: la API rechazó combinar Google Search con tools "
-                            "(%s). Reintento sin grounding.",
-                            err,
-                        )
-                        use_google_search_grounding = False
-                        config_kwargs = _drop_google_search_from_config_kwargs(
-                            dict(config_kwargs)
-                        )
-                        config = genai_types.GenerateContentConfig(**config_kwargs)
-                        try:
-                            resp_iter = client.models.generate_content_stream(
-                                model=model_obj.name,
+                while True:
+                    _log_thinking()
+                    try:
+                        resp_iter = iter(
+                            client.models.generate_content_stream(
+                                model=model_name,
                                 contents=contents,
-                                config=config,
+                                config=_build_config(),
                             )
-                            yield from _consume_stream(resp_iter)
-                            return
-                        except Exception as err2:
-                            _logger.error(
-                                "Gemini: error en streaming (reintento): %s",
-                                err2,
-                                exc_info=True,
-                            )
-                            yield {"error": str(err2)}
-                            return
+                        )
+                        # El primer chunk dispara la petición HTTP: los errores
+                        # de validación/cuota aparecen aquí y aún se puede reintentar.
+                        first = next(resp_iter, None)
+                    except Exception as err:
+                        if _recover(err):
+                            continue
+                        _logger.error(
+                            "Gemini: error en streaming: %s", err, exc_info=True
+                        )
+                        yield {"error": str(err)}
+                        return
+                    break
+
+                def _chain():
+                    if first is not None:
+                        yield first
+                    yield from resp_iter
+
+                try:
+                    yield from _consume_stream(_chain())
+                except Exception as err:
                     _logger.error(
-                        "Gemini: error en streaming: %s",
-                        err,
-                        exc_info=True,
+                        "Gemini: error a mitad del streaming: %s", err, exc_info=True
                     )
                     yield {"error": str(err)}
 
             return _stream()
 
         # No streaming
-        try:
-            response = client.models.generate_content(
-                model=model_obj.name,
-                contents=contents,
-                config=config,
-            )
-        except Exception as err:
-            if (
-                use_google_search_grounding
-                and has_odoo_tools
-                and _is_tool_combination_reject(err)
-            ):
-                _logger.warning(
-                    "Gemini: la API rechazó combinar Google Search con tools "
-                    "(%s). Reintento sin grounding.",
-                    err,
+        while True:
+            _log_thinking()
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    config=_build_config(),
                 )
-                config_kwargs = _drop_google_search_from_config_kwargs(
-                    dict(config_kwargs)
-                )
-                config = genai_types.GenerateContentConfig(**config_kwargs)
-                try:
-                    response = client.models.generate_content(
-                        model=model_obj.name,
-                        contents=contents,
-                        config=config,
-                    )
-                except Exception as err2:
-                    _logger.error(
-                        "Gemini: error en generate_content (reintento): %s",
-                        err2,
-                        exc_info=True,
-                    )
-                    raise UserError(_("Error en Gemini API: %s") % err2) from err2
-            else:
+                break
+            except Exception as err:
+                if _recover(err):
+                    continue
                 _logger.error(
-                    "Gemini: error en generate_content: %s",
-                    err,
-                    exc_info=True,
+                    "Gemini: error en generate_content: %s", err, exc_info=True
                 )
                 raise UserError(_("Error en Gemini API: %s") % err) from err
 
@@ -1419,14 +1576,49 @@ class LLMProvider(models.Model):
         out["_usage_internal"] = self._gemini_usage_metadata_dict(response)
         return out
 
+    def _gemini_merge_stream_parts(self, parts, genai_types):
+        """Prepara las partes del turno para el historial.
+
+        Une textos contiguos de un stream y descarta los resúmenes de
+        razonamiento (se conservan las partes con ``thought_signature``).
+        """
+        merged = []
+        for part in parts:
+            if getattr(part, "thought", False) and not getattr(
+                part, "thought_signature", None
+            ):
+                # Resumen de razonamiento: sólo se muestra al usuario; reenviarlo
+                # en el historial gastaría tokens sin aportar.
+                continue
+            plain = (
+                part.text is not None
+                and not getattr(part, "thought", False)
+                and not getattr(part, "thought_signature", None)
+                and not getattr(part, "function_call", None)
+            )
+            if plain and merged and merged[-1][0]:
+                merged[-1][1].append(part.text)
+                continue
+            merged.append((plain, [part.text] if plain else part))
+        out = []
+        for plain, val in merged:
+            out.append(genai_types.Part(text="".join(val)) if plain else val)
+        return out
+
     def _gemini_usage_metadata_dict(self, response_or_chunk):
-        """Unifica usage_metadata del SDK (respuesta o chunk de stream) en dict simple."""
+        """Unifica usage_metadata del SDK (respuesta o chunk de stream) en dict simple.
+
+        ``prompt`` (promptTokenCount) ya incluye los tokens en caché; los de
+        razonamiento (``thoughts``) se facturan como salida.
+        """
         out = {
             "prompt": 0,
             "cached": 0,
             "output": 0,
             "thoughts": 0,
+            "tool_prompt": 0,
             "total": 0,
+            "prompt_includes_cached": True,
         }
         um = getattr(response_or_chunk, "usage_metadata", None)
         if not um:
@@ -1436,6 +1628,9 @@ class LLMProvider(models.Model):
             out["cached"] = int(getattr(um, "cached_content_token_count", None) or 0)
             out["output"] = int(getattr(um, "candidates_token_count", None) or 0)
             out["thoughts"] = int(getattr(um, "thoughts_token_count", None) or 0)
+            out["tool_prompt"] = int(
+                getattr(um, "tool_use_prompt_token_count", None) or 0
+            )
             out["total"] = int(getattr(um, "total_token_count", None) or 0)
         except (TypeError, ValueError):
             pass

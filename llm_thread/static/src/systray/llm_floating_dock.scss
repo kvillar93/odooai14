@@ -1,0 +1,528 @@
+// =============================================================================
+// Chat IA flotante independiente (pestañas, conversación y compositor)
+// =============================================================================
+
+$llm-fd-accent: #714b67;
+$llm-fd-accent-2: #8f5f84;
+$llm-fd-border: rgba(0, 0, 0, 0.09);
+$llm-fd-muted: rgba(0, 0, 0, 0.55);
+$llm-fd-surface: #fff;
+$llm-fd-soft: #f6f6f8;
+
+.o_llm_fdock {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1055;
+  display: flex;
+  flex-direction: column;
+  width: #{"min(420px, calc(100vw - 32px))"};
+  height: #{"min(640px, calc(100vh - 80px))"};
+  border-radius: 14px;
+  background: $llm-fd-surface;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  color: #1f2937;
+  // Tamaño propio: el dock vive en la barra superior, cuya fuente es menor.
+  font-size: 14px;
+  line-height: 1.45;
+  transition: width 0.2s ease, height 0.2s ease;
+
+  &--expanded {
+    width: #{"min(760px, calc(100vw - 32px))"};
+    height: #{"calc(100vh - 80px)"};
+  }
+
+  &--minimized {
+    height: auto;
+    width: #{"min(360px, calc(100vw - 32px))"};
+  }
+
+  &_head {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    padding: 6px 6px 0 8px;
+    background: linear-gradient(135deg, $llm-fd-accent, $llm-fd-accent-2);
+    color: #fff;
+    user-select: none;
+  }
+
+  &--minimized &_head {
+    padding-bottom: 6px;
+  }
+
+  &_tabs {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  &_tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 170px;
+    min-width: 0;
+    padding: 6px 6px 6px 10px;
+    border-radius: 9px 9px 0 0;
+    background: rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.24);
+    }
+
+    &--active {
+      background: $llm-fd-surface;
+      color: #1f2937;
+      font-weight: 600;
+    }
+
+    &--unread:not(&--active) &Name::after {
+      content: "";
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      margin-left: 5px;
+      border-radius: 50%;
+      background: #fbbf24;
+      vertical-align: middle;
+    }
+  }
+
+  &--minimized &_tab {
+    border-radius: 9px;
+  }
+
+  &_tabName {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &_tabDot {
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #22c55e;
+    animation: llm-fd-pulse 1.2s ease-in-out infinite;
+  }
+
+  &_tabClose {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    line-height: 1;
+    opacity: 0.6;
+
+    &:hover {
+      opacity: 1;
+      background: rgba(0, 0, 0, 0.12);
+    }
+  }
+
+  &_actions {
+    display: flex;
+    flex-shrink: 0;
+    padding-bottom: 4px;
+  }
+
+  &--minimized &_actions {
+    padding-bottom: 0;
+  }
+
+  &_btn {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #fff;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  }
+
+  &_tabs &_btn {
+    align-self: center;
+  }
+}
+
+@keyframes llm-fd-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+// --- Conversación -------------------------------------------------------------
+.o_llm_fconv {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+
+  &_scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 14px 14px 6px;
+    scroll-behavior: auto;
+  }
+
+  &_empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 100%;
+    text-align: center;
+    color: $llm-fd-muted;
+    padding: 0 24px;
+  }
+
+  &_emptyIcon {
+    font-size: 1.6em;
+    color: $llm-fd-accent;
+    margin-bottom: 4px;
+  }
+}
+
+.o_llm_fmsg {
+  margin-bottom: 12px;
+
+  .o_Message_prettyBody {
+    line-height: 1.6;
+    word-break: break-word;
+
+    p:last-child {
+      margin-bottom: 0;
+    }
+
+    pre {
+      padding: 0.6em 0.75em;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.04);
+      font-size: 0.8em;
+    }
+
+    table {
+      font-size: 0.8em;
+    }
+  }
+
+  &--user {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  &--user &_bubble {
+    max-width: 85%;
+    padding: 8px 12px;
+    border-radius: 16px 16px 4px 16px;
+    background: rgba($llm-fd-accent, 0.1);
+  }
+
+  &_atts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  &_footer {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    min-height: 22px;
+
+    .o_llm_ficonbtn,
+    .o_llm_meta {
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+  }
+
+  &:hover &_footer {
+    .o_llm_ficonbtn,
+    .o_llm_meta {
+      opacity: 1;
+    }
+  }
+
+  &_note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: $llm-fd-muted;
+    font-size: 0.75em;
+    text-align: center;
+
+    &::before,
+    &::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: $llm-fd-border;
+    }
+
+    p {
+      margin: 0;
+      display: inline;
+    }
+  }
+}
+
+.o_llm_fdots {
+  display: inline-flex;
+  gap: 4px;
+  padding: 6px 0;
+
+  span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: $llm-fd-muted;
+    animation: llm-fd-pulse 1s ease-in-out infinite;
+
+    &:nth-child(2) {
+      animation-delay: 0.15s;
+    }
+
+    &:nth-child(3) {
+      animation-delay: 0.3s;
+    }
+  }
+}
+
+.o_llm_fgroup {
+  margin: 0 0 10px;
+
+  &_head {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    padding: 3px 9px 3px 6px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: $llm-fd-muted;
+    font-size: 0.82em;
+    text-align: left;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.04);
+      color: inherit;
+    }
+  }
+
+  &--running &_head {
+    cursor: default;
+  }
+
+  &--running &_label {
+    background: linear-gradient(90deg, $llm-fd-muted 0%, rgba(0, 0, 0, 0.25) 50%, $llm-fd-muted 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: llm-shimmer 2s linear infinite;
+  }
+
+  &_label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &_detail {
+    flex-shrink: 0;
+    font-size: 0.75em;
+    opacity: 0.8;
+
+    &::before {
+      content: "·";
+      margin-right: 6px;
+    }
+  }
+
+  &_chevron {
+    transition: transform 0.2s ease;
+  }
+
+  &--open &_chevron {
+    transform: rotate(180deg);
+  }
+
+  &_steps {
+    margin: 4px 0 0 8px;
+    padding-left: 8px;
+    border-left: 2px solid $llm-fd-border;
+  }
+}
+
+.o_llm_ferror {
+  margin: 4px 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+  font-size: 0.82em;
+}
+
+.o_llm_fchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 220px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: $llm-fd-soft;
+  border: 1px solid $llm-fd-border;
+  color: inherit;
+  font-size: 0.75em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &_x {
+    border: 0;
+    background: transparent;
+    padding: 0 0 0 2px;
+    line-height: 1;
+    opacity: 0.6;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+.o_llm_ficonbtn {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: $llm-fd-muted;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: inherit;
+  }
+}
+
+// --- Compositor ---------------------------------------------------------------
+.o_llm_fcomposer {
+  flex-shrink: 0;
+  margin: 6px 10px 10px;
+  padding: 6px 6px 4px 10px;
+  border: 1px solid $llm-fd-border;
+  border-radius: 14px;
+  background: $llm-fd-surface;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+  &:focus-within {
+    border-color: rgba($llm-fd-accent, 0.45);
+    box-shadow: 0 0 0 3px rgba($llm-fd-accent, 0.08);
+  }
+
+  &_atts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 2px 0 6px;
+  }
+
+  &_input {
+    display: block;
+    width: 100%;
+    max-height: 160px;
+    padding: 4px 0;
+    border: 0;
+    outline: none;
+    resize: none;
+    background: transparent;
+    line-height: 1.45;
+  }
+
+  &_bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+}
+
+.o_llm_fsend {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 50%;
+  background: $llm-fd-accent;
+  color: #fff;
+
+  &:disabled {
+    background: rgba(0, 0, 0, 0.15);
+  }
+
+  &--stop {
+    background: #1f2937;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .o_llm_fdock:not(.o_llm_fdock--minimized) {
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+  }
+}
+
+// Pasos y razonamiento dentro del dock: tamaños relativos al dock, no al <html>.
+.o_llm_fdock {
+  .o_llm_thinking,
+  .o_llm_step,
+  .o_llm_meta {
+    font-size: 13px;
+  }
+
+  .o_llm_thinking_body {
+    font-size: 12.5px;
+  }
+
+  .o_llm_step_target,
+  .o_llm_step_pre {
+    font-size: 11.5px;
+  }
+}

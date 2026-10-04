@@ -12,311 +12,387 @@ odoo.define('llm_experience/static/src/components/llm_context_meter/llm_context_
         useState,
     } = owl.hooks;
 
+    /** Radio del arco del gauge (viewBox 40x40, centro 20,20) */
     const GAUGE_R = 16;
+    const REFRESH_THROTTLE_MS = 800;
 
-    const MODES = [
-        { value: 'normal', label: 'Respuesta normal', abbr: 'RN', icon: 'fa-comments' },
-        { value: 'deep_thinking', label: 'Pensamiento profundo', abbr: 'PP', icon: 'fa-lightbulb-o' },
-        { value: 'deep_research', label: 'Investigación profunda', abbr: 'IP', icon: 'fa-search' },
-    ];
+    /** Barras encendidas por nivel (0 = rayo de instantáneo). */
+    const EFFORT_BARS = { instant: 0, low: 1, medium: 2, high: 3, xhigh: 4 };
+
+    function formatTokens(value) {
+        const n = Number(value) || 0;
+        if (n >= 1000000) {
+            return (n / 1000000).toFixed(n >= 10000000 ? 0 : 1) + 'M';
+        }
+        if (n >= 1000) {
+            return (n / 1000).toFixed(n >= 100000 ? 0 : 1) + 'k';
+        }
+        return String(n);
+    }
 
     class LLMContextMeter extends Component {
         constructor() {
             super(...arguments);
             this.rootRef = useRef('root');
-            this.triggerRef = useRef('trigger');
-            this.menuRef = useRef('menu');
-            this._menuLayoutListenersAttached = false;
-            this._onMenuLayoutEvent = this._onMenuLayoutEvent.bind(this);
+            this.effortTriggerRef = useRef('effortTrigger');
+            this.ringTriggerRef = useRef('ringTrigger');
+            this.popoverRef = useRef('popover');
             this.state = useState({
                 data: null,
-                menuOpen: false,
-                saving: false,
-                current: 'normal',
                 loaded: false,
-                selectorEnabled: true,
+                popover: null, // "effort" | "context" | null
+                busy: false,
+                confirmReset: false,
+                notice: '',
             });
-            this._onComposerInput = this._onComposerInput.bind(this);
+            this._lastFetch = 0;
+            this._pendingFetch = null;
+            this._layoutListeners = false;
+            this._onRefreshEvent = this._onRefreshEvent.bind(this);
             this._onDocClick = this._onDocClick.bind(this);
-            // Solo refrescar al recibir el evento de nuevo mensaje / fin de streaming.
-            // Antes había un setInterval(12s) que causaba flickering periódico.
-            window.addEventListener('llm-experience-refresh-meter', this._onComposerInput);
+            this._onLayout = this._onLayout.bind(this);
+            window.addEventListener('llm-experience-refresh-meter', this._onRefreshEvent);
 
             const self = this;
             onMounted(function () {
                 document.addEventListener('click', self._onDocClick);
             });
             onWillUnmount(function () {
-                self._detachMenuLayoutListeners();
-                window.removeEventListener('llm-experience-refresh-meter', self._onComposerInput);
+                window.removeEventListener('llm-experience-refresh-meter', self._onRefreshEvent);
                 document.removeEventListener('click', self._onDocClick);
+                self._toggleLayoutListeners(false);
+                clearTimeout(self._pendingFetch);
             });
             onWillUpdateProps(function (next) {
                 if (next.threadId !== self.props.threadId) {
-                    self.state.menuOpen = false;
-                    self.fetch();
+                    self.closePopover();
+                    self.fetch(next.threadId);
                 }
             });
             onWillStart(function () {
                 return self.fetch();
             });
             onPatched(function () {
-                if (self.state.menuOpen) {
+                if (self.state.popover) {
                     requestAnimationFrame(function () {
-                        self._syncMenuFixedPosition();
-                        requestAnimationFrame(function () {
-                            self._syncMenuFixedPosition();
-                        });
+                        self._positionPopover();
                     });
-                    self._attachMenuLayoutListeners();
+                    self._toggleLayoutListeners(true);
                 } else {
-                    self._detachMenuLayoutListeners();
-                    self._clearMenuFixedStyles();
+                    self._toggleLayoutListeners(false);
                 }
             });
         }
 
-        _attachMenuLayoutListeners() {
-            if (this._menuLayoutListenersAttached) {
-                return;
-            }
-            this._menuLayoutListenersAttached = true;
-            window.addEventListener('resize', this._onMenuLayoutEvent);
-            window.addEventListener('scroll', this._onMenuLayoutEvent, true);
-        }
+        // ------------------------------------------------------------------
+        // Datos
+        // ------------------------------------------------------------------
 
-        _detachMenuLayoutListeners() {
-            if (!this._menuLayoutListenersAttached) {
-                return;
-            }
-            this._menuLayoutListenersAttached = false;
-            window.removeEventListener('resize', this._onMenuLayoutEvent);
-            window.removeEventListener('scroll', this._onMenuLayoutEvent, true);
-        }
-
-        _onMenuLayoutEvent() {
-            if (this.state.menuOpen) {
-                this._syncMenuFixedPosition();
-            }
-        }
-
-        _syncMenuFixedPosition() {
-            const menu = this.menuRef.el;
-            const trigger = this.triggerRef.el;
-            if (!menu || !trigger) {
-                return;
-            }
-            const rect = trigger.getBoundingClientRect();
-            const pad = 8;
-            const gap = 6;
-            const mw = menu.offsetWidth || 220;
-            const mh = menu.offsetHeight || 1;
-            let left = rect.left;
-            if (left + mw > window.innerWidth - pad) {
-                left = window.innerWidth - pad - mw;
-            }
-            if (left < pad) {
-                left = pad;
-            }
-            let top = rect.top - mh - gap;
-            if (top < pad) {
-                top = rect.bottom + gap;
-            }
-            if (top + mh > window.innerHeight - pad) {
-                top = Math.max(pad, window.innerHeight - pad - mh);
-            }
-            menu.style.position = 'fixed';
-            menu.style.left = Math.round(left) + 'px';
-            menu.style.top = Math.round(top) + 'px';
-            menu.style.right = 'auto';
-            menu.style.bottom = 'auto';
-            menu.style.transform = 'none';
-            menu.style.zIndex = '1080';
-        }
-
-        _clearMenuFixedStyles() {
-            const menu = this.menuRef.el;
-            if (!menu) {
-                return;
-            }
-            menu.style.position = '';
-            menu.style.left = '';
-            menu.style.top = '';
-            menu.style.right = '';
-            menu.style.bottom = '';
-            menu.style.transform = '';
-            menu.style.zIndex = '';
-        }
-
-        _onComposerInput() {
-            this.fetch();
-        }
-
-        _onDocClick(ev) {
-            if (!this.state.menuOpen) {
-                return;
-            }
-            const el = this.rootRef.el;
-            if (el && !el.contains(ev.target)) {
-                this.state.menuOpen = false;
-                this._detachMenuLayoutListeners();
-            }
-        }
-
-        async fetch() {
-            const tid = this.props.threadId;
+        async fetch(threadId) {
+            const tid = threadId || this.props.threadId;
             if (!tid) {
                 this.state.data = null;
+                this.state.loaded = true;
                 return;
             }
+            this._lastFetch = Date.now();
             try {
                 const data = await this.env.services.rpc({
                     model: 'llm.thread',
                     method: 'experience_meter_rpc',
                     args: [tid],
                 });
-                if (data && !data.error) {
-                    this.state.data = data;
-                    this.state.current = data.work_mode || 'normal';
-                    this.state.selectorEnabled = data.work_mode_selector_enabled !== false;
-                    this.state.loaded = true;
-                } else {
-                    this.state.data = null;
-                    this.state.loaded = true;
-                }
+                this._applyPayload(data);
             } catch (e) {
                 this.state.data = null;
-                this.state.loaded = true;
+            }
+            this.state.loaded = true;
+        }
+
+        _applyPayload(data) {
+            if (data && !data.error) {
+                this.state.data = data;
             }
         }
 
-        get options() {
-            return MODES;
-        }
-
-        get currentOption() {
+        _onRefreshEvent() {
             const self = this;
-            const found = MODES.find(function (m) { return m.value === self.state.current; });
-            return found || MODES[0];
+            const wait = REFRESH_THROTTLE_MS - (Date.now() - this._lastFetch);
+            clearTimeout(this._pendingFetch);
+            if (wait <= 0) {
+                this.fetch();
+            } else {
+                this._pendingFetch = setTimeout(function () {
+                    self.fetch();
+                }, wait);
+            }
         }
 
-        get ariaLabel() {
-            return 'Contexto y modo: ' + this.currentOption.label;
+        async _call(method, extraArgs) {
+            this.state.busy = true;
+            this.state.notice = '';
+            try {
+                const data = await this.env.services.rpc({
+                    model: 'llm.thread',
+                    method: method,
+                    args: [this.props.threadId].concat(extraArgs || []),
+                });
+                this._applyPayload(data);
+                if (data && data.notice) {
+                    this.state.notice = data.notice;
+                }
+                if (data && data.note_message) {
+                    // El chat flotante no usa los modelos de mail: lo avisamos por evento.
+                    window.dispatchEvent(new CustomEvent('llm-thread-note', {
+                        detail: { threadId: this.props.threadId, message: data.note_message },
+                    }));
+                    this._insertMessage(data.note_message);
+                }
+                return data;
+            } catch (e) {
+                this.state.notice = (e && e.message && (e.message.data ? e.message.data.message : e.message)) || 'Error';
+            } finally {
+                this.state.busy = false;
+            }
         }
 
-        get ariaExpanded() {
-            return this.state.menuOpen ? 'true' : 'false';
+        _insertMessage(messageData) {
+            try {
+                const Message = this.env.models['mail.message'];
+                Message.insert(Message.convertData(messageData));
+                if (this.env.messagingBus) {
+                    this.env.messagingBus.trigger('llm-stream-update');
+                }
+            } catch (e) {
+                console.warn('llm_experience: no se pudo mostrar la nota en el chat', e);
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Getters de vista
+        // ------------------------------------------------------------------
+
+        get data() {
+            return this.state.data;
+        }
+
+        get selectorEnabled() {
+            return !!this.data && this.data.work_mode_selector_enabled !== false;
+        }
+
+        get effortOptions() {
+            return (this.data && this.data.reasoning_options) || [];
+        }
+
+        get currentEffort() {
+            const value = (this.data && this.data.reasoning_effort) || 'medium';
+            const found = this.effortOptions.find(function (o) {
+                return o.value === value;
+            });
+            return found || { value: value, label: value };
+        }
+
+        /** Glifo de nivel: rayo (instantáneo) o 4 barras con n encendidas. */
+        effortGlyph(value) {
+            const lit = value in EFFORT_BARS ? EFFORT_BARS[value] : 2;
+            return {
+                bolt: lit === 0,
+                bars: [1, 2, 3, 4].map(function (n) {
+                    return {
+                        n: n,
+                        cls: 'o_llm_exp__bar o_llm_exp__bar--' + n + (n <= lit ? ' o_llm_exp__bar--on' : ''),
+                    };
+                }),
+            };
         }
 
         get pct() {
-            const d = this.state.data;
+            const d = this.data;
             if (!d || !d.limit) {
                 return 0;
             }
             return Math.min(100, Math.round((100 * (d.live || 0)) / d.limit));
         }
 
-        get ringFillClass() {
-            const d = this.state.data;
-            const s = d && d.state;
-            let suf = 'normal';
-            if (s === 'critical') {
-                suf = 'critical';
-            } else if (s === 'warning') {
-                suf = 'warning';
-            }
-            return 'o_llm_ctxMeter__ring-fill o_llm_ctxMeter__ring-fill--' + suf;
+        get compactionPct() {
+            return Math.round(((this.data && this.data.compaction_ratio) || 0.85) * 100);
         }
 
-        get gaugeCircumference() {
-            return 2 * Math.PI * GAUGE_R;
+        get stateSuffix() {
+            const s = this.data && this.data.state;
+            return s === 'critical' || s === 'warning' ? s : 'normal';
         }
 
         get gaugeDashArray() {
-            return String(this.gaugeCircumference);
+            return String(2 * Math.PI * GAUGE_R);
         }
 
         get gaugeDashOffset() {
-            const c = this.gaugeCircumference;
-            return c * (1 - this.pct / 100);
+            return 2 * Math.PI * GAUGE_R * (1 - this.pct / 100);
         }
 
-        get ctxTitle() {
-            const d = this.state.data;
+        get ringTitle() {
+            const d = this.data;
             if (!d) {
                 return '';
             }
-            const last = d.last || {};
-            const costUsd =
-                d.cost_usd_total !== undefined && d.cost_usd_total !== null
-                    ? Number(d.cost_usd_total)
-                    : null;
-            const costCur = d.cost_currency || 'USD';
-            const lines = [
-                'Contexto: ' + (d.live || 0) + ' / ' + (d.limit || 0) + ' tokens (' + this.pct + '%).',
-                'Modo: ' + this.currentOption.label + ' (' + this.currentOption.abbr + ').',
-                'Umbrales: aviso ~' + Math.round((d.soft_ratio || 0.8) * 100) + ' % · compactación ~' + Math.round((d.hard_ratio || 0.92) * 100) + ' %.',
-            ];
-            if (costUsd !== null && !Number.isNaN(costUsd)) {
-                lines.splice(1, 0, 'Coste USD acumulado: ' + costUsd.toFixed(6) + ' ' + costCur + '.');
-            }
-            if (last.prompt != null || last.output != null) {
-                lines.push(
-                    'Última respuesta: prompt ' + (last.prompt || 0) + ', salida ' + (last.output || 0) + ', caché ' + (last.cached || 0) + ', pensamiento ' + (last.thoughts || 0) + '.'
-                );
-            }
-            if (d.billable_accumulated) {
-                lines.push('Acumulado facturable (tokens): ' + d.billable_accumulated + '.');
-            }
-            if (d.compaction_count) {
-                lines.push('Compactaciones: ' + d.compaction_count + '.');
-            }
-            if (this.state.selectorEnabled) {
-                lines.push('Clic en el gauge para cambiar el modo de trabajo.');
-            }
-            return lines.join('\n');
+            return 'Contexto: ' + formatTokens(d.live) + ' / ' + formatTokens(d.limit) + ' tokens (' + this.pct + ' %)';
         }
 
-        toggleMenu(ev) {
-            ev.stopPropagation();
-            if (this.state.saving || !this.state.selectorEnabled) {
-                return;
+        get compactionStatus() {
+            const d = this.data;
+            if (!d) {
+                return '';
             }
-            this.state.menuOpen = !this.state.menuOpen;
+            if (d.needs_compaction || d.state === 'critical') {
+                return 'Se resumirá automáticamente antes de la próxima respuesta.';
+            }
+            return 'Se resumirá automáticamente al ' + this.compactionPct + ' % · faltan ~' +
+                formatTokens(d.tokens_until_compaction) + ' tokens.';
         }
 
-        onPickMode(ev) {
-            ev.stopPropagation();
-            const mode = ev.currentTarget.getAttribute('data-mode');
-            if (mode) {
-                this.selectMode(mode, ev);
-            }
-        }
-
-        async selectMode(mode, ev) {
-            if (ev) {
-                ev.stopPropagation();
-            }
-            const tid = this.props.threadId;
-            if (!tid || this.state.saving || mode === this.state.current) {
-                this.state.menuOpen = false;
-                return;
-            }
-            this.state.saving = true;
-            this.state.menuOpen = false;
-            try {
-                await this.env.services.rpc({
-                    model: 'llm.thread',
-                    method: 'write',
-                    args: [[tid], { chat_work_mode: mode }],
+        get breakdown() {
+            var data = this.data;
+            return ((data && data.breakdown) || []).map(function (seg) {
+                return Object.assign({}, seg, {
+                    width: Math.max(1.5, seg.ratio * 100).toFixed(1) + '%',
+                    tokensLabel: formatTokens(seg.tokens),
                 });
-                this.state.current = mode;
-                window.dispatchEvent(new CustomEvent('llm-experience-refresh-meter'));
-            } catch (e) {
-                console.warn('llm_experience: no se pudo guardar modo de trabajo', e);
-            } finally {
-                this.state.saving = false;
+            });
+        }
+
+        get costLabel() {
+            const cost = Number(this.data && this.data.cost_usd_total);
+            if (Number.isNaN(cost)) {
+                return '';
             }
+            return cost.toFixed(cost >= 1 ? 2 : 4) + ' ' + (this.data.cost_currency || 'USD');
+        }
+
+        get lastCompactionLabel() {
+            const raw = this.data && this.data.last_compaction;
+            if (!raw) {
+                return '';
+            }
+            const date = new Date(raw.replace(' ', 'T') + 'Z');
+            return Number.isNaN(date.getTime()) ? raw : date.toLocaleString();
+        }
+
+        fmt(value) {
+            return formatTokens(value);
+        }
+
+        // ------------------------------------------------------------------
+        // Popovers
+        // ------------------------------------------------------------------
+
+        toggleEffortMenu(ev) {
+            ev.stopPropagation();
+            this._togglePopover('effort');
+        }
+
+        toggleContextCard(ev) {
+            ev.stopPropagation();
+            this._togglePopover('context');
+            if (this.state.popover === 'context') {
+                this.fetch();
+            }
+        }
+
+        _togglePopover(name) {
+            this.state.confirmReset = false;
+            this.state.notice = '';
+            this.state.popover = this.state.popover === name ? null : name;
+        }
+
+        closePopover() {
+            this.state.popover = null;
+            this.state.confirmReset = false;
+        }
+
+        _onDocClick(ev) {
+            if (!this.state.popover) {
+                return;
+            }
+            const root = this.rootRef.el;
+            const popover = this.popoverRef.el;
+            if ((root && root.contains(ev.target)) || (popover && popover.contains(ev.target))) {
+                return;
+            }
+            this.closePopover();
+        }
+
+        _toggleLayoutListeners(on) {
+            if (on === this._layoutListeners) {
+                return;
+            }
+            this._layoutListeners = on;
+            const method = on ? 'addEventListener' : 'removeEventListener';
+            window[method]('resize', this._onLayout);
+            window[method]('scroll', this._onLayout, true);
+        }
+
+        _onLayout() {
+            if (this.state.popover) {
+                this._positionPopover();
+            }
+        }
+
+        /** Coordenadas de viewport: evita recortes por overflow de ancestros. */
+        _positionPopover() {
+            const popover = this.popoverRef.el;
+            const trigger = this.state.popover === 'effort' ? this.effortTriggerRef.el : this.ringTriggerRef.el;
+            if (!popover || !trigger) {
+                return;
+            }
+            const rect = trigger.getBoundingClientRect();
+            const pad = 8;
+            const gap = 6;
+            const width = popover.offsetWidth;
+            const height = popover.offsetHeight;
+            let left = Math.min(rect.left, window.innerWidth - pad - width);
+            left = Math.max(pad, left);
+            let top = rect.top - height - gap;
+            if (top < pad) {
+                top = Math.min(rect.bottom + gap, window.innerHeight - pad - height);
+            }
+            popover.style.position = 'fixed';
+            popover.style.left = Math.round(left) + 'px';
+            popover.style.top = Math.round(Math.max(pad, top)) + 'px';
+            popover.style.zIndex = '1080';
+        }
+
+        // ------------------------------------------------------------------
+        // Acciones
+        // ------------------------------------------------------------------
+
+        async onPickEffort(ev) {
+            ev.stopPropagation();
+            const value = ev.currentTarget.dataset.value;
+            this.closePopover();
+            if (value && (!this.data || value !== this.data.reasoning_effort)) {
+                await this._call('experience_set_reasoning_effort_rpc', [value]);
+            }
+        }
+
+        async onToggleResearch(ev) {
+            ev.stopPropagation();
+            await this._call('experience_set_deep_research_rpc', [!(this.data && this.data.deep_research)]);
+        }
+
+        async onCompactNow(ev) {
+            ev.stopPropagation();
+            await this._call('experience_compact_now_rpc', []);
+        }
+
+        async onResetContext(ev) {
+            ev.stopPropagation();
+            if (!this.state.confirmReset) {
+                this.state.confirmReset = true;
+                return;
+            }
+            this.state.confirmReset = false;
+            await this._call('experience_reset_context_rpc', []);
         }
     }
 
@@ -324,6 +400,9 @@ odoo.define('llm_experience/static/src/components/llm_context_meter/llm_context_
     LLMContextMeter.props = {
         threadId: { type: Number, optional: true },
     };
+
+    // Disponible para el chat flotante de llm_thread (no depende de llm_experience).
+    require('llm_thread/static/src/js/llm_ui_utils.js').extraComponents.LLMContextMeter = LLMContextMeter;
 
     return LLMContextMeter;
 });

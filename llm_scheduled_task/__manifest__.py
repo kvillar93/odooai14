@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "LLM Tareas Programadas",
-    "version": "14.0.1.1.0",
+    "version": "14.0.1.1.1",
     "category": "Productivity",
     "summary": "Automatiza tareas LLM mediante prompts y cron jobs",
     "description": """

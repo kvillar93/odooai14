@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="llm_tool_odoo_active_screen" model="llm.tool">
+        <field name="name">odoo_active_screen</field>
+        <field name="implementation">odoo_active_screen</field>
+        <field name="description"><![CDATA[
+**odoo_active_screen** — lee la pantalla de Odoo que el usuario tiene abierta ahora mismo (detrás del chat flotante).
+
+Úsala cuando el usuario se refiera a lo que está viendo: «esto», «este registro», «esta factura», «esta pantalla», «lo que tengo abierto», «este reporte», «estos datos», etc. No pidas al usuario que copie la información: léela con esta herramienta.
+
+Devuelve: título, acción, modelo, tipo de vista, id del registro abierto, el texto visible en pantalla y, si `include_data` es true, los campos del registro abierto (vista formulario) o los registros listados (lista/kanban, hasta `limit`).
+]]></field>
+        <field name="default" eval="False" />
+        <field name="active" eval="True" />
+    </record>
+</odoo>

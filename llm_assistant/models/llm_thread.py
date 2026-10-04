@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 
 from odoo import api, fields, models
 from odoo.tools import html2plaintext
@@ -263,6 +264,7 @@ class LLMThread(models.Model):
         Args:
             prepend_messages (list): Pre-computed prepend messages to avoid duplicate calls
         """
+        # Use the new optimized method for LLM context
         message_history = self.get_llm_messages()
 
         role_counts = {}
@@ -284,6 +286,7 @@ class LLMThread(models.Model):
             "prepend_messages": prepend_messages,
             "llm_thread": self,
         }
+        chat_kwargs.update(self._get_extra_chat_kwargs())
         if use_streaming:
             # Handle streaming response - process tool calls directly from stream
             stream_response = self.sudo().model_id.chat(**chat_kwargs)
@@ -296,6 +299,10 @@ class LLMThread(models.Model):
             assistant_message = yield from self._handle_non_streaming_response(response)
 
         return assistant_message
+
+    def _get_extra_chat_kwargs(self):
+        """Hook: parámetros adicionales para ``model.chat`` (p. ej. esfuerzo de razonamiento)."""
+        return {}
 
     def get_llm_messages(self, limit=25):
         """Get the most recent LLM messages in chronological order.
@@ -381,26 +388,83 @@ class LLMThread(models.Model):
 
         return False
 
+    def _get_assistant_message_meta(self):
+        """Hook: metadatos a guardar en ``body_json`` de cada respuesta del asistente."""
+        return {}
+
     def _handle_streaming_response(self, stream_response):
-        """Handle streaming response from LLM provider with tool call processing."""
+        """Procesa el stream del proveedor: razonamiento, texto y tool calls.
+
+        El mensaje del asistente se crea con el primer fragmento de razonamiento
+        o de texto, de modo que la UI pueda mostrar «Pensando…» en vivo. Las
+        escrituras del razonamiento se agrupan para no saturar la base de datos.
+        """
         message = None
         accumulated_content = ""
+        thinking = ""
         collected_tool_calls = []
         gemini_content_json = None
+        usage_info = None
+        meta = self._get_assistant_message_meta()
+        started = time.monotonic()
+        thinking_started = None
+        thinking_ended = None
+        last_flush = 0.0
+
+        def _body_json(final=False):
+            data = dict(meta)
+            if collected_tool_calls:
+                data["tool_calls"] = collected_tool_calls
+            if gemini_content_json:
+                data["gemini_content_json"] = gemini_content_json
+            if thinking:
+                data["thinking"] = thinking
+                end = thinking_ended or (time.monotonic() if final else None)
+                if end:
+                    data["thinking_ms"] = int((end - thinking_started) * 1000)
+                else:
+                    data["thinking_active"] = True
+            if usage_info:
+                data["usage"] = usage_info
+            if final:
+                data["duration_ms"] = int((time.monotonic() - started) * 1000)
+            return data or None
+
+        def _ensure_message():
+            nonlocal message
+            if message is not None:
+                return False
+            message = self.message_post(
+                body="", body_json=_body_json(), llm_role="assistant", author_id=False
+            )
+            return True
 
         for chunk in stream_response:
-            # Initialize message on first content
-            if message is None and chunk.get("content"):
-                message = self.message_post(
-                    body="Thinking...", llm_role="assistant", author_id=False
-                )
-                yield {"type": "message_create", "message": message.message_format()[0]}
+            if chunk.get("thinking"):
+                if thinking_started is None:
+                    thinking_started = time.monotonic()
+                thinking += chunk["thinking"]
+                if _ensure_message():
+                    last_flush = time.monotonic()
+                    yield {"type": "message_create", "message": message.message_format()[0]}
+                elif time.monotonic() - last_flush > 0.35:
+                    last_flush = time.monotonic()
+                    message.write({"body_json": _body_json()})
+                    yield {"type": "message_chunk", "message": message.message_format()[0]}
 
-            # Handle content streaming
             if chunk.get("content"):
+                vals = {}
+                if thinking and thinking_ended is None:
+                    thinking_ended = time.monotonic()
+                    vals["body_json"] = _body_json()
+                created = _ensure_message()
                 accumulated_content += chunk["content"]
-                message.write({"body": self._process_llm_body(accumulated_content)})
-                yield {"type": "message_chunk", "message": message.message_format()[0]}
+                vals["body"] = self._process_llm_body(accumulated_content)
+                message.write(vals)
+                yield {
+                    "type": "message_create" if created else "message_chunk",
+                    "message": message.message_format()[0],
+                }
 
             # Collect tool calls for processing
             if chunk.get("tool_calls"):
@@ -415,39 +479,38 @@ class LLMThread(models.Model):
             elif chunk.get("gemini_model_content_b64") and not gemini_content_json:
                 gemini_content_json = chunk["gemini_model_content_b64"]
 
+            if chunk.get("usage_info"):
+                usage_info = chunk["usage_info"]
+
             # Handle errors
             if chunk.get("error"):
+                if message is not None:
+                    message.write({"body_json": _body_json(final=True)})
                 yield {"type": "error", "error": chunk["error"]}
                 return message
 
-        # CRITICAL FIX: Create assistant message IMMEDIATELY if we have tool calls
-        if collected_tool_calls:
-            body_json = {"tool_calls": collected_tool_calls}
-            if gemini_content_json:
-                body_json["gemini_content_json"] = gemini_content_json
+        if thinking and thinking_ended is None:
+            thinking_ended = time.monotonic()
 
+        if collected_tool_calls:
+            # Guardar el mensaje con las tool calls ANTES de volver al bucle.
             if not message:
-                # Create assistant message NOW, before returning to generate loop
                 message = self.message_post(
-                    body="",  # Empty body for tool-only responses
-                    body_json=body_json,
+                    body="",
+                    body_json=_body_json(final=True),
                     llm_role="assistant",
                     author_id=False,
                 )
-                # Commit to ensure message is saved before tool execution
                 self.env.cr.commit()
                 yield {"type": "message_create", "message": message.message_format()[0]}
             else:
-                # Update existing message with tool calls
-                message.write({"body_json": body_json})
-                # Commit to ensure update is saved
+                message.write({"body_json": _body_json(final=True)})
                 self.env.cr.commit()
                 yield {"type": "message_update", "message": message.message_format()[0]}
-        elif message and accumulated_content:
-            # Final update for assistant message without tool calls
-            vals = {"body": self._process_llm_body(accumulated_content)}
-            if gemini_content_json:
-                vals["body_json"] = {"gemini_content_json": gemini_content_json}
+        elif message:
+            vals = {"body_json": _body_json(final=True)}
+            if accumulated_content:
+                vals["body"] = self._process_llm_body(accumulated_content)
             message.write(vals)
             yield {"type": "message_update", "message": message.message_format()[0]}
 
@@ -470,6 +533,9 @@ class LLMThread(models.Model):
         snap = response.get("gemini_content_json") or response.get("gemini_model_content_b64")
         if snap:
             body_json["gemini_content_json"] = snap
+        if response.get("thinking"):
+            body_json["thinking"] = response["thinking"]
+        body_json.update(self._get_assistant_message_meta())
         body_json = body_json if body_json else None
 
         # Create assistant message with both content and tool calls
@@ -539,9 +605,17 @@ class LLMThread(models.Model):
             thread._generate_thread_title_with_ai()
 
     def _generate_thread_title_with_ai(self):
-        """Título corto generado por el modelo del hilo (no el texto truncado del primer prompt)."""
+        """Título corto generado por el modelo del hilo (no el texto truncado del primer prompt).
+
+        Con ``llm_title_provisional`` en el contexto también reemplaza el título
+        provisional puesto al enviar el primer mensaje, salvo que el usuario lo
+        haya renombrado (``title_auto_generated`` pasa a False).
+        """
         self.ensure_one()
-        if not self._is_default_thread_title():
+        replace_provisional = bool(
+            self.env.context.get("llm_title_provisional") and self.title_auto_generated
+        )
+        if not self._is_default_thread_title() and not replace_provisional:
             return
         user_msgs = self.message_ids.filtered(lambda m: m.llm_role == "user").sorted(
             "id"
@@ -570,7 +644,9 @@ class LLMThread(models.Model):
                 messages=messages,
                 model=self.model_id,
                 stream=False,
+                reasoning_effort="instant",
             )
+            result = self._collect_chat_result(result)
         except Exception as e:
             _logger.warning("No se pudo generar el título con IA: %s", e)
             self._apply_auto_title_from_first_user_message(
@@ -593,3 +669,24 @@ class LLMThread(models.Model):
         if len(title) > max_len:
             title = title[: max_len - 1].rstrip() + "…"
         self.write({"name": title, "title_auto_generated": True})
+
+    @api.model
+    def _collect_chat_result(self, result):
+        """Normaliza la salida de ``provider.chat(stream=False)`` a un dict.
+
+        Algunos proveedores (Anthropic) devuelven un generador incluso sin
+        streaming; se concatenan sus fragmentos.
+        """
+        if isinstance(result, dict) or result is None:
+            return result
+        content = []
+        out = {}
+        for chunk in result:
+            if not isinstance(chunk, dict):
+                continue
+            if chunk.get("error"):
+                out["error"] = chunk["error"]
+            if chunk.get("content"):
+                content.append(chunk["content"])
+        out["content"] = "".join(content)
+        return out

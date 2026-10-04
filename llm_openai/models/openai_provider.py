@@ -1,6 +1,7 @@
 import io
 import json
 import logging
+import re
 import uuid
 
 from openai import OpenAI
@@ -11,6 +12,15 @@ from odoo.exceptions import UserError
 from ..utils.openai_message_validator import OpenAIMessageValidator
 
 _logger = logging.getLogger(__name__)
+
+_OPENAI_REASONING_MODEL_RE = re.compile(r"^(o\d|gpt-5)")
+_OPENAI_REASONING_EFFORT = {
+    "instant": "minimal",
+    "low": "low",
+    "medium": "medium",
+    "high": "high",
+    "xhigh": "high",
+}
 
 # Búsqueda web nativa OpenAI (documentación): tool integrada "web_search" en la Responses API,
 # o modelos gpt-4o-search-preview / gpt-5-search-api en Chat Completions. Este módulo usa
@@ -161,8 +171,13 @@ class LLMProvider(models.Model):
         tools=None,
         tool_choice="auto",
         prepend_messages=None,
+        **kwargs,
     ):
-        """Send chat messages using OpenAI with tools support"""
+        """Send chat messages using OpenAI with tools support.
+
+        ``reasoning_effort`` (instant | low | medium | high | xhigh) se envía
+        sólo a modelos razonadores (o-series / gpt-5); otros lo rechazan.
+        """
         model = self.get_model(model, "chat")
 
         # Prepare request parameters
@@ -174,6 +189,9 @@ class LLMProvider(models.Model):
             prepend_messages=prepend_messages,
             tool_choice=tool_choice,
         )
+        effort = _OPENAI_REASONING_EFFORT.get(kwargs.get("reasoning_effort"))
+        if effort and _OPENAI_REASONING_MODEL_RE.match((model.name or "").lower()):
+            params["reasoning_effort"] = effort
 
         # Make the API call
         response = self.client.chat.completions.create(**params)

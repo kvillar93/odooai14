@@ -27,7 +27,7 @@ odoo.define('llm_experience/static/src/components/llm_chat_composer_experience/l
             if (
                 this.thread &&
                 this.thread.model === 'llm.thread' &&
-                (data.type === 'done' || data.type === 'error')
+                ['done', 'error', 'tool_end'].indexOf(data.type) !== -1
             ) {
                 _refreshMeter();
             }

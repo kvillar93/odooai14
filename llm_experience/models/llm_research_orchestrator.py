@@ -41,10 +41,15 @@ class LLMResearchOrchestrator:
             "en español, máximo 6 pasos, para investigar: %s"
         ) % (user_text[:2000],)
         try:
-            out = thread.sudo().provider_id.chat(
-                messages=[{"role": "user", "content": prompt}],
-                model=thread.model_id,
-                stream=False,
+            out = thread._collect_chat_result(
+                thread.sudo().provider_id.chat(
+                    messages=[{"role": "user", "content": prompt}],
+                    model=thread.model_id,
+                    stream=False,
+                    reasoning_effort="low",
+                    tool_choice="none",
+                    llm_thread=thread.with_context(llm_compaction_call=True),
+                )
             )
             raw = (out or {}).get("content") or ""
             start = raw.find("{")

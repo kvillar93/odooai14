@@ -180,6 +180,11 @@ class LLMThread(models.Model):
         string="Ocultar ajustes de cabecera",
         default=False,
     )
+    screen_context_json = fields.Json(
+        string="Pantalla activa del usuario",
+        help="Última pantalla de Odoo que el usuario tenía abierta al enviar un "
+        "mensaje desde el chat flotante (modelo, registro, vista y texto visible).",
+    )
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -328,9 +333,17 @@ class LLMThread(models.Model):
         # :bar_chart:, :white_check_mark:, etc. → Unicode (mejor presentación en el chat)
         body = emoji.emojize(str(body), language="alias")
 
+        # middle-word-em=False: sin esto «campo_x_id» se convierte en
+        # campo<em>x</em>id y llega al modelo como «campo/x/id» (html2plaintext),
+        # lo que rompe nombres de campos y modelos de Odoo.
         return markdown2.markdown(
             body,
-            extras=["tables", "fenced-code-blocks", "break-on-newline"],
+            extras={
+                "tables": None,
+                "fenced-code-blocks": None,
+                "break-on-newline": None,
+                "middle-word-em": False,
+            },
         )
 
     # ============================================================================
@@ -424,11 +437,14 @@ class LLMThread(models.Model):
         self.ensure_one()
 
         attachment_ids = kwargs.pop("attachment_ids", None)
+        screen_context = kwargs.pop("screen_context", None)
 
         with self._generation_lock():
             last_message = False
+            provisional_title = False
             # Post user message if provided (texto y/o adjuntos)
             if user_message_body or attachment_ids:
+                self._llm_set_screen_context(screen_context)
                 post_kwargs = dict(kwargs)
                 if attachment_ids:
                     # message_post espera list[int], no comandos M2M [(6, 0, ...)].
@@ -444,22 +460,85 @@ class LLMThread(models.Model):
                     "type": "message_create",
                     "message": last_message.message_format()[0],
                 }
+                # Título provisional inmediato; la IA lo afina al terminar el turno.
+                if self._is_default_thread_title():
+                    self._apply_auto_title_from_first_user_message(
+                        user_message_body, attachment_ids
+                    )
+                    if not self._is_default_thread_title():
+                        provisional_title = True
+                        yield self._llm_thread_update_event()
 
             # Call the actual generation implementation
             last_message = yield from self.generate_messages(last_message)
-            self._maybe_generate_thread_title()
-
-            # Notificar al frontend del nombre actualizado DENTRO de la transacción,
-            # antes de que el cursor haga commit.  Si se esperara al refreshThread del
-            # evento 'done', la DB aún no habría commiteado y el cliente vería el
-            # nombre anterior.
-            yield {
-                "type": "thread_name_update",
-                "thread_id": self.id,
-                "name": self.name,
-            }
-
+            name_before = self.name
+            self.with_context(
+                llm_title_provisional=provisional_title
+            )._maybe_generate_thread_title()
+            if self.name != name_before:
+                yield self._llm_thread_update_event()
             return last_message
+
+    def _llm_thread_update_event(self):
+        """Evento SSE + notificación de bus con los datos visibles del hilo."""
+        self.ensure_one()
+        payload = {"id": self.id, "name": self.name}
+        self.env.cr.commit()
+        self._llm_bus_send("llm.thread/update", payload)
+        return {"type": "thread_update", "thread": payload}
+
+    def _llm_bus_send(self, notification_type, payload):
+        try:
+            partner = self.user_id.partner_id or self.env.user.partner_id
+            self.env["bus.bus"].sendone(
+                (self._cr.dbname, "res.partner", partner.id),
+                dict(payload, type=notification_type),
+            )
+        except Exception as err:
+            _logger.debug("Bus %s no enviado: %s", notification_type, err)
+
+    def _llm_set_screen_context(self, screen_context):
+        """Guarda la pantalla activa del usuario y habilita la tool que la lee."""
+        self.ensure_one()
+        if not isinstance(screen_context, dict) or screen_context.get("is_llm_chat"):
+            screen_context = None
+        if screen_context:
+            visible = screen_context.get("visible_text") or ""
+            if len(visible) > 30000:
+                screen_context = dict(screen_context, visible_text=visible[:30000])
+        vals = {"screen_context_json": screen_context or False}
+        tool = self.env.ref(
+            "llm_thread.llm_tool_odoo_active_screen", raise_if_not_found=False
+        )
+        if screen_context and tool and tool.active and tool not in self.tool_ids:
+            vals["tool_ids"] = [(4, tool.id)]
+        self.write(vals)
+
+    @api.model
+    def llm_ui_load_messages(self, thread_id, limit=60, before_id=False):
+        """Mensajes de un hilo para el chat flotante (formato ``message_format``)."""
+        thread = self.browse(int(thread_id))
+        if not thread.exists():
+            return {"messages": [], "has_more": False}
+        thread.check_access_rights("read")
+        thread.check_access_rule("read")
+        domain = [
+            ("model", "=", self._name),
+            ("res_id", "=", thread.id),
+            ("message_type", "!=", "user_notification"),
+        ]
+        if before_id:
+            domain.append(("id", "<", int(before_id)))
+        messages = self.env["mail.message"].search(
+            domain, order="id desc", limit=int(limit) + 1
+        )
+        has_more = len(messages) > limit
+        messages = messages[:limit].sorted("id")
+        return {
+            "messages": messages.message_format(),
+            "has_more": has_more,
+            "thread": {"id": thread.id, "name": thread.name},
+        }
 
     def generate_messages(self, last_message=None):
         """Generate messages - to be overridden by llm_assistant module."""

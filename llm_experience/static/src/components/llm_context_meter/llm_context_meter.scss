@@ -1,136 +1,379 @@
-// Evita que el menú del gauge quede recortado por la píldora del compositor
+// Evita que los popovers del medidor queden recortados por la píldora del compositor
 .o_LLMChatComposer.o_LLMChatComposer--modern {
   .o_LLMChatComposer_pill,
-  .o_LLMChatComposer_pillBody {
-    overflow: visible;
-  }
-
+  .o_LLMChatComposer_pillBody,
   .o_LLMChatComposer_container {
     overflow: visible;
   }
 }
 
-.o_llm_ctxMeter {
-  &--wrap {
-    z-index: 12;
-    overflow: visible;
+$llm-exp-green: #16a34a;
+$llm-exp-amber: #d97706;
+$llm-exp-red: #dc2626;
+$llm-exp-muted: rgba(0, 0, 0, 0.12);
+
+.o_llm_exp {
+  position: relative;
+  z-index: 12;
+  gap: 2px;
+
+  .btn {
+    box-shadow: none;
   }
 
-  &__trigger {
-    line-height: 0;
-    border-radius: 50%;
-    background: transparent !important;
-    opacity: 0.92;
-    cursor: pointer;
+  &__effort,
+  &__ring {
+    gap: 5px;
+    padding: 2px 8px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--llm-text, #374151);
+    font-size: 0.78rem;
+    line-height: 1.2;
+    white-space: nowrap;
 
-    &:hover:not(:disabled) {
-      opacity: 1;
-      filter: brightness(0.97);
+    &:hover:not(:disabled),
+    &[aria-expanded="true"] {
+      background: rgba(0, 0, 0, 0.06);
     }
 
     &:focus-visible {
       outline: 2px solid rgba(13, 110, 253, 0.45);
-      outline-offset: 2px;
+      outline-offset: 1px;
     }
   }
 
-  &__gauge {
-    position: relative;
-    display: inline-block;
-    width: 28px;
-    height: 28px;
+  &__effortLabel {
+    font-weight: 500;
   }
 
-  &__gaugeOnly {
-    line-height: 0;
+  &__caret {
+    opacity: 0.55;
+    font-size: 0.75rem;
+  }
+
+  &__researchBadge {
+    color: #2563eb;
+    font-size: 0.7rem;
+  }
+
+  // Glifo de nivel: 4 barras tipo "señal" o un rayo (instantáneo)
+  &__glyph {
+    display: inline-flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 1.5px;
+    width: 14px;
+    height: 12px;
+    flex-shrink: 0;
+
+    .fa {
+      font-size: 0.8rem;
+      line-height: 12px;
+      color: $llm-exp-amber;
+    }
+  }
+
+  &__bar {
+    width: 2.5px;
+    border-radius: 1px;
+    background: $llm-exp-muted;
+
+    &--1 { height: 4px; }
+    &--2 { height: 6.5px; }
+    &--3 { height: 9px; }
+    &--4 { height: 12px; }
+
+    &--on {
+      background: currentColor;
+    }
   }
 
   &__svg {
-    width: 28px;
-    height: 28px;
+    width: 18px;
+    height: 18px;
     display: block;
-
-    &--muted {
-      opacity: 0.45;
-    }
   }
 
-  &__abbr {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -52%);
-    font-size: 6.5px;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
-    line-height: 1;
-    color: var(--llm-text, #374151);
-    pointer-events: none;
-    max-width: 20px;
-    overflow: hidden;
-    text-overflow: clip;
-    white-space: nowrap;
+  &__ringBg {
+    stroke: $llm-exp-muted;
   }
 
-  &__ring-bg {
-    stroke: rgba(0, 0, 0, 0.1);
-  }
-
-  &__ring-fill {
+  &__ringFill {
     transition: stroke-dashoffset 0.35s ease, stroke 0.2s ease;
 
-    &--normal {
-      stroke: #16a34a;
-    }
-
-    &--warning {
-      stroke: #d97706;
-    }
-
-    &--critical {
-      stroke: #dc2626;
-    }
+    &--normal { stroke: $llm-exp-green; }
+    &--warning { stroke: $llm-exp-amber; }
+    &--critical { stroke: $llm-exp-red; }
   }
 
-  /* Posición: la fija el JS (viewport) para no recortarse por overflow de ancestros */
-  &__menu {
-    min-width: 220px;
-    max-width: 280px;
-    border-radius: 0.5rem;
+  &__pct {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.72rem;
+    opacity: 0.8;
+  }
+
+  &__placeholder {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    margin: 0 8px;
+    border-radius: 50%;
+    border: 3px solid $llm-exp-muted;
+  }
+
+  // Popovers (posición fija calculada en JS)
+  &__popover {
+    position: fixed;
+    background-color: #fff;
+    border-radius: 0.6rem;
+    padding: 6px;
     box-sizing: border-box;
-    padding-left: 0.35rem;
-    padding-right: 0.35rem;
+    font-size: 0.8rem;
+  }
+
+  &__menu {
+    width: #{"min(300px, calc(100vw - 16px))"};
+  }
+
+  &__card {
+    width: #{"min(340px, calc(100vw - 16px))"};
+    padding: 10px 12px;
+  }
+
+  &__popTitle {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    padding: 2px 6px 6px;
   }
 
   &__item {
-    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 7px 8px;
+    border: 0;
+    border-radius: 0.4rem;
+    background: transparent;
     color: inherit;
+    text-align: start;
     cursor: pointer;
-    border-radius: 0.35rem;
 
-    &:hover,
+    &:hover:not(:disabled),
     &--active {
-      background-color: rgba(0, 0, 0, 0.06);
+      background: rgba(0, 0, 0, 0.06);
     }
   }
 
-  &__itemIcon {
-    width: 1rem;
-    text-align: center;
-    opacity: 0.85;
-  }
-
-  &__itemAbbr {
-    font-size: 0.65rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    min-width: 1.5rem;
+  &__itemText {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
   }
 
   &__itemLabel {
-    flex: 1;
-    font-size: 0.75rem;
-    opacity: 0.92;
+    font-weight: 600;
+  }
+
+  &__itemDesc {
+    font-size: 0.72rem;
+    opacity: 0.7;
+    white-space: normal;
+  }
+
+  &__check {
+    color: #2563eb;
+  }
+
+  &__note {
+    margin: 4px 8px 2px;
+    font-size: 0.72rem;
+    opacity: 0.75;
+  }
+
+  &__divider {
+    height: 1px;
+    margin: 6px 4px;
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  &__switch {
+    position: relative;
+    width: 28px;
+    height: 16px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.18);
+    transition: background 0.2s ease;
+
+    &::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform 0.2s ease;
+    }
+
+    &--on {
+      background: #2563eb;
+
+      &::after {
+        transform: translateX(12px);
+      }
+    }
+  }
+
+  &__cardHead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+
+    .o_llm_exp__popTitle {
+      padding: 0;
+    }
+  }
+
+  &__model {
+    font-size: 0.72rem;
+    opacity: 0.6;
+    max-width: 60%;
+  }
+
+  &__bigline {
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 6px;
+  }
+
+  &__bigPct {
+    float: right;
+    font-weight: 700;
+
+    &--normal { color: $llm-exp-green; }
+    &--warning { color: $llm-exp-amber; }
+    &--critical { color: $llm-exp-red; }
+  }
+
+  &__bar-track {
+    position: relative;
+    height: 6px;
+    border-radius: 999px;
+    background: $llm-exp-muted;
+  }
+
+  &__bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.35s ease;
+
+    &--normal { background: $llm-exp-green; }
+    &--warning { background: $llm-exp-amber; }
+    &--critical { background: $llm-exp-red; }
+  }
+
+  &__bar-marker {
+    position: absolute;
+    top: -3px;
+    width: 2px;
+    height: 12px;
+    margin-left: -1px;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 1px;
+  }
+
+  &__status {
+    margin-top: 6px;
+    font-size: 0.74rem;
+    opacity: 0.8;
+  }
+
+  &__composition {
+    margin-top: 10px;
+  }
+
+  &__compBar {
+    display: flex;
+    gap: 2px;
+    height: 6px;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  &__compSeg {
+    display: block;
+    height: 100%;
+
+    &--system { background: #8b5cf6; }
+    &--tools { background: #0ea5e9; }
+    &--summary { background: #f59e0b; }
+    &--history { background: #10b981; }
+  }
+
+  &__compLegend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    margin-top: 6px;
+    font-size: 0.72rem;
+  }
+
+  &__compItem {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  &__compDot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+  }
+
+  &__compTokens {
+    opacity: 0.6;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__stats {
+    margin: 10px 0 6px;
+    font-size: 0.74rem;
+
+    dt {
+      font-weight: 600;
+      margin-top: 6px;
+    }
+
+    dd {
+      margin: 0;
+      opacity: 0.8;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  &__notice {
+    margin: 6px 0;
+    font-size: 0.74rem;
+    color: $llm-exp-amber;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
   }
 }

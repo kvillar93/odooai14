@@ -5,11 +5,18 @@ odoo.define('llm_thread/static/src/models/message.js', function (require) {
     const ModelField = require('mail/static/src/model/model_field.js');
 
     const attr = ModelField.attr;
+    const llmUi = require('llm_thread/static/src/js/llm_ui_utils.js');
 
     registerClassPatchModel('mail.message', 'llm_thread/static/src/models/message.js', {
         convertData(data) {
             if ('channel_ids' in data && data.channel_ids && !Array.isArray(data.channel_ids)) {
                 data = Object.assign({}, data, { channel_ids: [] });
+            }
+            // ``record_name`` es el nombre del hilo cuando se creó el mensaje: si
+            // llega, pisa el título actual del chat con uno antiguo («New Chat #N»).
+            if (data.model === 'llm.thread' && 'record_name' in data) {
+                data = Object.assign({}, data);
+                delete data.record_name;
             }
             const data2 = this._super.apply(this, [data]);
             if ('user_vote' in data) {
@@ -71,6 +78,43 @@ odoo.define('llm_thread/static/src/models/message.js', function (require) {
             compute: '_computeToolCalls',
             dependencies: ['toolData'],
         }),
+        llmThinking: attr({
+            compute: '_computeLlmThinking',
+            dependencies: ['llmRole', 'bodyJson'],
+        }),
+        llmThinkingHtml: attr({
+            compute: '_computeLlmThinkingHtml',
+            dependencies: ['llmThinking'],
+        }),
+        llmThinkingActive: attr({
+            compute: '_computeLlmThinkingActive',
+            dependencies: ['bodyJson'],
+        }),
+        llmThinkingLabel: attr({
+            compute: '_computeLlmThinkingLabel',
+            dependencies: ['llmThinking', 'llmThinkingActive', 'bodyJson'],
+        }),
+        llmIsToolCallOnly: attr({
+            compute: '_computeLlmIsToolCallOnly',
+            dependencies: ['llmRole', 'toolCalls', 'body'],
+        }),
+        llmToolStep: attr({
+            compute: '_computeLlmToolStep',
+            dependencies: ['llmRole', 'toolData'],
+        }),
+        llmToolArgsFormatted: attr({
+            compute: '_computeLlmToolArgsFormatted',
+            dependencies: ['toolData'],
+        }),
+        llmMetaLine: attr({
+            compute: '_computeLlmMetaLine',
+            dependencies: ['llmRole', 'llmIsToolCallOnly', 'bodyJson'],
+        }),
+        /** Clase de presentación: tool | hidden | thinkingOnly | contextNote | assistant. */
+        llmKind: attr({
+            compute: '_computeLlmKind',
+            dependencies: ['llmRole', 'llmIsToolCallOnly', 'llmThinking', 'body'],
+        }),
         isEmpty: attr({
             dependencies: [
                 'attachments',
@@ -88,6 +132,88 @@ odoo.define('llm_thread/static/src/models/message.js', function (require) {
                 return false;
             }
             return this._super.apply(this, arguments);
+        },
+
+        _computeLlmThinking() {
+            var data = this.bodyJson;
+            return (this.llmRole === 'assistant' && data && data.thinking) || '';
+        },
+
+        _computeLlmThinkingHtml() {
+            return this.llmThinking ? llmUi.thinkingToHtml(this.llmThinking) : '';
+        },
+
+        _computeLlmThinkingActive() {
+            return Boolean(this.bodyJson && this.bodyJson.thinking_active);
+        },
+
+        _computeLlmThinkingLabel() {
+            if (!this.llmThinking) {
+                return '';
+            }
+            if (this.llmThinkingActive) {
+                return llmUi.thinkingHeadline(this.llmThinking) || 'Pensando…';
+            }
+            var ms = this.bodyJson && this.bodyJson.thinking_ms;
+            return ms ? 'Pensó durante ' + llmUi.formatDuration(ms) : 'Razonamiento';
+        },
+
+        _computeLlmIsToolCallOnly() {
+            if (this.llmRole !== 'assistant' || !(this.toolCalls && this.toolCalls.length)) {
+                return false;
+            }
+            return !String(this.body || '').replace(/<[^>]*>/g, '').trim();
+        },
+
+        _computeLlmToolStep() {
+            if (this.llmRole !== 'tool') {
+                return null;
+            }
+            var data = this.toolData || {};
+            var call = data.tool_call || {};
+            var rawArgs = data.arguments || (call.function && call.function.arguments);
+            var step = llmUi.describeToolStep(data.tool_name, rawArgs, data.status, data.result);
+            step.duration = data.duration_ms ? llmUi.formatDuration(data.duration_ms) : '';
+            step.running = data.status === 'requested' || data.status === 'executing';
+            step.error = data.status === 'error' ? String(data.error || '') : '';
+            return step;
+        },
+
+        _computeLlmToolArgsFormatted() {
+            var data = this.toolData || {};
+            var call = data.tool_call || {};
+            var raw = data.arguments || (call.function && call.function.arguments);
+            if (!raw) {
+                return '{}';
+            }
+            try {
+                return JSON.stringify(typeof raw === 'string' ? JSON.parse(raw) : raw, null, 2);
+            } catch (e) {
+                return String(raw);
+            }
+        },
+
+        _computeLlmMetaLine() {
+            if (this.llmRole !== 'assistant' || this.llmIsToolCallOnly) {
+                return '';
+            }
+            return llmUi.responseMetaLine(this.bodyJson);
+        },
+
+        _computeLlmKind() {
+            if (this.llmRole === 'tool') {
+                return 'tool';
+            }
+            if (this.llmRole === 'assistant') {
+                if (this.llmIsToolCallOnly) {
+                    return this.llmThinking ? 'thinkingOnly' : 'hidden';
+                }
+                return 'assistant';
+            }
+            if (!this.llmRole && llmUi.isContextNoteBody(this.body)) {
+                return 'contextNote';
+            }
+            return '';
         },
 
         _computeToolData() {
