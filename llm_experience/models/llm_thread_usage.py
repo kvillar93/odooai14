@@ -117,7 +117,6 @@ class LLMThread(models.Model):
     reasoning_effort = fields.Selection(
         REASONING_EFFORT_SELECTION,
         string="Esfuerzo de razonamiento",
-        default=lambda self: self.env.user.llm_reasoning_effort,
         help="Cuánto razona el modelo antes de responder. Cada proveedor lo traduce "
         "a su parámetro nativo (thinking_level, thinking budget, reasoning_effort).",
     )
@@ -521,7 +520,12 @@ class LLMThread(models.Model):
         if not thread or effort not in dict(REASONING_EFFORT_SELECTION):
             return {"error": "forbidden"}
         thread.write({"reasoning_effort": effort})
-        self.env.user.sudo().write({"llm_reasoning_effort": effort})
+        # Preferencia por usuario en ir.default (no en res.users): default_get la
+        # aplica a los hilos nuevos y no exige columnas nuevas en una tabla que
+        # se lee en cada petición (login, portal) aunque el módulo no esté actualizado.
+        self.env["ir.default"].sudo().set(
+            "llm.thread", "reasoning_effort", effort, user_id=self.env.user.id
+        )
         return thread.get_usage_meter_payload()
 
     @api.model

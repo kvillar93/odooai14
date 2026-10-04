@@ -2,7 +2,6 @@
 from . import ir_http
 from . import llm_reasoning
 from . import llm_model
-from . import res_users
 from . import mail_message
 from . import llm_assistant
 from . import llm_usage_tracker
